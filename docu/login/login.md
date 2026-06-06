@@ -25,7 +25,40 @@
 7. Navega a `MainActivity`, `finish()` para sacar LoginActivity del backstack
 
 ### TODOs / Próximos pasos
-- [ ] Cambiar `BASE_URL` en `ApiClient.java` al URL real del servidor (hoy apunta a emulador local `10.0.2.2:8000`)
-- [ ] Implementar logout: borrar token de SharedPreferences + `googleSignInClient.signOut()` + volver a LoginActivity
+- [x] Cambiar `BASE_URL` a `10.0.2.2:8080`
+- [x] Implementar logout
 - [ ] Agregar manejo de SHA-1 en Google Cloud Console para builds de release
 - [ ] Mostrar nombre/foto del usuario en MainActivity después del login
+
+---
+
+## [2026-06-06] Login email/password + Register + Logout
+
+### Archivos tocados
+- `LoginActivity.java` — agregado login email/password + enlace a RegisterActivity, Google Sign-In mantenido
+- `RegisterActivity.java` — nuevo, register con validación local (campos vacíos, contraseñas coinciden, mín 8 chars) → POST /api/register → guarda token → MainActivity
+- `model/LoginRequest.java` — nuevo POJO `{ email, password }`
+- `model/RegisterRequest.java` — nuevo POJO `{ name, email, password, password_confirmation }`
+- `network/ApiService.java` — agregado `POST login`, `POST register`, `POST logout`
+- `activity_login.xml` — rediseñado: campos email/password + botón login + link register + botón Google
+- `activity_register.xml` — nuevo layout con 4 campos + botón register + link volver login
+- `activity_main.xml` — agregado `btn_logout` y `tv_welcome`
+- `MainActivity.java` — agregado logout: POST /api/logout → clear SharedPreferences → GoogleSignIn.signOut() → LoginActivity
+- `AndroidManifest.xml` — registrado RegisterActivity
+
+### Flujo login email/password
+1. LoginActivity → email + password → validación no vacío
+2. POST /api/login → token → SharedPreferences → MainActivity
+
+### Flujo register
+1. RegisterActivity → validación local → POST /api/register
+2. Si éxito → guarda token → MainActivity con FLAG_CLEAR_TASK
+
+### Flujo logout
+1. MainActivity → btn_logout → POST /api/logout con Bearer token
+2. Éxito o falla → clear prefs + GoogleSignIn.signOut() → LoginActivity con FLAG_CLEAR_TASK
+
+### TODOs / Próximos pasos
+- [ ] SHA-1 para builds de release en Google Cloud Console
+- [ ] Mostrar nombre/avatar del usuario en MainActivity
+- [ ] Manejar respuesta 422 de Laravel (errores de validación) con mensajes específicos
