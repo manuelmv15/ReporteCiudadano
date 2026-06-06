@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">ReporteCiudadano</string>
+    <string name="google_web_client_id">277189237069-8s1dmb87hhn8m89ic463p55r8p6n7pdu.apps.googleusercontent.com</string>
+    <string name="api_base_url">http://10.0.2.2:8080/api/</string>
 </resources>

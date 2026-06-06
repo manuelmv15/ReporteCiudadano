@@ -10,7 +10,6 @@ import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity {
 
-    //277189237069-ssvguv6injumgblbvm3i1g8rr06f8172.apps.googleusercontent.com
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
