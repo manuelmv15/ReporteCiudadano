@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -22,6 +21,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
+import com.bombayashi.reporteciudadano.ui.SnackbarHelper;
 import com.google.android.material.textfield.TextInputEditText;
 
 import retrofit2.Call;
@@ -35,7 +35,6 @@ public class LoginActivity extends AppCompatActivity {
 
     private GoogleSignInClient googleSignInClient;
     private ProgressBar progressBar;
-    private TextView tvError;
     private TextInputEditText etEmail, etPassword;
 
     private final ActivityResultLauncher<Intent> signInLauncher = registerForActivityResult(
@@ -59,7 +58,6 @@ public class LoginActivity extends AppCompatActivity {
         setContentView(R.layout.activity_login);
 
         progressBar = findViewById(R.id.progress_bar);
-        tvError = findViewById(R.id.tv_error);
         etEmail = findViewById(R.id.et_email);
         etPassword = findViewById(R.id.et_password);
 
@@ -155,11 +153,13 @@ public class LoginActivity extends AppCompatActivity {
 
     private void setLoading(boolean loading) {
         progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
-        tvError.setVisibility(View.GONE);
     }
 
     private void showError(String msg) {
-        tvError.setText(msg);
-        tvError.setVisibility(View.VISIBLE);
+        SnackbarHelper.show(
+                findViewById(android.R.id.content),
+                msg,
+                SnackbarHelper.Variant.ERROR
+        );
     }
 }

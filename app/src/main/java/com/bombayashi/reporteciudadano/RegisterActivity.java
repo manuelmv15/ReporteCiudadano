@@ -5,13 +5,13 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.network.ApiClient;
+import com.bombayashi.reporteciudadano.ui.SnackbarHelper;
 import com.google.android.material.textfield.TextInputEditText;
 
 import retrofit2.Call;
@@ -22,7 +22,6 @@ public class RegisterActivity extends AppCompatActivity {
 
     private TextInputEditText etName, etEmail, etPassword, etPasswordConfirm;
     private ProgressBar progressBar;
-    private TextView tvError;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +33,6 @@ public class RegisterActivity extends AppCompatActivity {
         etPassword = findViewById(R.id.et_password);
         etPasswordConfirm = findViewById(R.id.et_password_confirm);
         progressBar = findViewById(R.id.progress_bar);
-        tvError = findViewById(R.id.tv_error);
 
         findViewById(R.id.btn_register).setOnClickListener(v -> doRegister());
         findViewById(R.id.tv_go_login).setOnClickListener(v -> finish());
@@ -89,11 +87,13 @@ public class RegisterActivity extends AppCompatActivity {
 
     private void setLoading(boolean loading) {
         progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
-        tvError.setVisibility(View.GONE);
     }
 
     private void showError(String msg) {
-        tvError.setText(msg);
-        tvError.setVisibility(View.VISIBLE);
+        SnackbarHelper.show(
+                findViewById(android.R.id.content),
+                msg,
+                SnackbarHelper.Variant.ERROR
+        );
     }
 }

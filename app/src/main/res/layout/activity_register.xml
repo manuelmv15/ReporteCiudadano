@@ -97,13 +97,6 @@
             android:layout_height="wrap_content"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/tv_error"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#D32F2F"
-            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>

@@ -2,4 +2,12 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- MD3 Snackbar variant backgrounds -->
+    <color name="snackbar_error_bg">#B3261E</color>
+    <color name="snackbar_success_bg">#1E8E3E</color>
+    <color name="snackbar_info_bg">#0B57D0</color>
+    <color name="snackbar_warning_bg">#E37400</color>
+    <!-- Shared on-color (icon + text) for all variants -->
+    <color name="snackbar_on_color">#FFFFFF</color>
 </resources>
