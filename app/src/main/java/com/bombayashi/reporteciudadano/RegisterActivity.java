@@ -4,15 +4,14 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.ProgressBar;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bombayashi.reporteciudadano.databinding.ActivityRegisterBinding;
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.network.ApiClient;
 import com.bombayashi.reporteciudadano.ui.SnackbarHelper;
-import com.google.android.material.textfield.TextInputEditText;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -20,29 +19,23 @@ import retrofit2.Response;
 
 public class RegisterActivity extends AppCompatActivity {
 
-    private TextInputEditText etName, etEmail, etPassword, etPasswordConfirm;
-    private ProgressBar progressBar;
+    private ActivityRegisterBinding binding;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_register);
+        binding = ActivityRegisterBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-        etName = findViewById(R.id.et_name);
-        etEmail = findViewById(R.id.et_email);
-        etPassword = findViewById(R.id.et_password);
-        etPasswordConfirm = findViewById(R.id.et_password_confirm);
-        progressBar = findViewById(R.id.progress_bar);
-
-        findViewById(R.id.btn_register).setOnClickListener(v -> doRegister());
-        findViewById(R.id.tv_go_login).setOnClickListener(v -> finish());
+        binding.btnRegister.setOnClickListener(v -> doRegister());
+        binding.tvGoLogin.setOnClickListener(v -> finish());
     }
 
     private void doRegister() {
-        String name = etName.getText() != null ? etName.getText().toString().trim() : "";
-        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
-        String password = etPassword.getText() != null ? etPassword.getText().toString() : "";
-        String confirm = etPasswordConfirm.getText() != null ? etPasswordConfirm.getText().toString() : "";
+        String name = binding.etName.getText() != null ? binding.etName.getText().toString().trim() : "";
+        String email = binding.etEmail.getText() != null ? binding.etEmail.getText().toString().trim() : "";
+        String password = binding.etPassword.getText() != null ? binding.etPassword.getText().toString() : "";
+        String confirm = binding.etPasswordConfirm.getText() != null ? binding.etPasswordConfirm.getText().toString() : "";
 
         if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
             showError("Completá todos los campos");
@@ -86,7 +79,7 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+        binding.progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
     }
 
     private void showError(String msg) {

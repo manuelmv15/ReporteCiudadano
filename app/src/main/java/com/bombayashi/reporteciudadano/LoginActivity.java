@@ -4,12 +4,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.ProgressBar;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bombayashi.reporteciudadano.databinding.ActivityLoginBinding;
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
@@ -18,11 +18,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import com.bombayashi.reporteciudadano.ui.SnackbarHelper;
-import com.google.android.material.textfield.TextInputEditText;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -33,9 +31,8 @@ public class LoginActivity extends AppCompatActivity {
     public static final String PREFS_NAME = "auth_prefs";
     public static final String KEY_TOKEN = "token";
 
+    private ActivityLoginBinding binding;
     private GoogleSignInClient googleSignInClient;
-    private ProgressBar progressBar;
-    private TextInputEditText etEmail, etPassword;
 
     private final ActivityResultLauncher<Intent> signInLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -57,12 +54,11 @@ public class LoginActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_login);
 
-        progressBar = findViewById(R.id.progress_bar);
-        etEmail = findViewById(R.id.et_email);
-        etPassword = findViewById(R.id.et_password);
+        binding = ActivityLoginBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-        findViewById(R.id.btn_login).setOnClickListener(v -> doEmailLogin());
-        findViewById(R.id.tv_go_register).setOnClickListener(v ->
+        binding.btnLogin.setOnClickListener(v -> doEmailLogin());
+        binding.tvGoRegister.setOnClickListener(v ->
                 startActivity(new Intent(this, RegisterActivity.class)));
 
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -71,13 +67,12 @@ public class LoginActivity extends AppCompatActivity {
                 .build();
         googleSignInClient = GoogleSignIn.getClient(this, gso);
 
-        SignInButton btnGoogle = findViewById(R.id.btn_google_sign_in);
-        btnGoogle.setOnClickListener(v -> signInWithGoogle());
+        binding.btnGoogleSignIn.setOnClickListener(v -> signInWithGoogle());
     }
 
     private void doEmailLogin() {
-        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
-        String password = etPassword.getText() != null ? etPassword.getText().toString() : "";
+        String email = binding.etEmail.getText() != null ? binding.etEmail.getText().toString().trim() : "";
+        String password = binding.etPassword.getText() != null ? binding.etPassword.getText().toString() : "";
 
         if (email.isEmpty() || password.isEmpty()) {
             showError("Completá email y contraseña");
@@ -152,7 +147,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+        binding.progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
     }
 
     private void showError(String msg) {
