@@ -141,6 +141,10 @@
     <color name="md_theme_surfaceContainerHigh_highContrast">#D2D5D1</color>
     <color name="md_theme_surfaceContainerHighest_highContrast">#C4C7C3</color>
 
+    <!-- Base colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
     <!-- Snackbar colors -->
     <color name="snackbar_on_color">#FFFFFF</color>
     <color name="snackbar_success_bg">#43A047</color>

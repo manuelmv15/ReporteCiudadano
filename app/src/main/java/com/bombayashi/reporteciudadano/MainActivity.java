@@ -1,7 +1,5 @@
 package com.bombayashi.reporteciudadano;
 
-import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
@@ -11,14 +9,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.bombayashi.reporteciudadano.databinding.ActivityMainBinding;
-import com.bombayashi.reporteciudadano.model.AuthResponse;
-import com.bombayashi.reporteciudadano.network.ApiClient;
-import com.google.android.gms.auth.api.signin.GoogleSignIn;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,48 +21,10 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.main, (v, insets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-
-        if (binding.btnLogout != null) {
-            binding.btnLogout.setOnClickListener(v -> doLogout());
-        }
-    }
-
-    private void doLogout() {
-        SharedPreferences prefs = getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE);
-        String token = prefs.getString(LoginActivity.KEY_TOKEN, null);
-
-        if (token != null) {
-            ApiClient.getInstance().logout("Bearer " + token)
-                    .enqueue(new Callback<AuthResponse>() {
-                        @Override
-                        public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
-                            clearSessionAndGoLogin();
-                        }
-
-                        @Override
-                        public void onFailure(Call<AuthResponse> call, Throwable t) {
-                            clearSessionAndGoLogin();
-                        }
-                    });
-        } else {
-            clearSessionAndGoLogin();
-        }
-    }
-
-    private void clearSessionAndGoLogin() {
-        getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE).edit().clear().apply();
-
-        GoogleSignIn.getClient(this,
-                new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-        ).signOut();
-
-        Intent intent = new Intent(this, LoginActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(intent);
     }
 }

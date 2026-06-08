@@ -12,3 +12,15 @@ Se ajustó la configuración para apuntar al backend de producción. Se incluyó
 ### TODOs / Próximos pasos
 - [ ] Implementar reintentos en caso de falla de red.
 - [ ] Agregar manejo de timeouts personalizados.
+
+---
+
+## [2026-06-07] Integración de Mapbox Access Token
+
+### Archivos tocados
+- `local.properties` — Se añadió `MAPBOX_ACCESS_TOKEN` (ignorado por git).
+- `app/build.gradle` — Configurado para leer el token y generar `R.string.mapbox_access_token`.
+
+### Resumen
+Se implementó un sistema seguro para gestionar el token de Mapbox sin exponerlo en el repositorio. El token se inyecta en tiempo de compilación como un recurso de cadena.
+
