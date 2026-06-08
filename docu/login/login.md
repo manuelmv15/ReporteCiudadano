@@ -62,3 +62,20 @@
 - [ ] SHA-1 para builds de release en Google Cloud Console
 - [ ] Mostrar nombre/avatar del usuario en MainActivity
 - [ ] Manejar respuesta 422 de Laravel (errores de validación) con mensajes específicos
+
+---
+
+## [2026-06-07] Reemplazo de tv_error por SnackbarHelper
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/LoginActivity.java` — eliminado `TextView tvError`; `showError()` ahora delega a `SnackbarHelper.show()` con `Variant.ERROR`
+- `app/src/main/java/com/bombayashi/reporteciudadano/RegisterActivity.java` — mismo cambio
+- `app/src/main/res/layout/activity_login.xml` — eliminado `TextView tv_error` inline
+- `app/src/main/res/layout/activity_register.xml` — eliminado `TextView tv_error` inline
+
+### Motivación
+El `tv_error` era un `TextView` estático sin animación, hardcodeado en color `#D32F2F`. Fue reemplazado por `SnackbarHelper` (MD3) que aparece con animación, ícono contextual y color semántico.
+
+### TODOs / Próximos pasos
+- [ ] Mostrar `SnackbarHelper.show(... Variant.SUCCESS)` tras login/registro exitoso antes de navegar
+- [ ] Evaluar agregar outline rojo en `TextInputLayout` además del Snackbar para errores de validación
