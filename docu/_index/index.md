@@ -40,3 +40,5 @@
 
 
 
+- [2026-06-09] [map] — fab_add_report wired a showRadialMenu(); creado drawable add_24px; fix srcCompat vacío en fragment_map.xml
+- [2026-06-09] [features] — docu/features/features.md creado: tracking de los 43 RF del planteamiento v1 (6 ✅ completos, 13 🔶 a medias, 24 ❌ sin iniciar)

@@ -239,3 +239,14 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 - [ ] Fase 4: Verificar que los reportes nuevos aparezcan correctamente en el mapa
 - [ ] Fase 4: Refrescar lista de reportes cada N segundos (polling)
 - [ ] Fase 4: Filtros de categoría/estado para visualización selectiva
+
+## [2026-06-09] fab_add_report wired al RadialMenuDialogFragment
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — agregado listener en `setupFAB()`: `binding.fabAddReport.setOnClickListener` abre `showRadialMenu()` con `currentLocation` (fallback a DEFAULT_LONGITUDE/DEFAULT_LATITUDE si null)
+- `app/src/main/res/layout/fragment_map.xml` — corregido `app:srcCompat="@drawable/"` vacío → `@drawable/add_24px`
+- `app/src/main/res/drawable/add_24px.xml` — nuevo vector drawable ícono "+" blanco 24dp
+
+### TODOs / Próximos pasos
+- [ ] Verificar que el menú radial abre en coordenada correcta cuando no hay GPS (fallback usa DEFAULT_LONGITUDE/LATITUDE hardcodeado)
+- [ ] Considerar mostrar crosshair en el mapa cuando se abre menú desde FAB (para indicar ubicación del reporte)

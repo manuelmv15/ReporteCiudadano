@@ -19,6 +19,16 @@
         android:contentDescription="@string/my_location"
         app:srcCompat="@drawable/near_me" />
 
+    <!-- FAB add report (inferior derecha) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_add_report"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/spacing_lg"
+        android:contentDescription="@string/add_report"
+        app:srcCompat="@drawable/add_report" />
+
     <!-- FAB Perfil del Usuario (superior derecha) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_profile"
