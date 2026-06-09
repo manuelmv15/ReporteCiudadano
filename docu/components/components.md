@@ -152,3 +152,21 @@ dialog.show(getChildFragmentManager(), "radial_menu");
 
 ### TODOs / Próximos pasos
 - [ ] Agregar gesto de pinch-to-zoom en la vista fullscreen
+
+## [2026-06-09] ReportDetailBottomSheet — modo invitado: bloquear votación sin auth
+
+### Archivos tocados
+- `app/src/main/java/.../ui/ReportDetailBottomSheet.java` — agregado `isGuest()` (chequea token en SharedPreferences); `setupGuestMode()` oculta `llVoteButtons`, `llDistanceWarning`, `tvUserVoteStatus`, `pbVoteLoading` y muestra `btnLoginToVote`; `onViewCreated` salta `initializeVoteManager`/`setupVoteObservers`/`setupButtonListeners` si es invitado; click en `btnLoginToVote` hace dismiss + navega a LoginActivity
+- `app/src/main/res/layout/bottom_sheet_report_detail.xml` — agregado `btnLoginToVote` (MaterialButton OutlinedButton, visibility=gone) antes de `llDistanceWarning`
+
+### TODOs / Próximos pasos
+- [ ] Agregar ícono de persona/login en `btnLoginToVote` en lugar de ic_snackbar_info
+- [ ] Verificar que tras login exitoso el usuario pueda votar sin reabrir el bottom sheet (actualmente necesita reabrir)
+
+## [2026-06-09] ReportDetailBottomSheet — manejo de 401 por sesión expirada
+
+### Archivos tocados
+- `app/src/main/java/.../ui/ReportDetailBottomSheet.java` — agregado `clearTokenAndGoToLogin()`: limpia token, hace dismiss y navega a LoginActivity; en ERROR event de votos: si contiene "401" llama `clearTokenAndGoToLogin()`; en `saveDescription()` y `uploadPhoto()` callbacks: `else if (response.code() == 401)` → `clearTokenAndGoToLogin()`
+
+### TODOs / Próximos pasos
+- [ ] Considerar mostrar Snackbar antes del dismiss en `clearTokenAndGoToLogin()` para que el usuario sepa por qué fue redirigido

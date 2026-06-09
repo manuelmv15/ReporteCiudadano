@@ -48,3 +48,7 @@
 - [2026-06-09] [db/components] — Fix crítico: API devuelve `photo_path` no `photo`; ReportData ahora usa @SerializedName("photo_path"); añadido getPhotoUrl() que construye URL completa con base https://api.manuelmv.net/storage/; PENDIENTE backend: storage:link da 403
 - [2026-06-09] [components] — ReportDetailBottomSheet: tap en foto abre fullscreen Dialog negro; ivReportPhoto clickable con ripple feedback
 - [2026-06-09] [general] — Backend: php artisan storage:link ejecutado; fotos ahora accesibles en https://api.manuelmv.net/storage/; RF-04 y RF-20 marcados ✅
+- [2026-06-09] [map/login] — Mapa como pantalla inicial; FABs condicionales: fab_add_report oculto sin auth, fab_profile navega a LoginActivity sin auth
+- [2026-06-09] [components] — ReportDetailBottomSheet: modo invitado completo; isGuest() + setupGuestMode() ocultan votos y muestran btnLoginToVote → LoginActivity
+- [2026-06-09] [map] — MapFragment: handleExpiredSession() limpia token y actualiza FABs si API devuelve 401 al crear reporte
+- [2026-06-09] [components] — ReportDetailBottomSheet: clearTokenAndGoToLogin() en votos/descripción/foto si API devuelve 401
