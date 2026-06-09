@@ -9,8 +9,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurfaceContainerLowest"
-        android:alpha="0.6">
+        android:background="#99000000">
 
         <View
             android:id="@+id/center_point"

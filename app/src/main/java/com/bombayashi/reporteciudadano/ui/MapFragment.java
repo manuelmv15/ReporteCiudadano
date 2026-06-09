@@ -745,6 +745,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
         });
 
+
+
+        // FAB Agregar reporte
+        FloatingActionButton fabAddReport = binding.fabAddReport;
+        fabAddReport.setOnClickListener(v -> {
+            if (currentLocation != null) {
+                showRadialMenu(currentLocation);
+            }
+        });
+
         // FAB Perfil del usuario
         FloatingActionButton fabProfile = binding.fabProfile;
         fabProfile.setOnClickListener(v -> {
