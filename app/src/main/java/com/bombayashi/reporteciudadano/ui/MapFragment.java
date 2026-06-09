@@ -37,6 +37,15 @@ import com.mapbox.maps.plugin.annotation.generated.CircleAnnotation;
 import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationManager;
 import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationManagerKt;
 import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions;
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotation;
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager;
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManagerKt;
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
 import com.mapbox.maps.plugin.gestures.GesturesUtils;
 
 import retrofit2.Call;
@@ -51,13 +60,16 @@ public class MapFragment extends Fragment {
     private Point currentLocation;
     private FusedLocationProviderClient fusedLocationClient;
     private CircleAnnotationManager circleAnnotationManager;
+    private PointAnnotationManager pointAnnotationManager;
     private CircleAnnotation userLocationMarker;
+    private com.mapbox.maps.viewannotation.ViewAnnotationManager viewAnnotationManager;
 
     private static final double DEFAULT_LATITUDE = -34.6037;
     private static final double DEFAULT_LONGITUDE = -58.3816;
     private static final double DEFAULT_ZOOM = 15.0;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
     private java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
+    private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -76,9 +88,11 @@ public class MapFragment extends Fragment {
         android.util.Log.d("MapFragment", "=== onViewCreated ===");
 
         mapView = binding.mapView;
+        viewAnnotationManager = mapView.getViewAnnotationManager();
+
         mapView.getMapboxMap().loadStyleUri(Style.MAPBOX_STREETS, style -> {
-            android.util.Log.d("MapFragment", "1. Estilo cargado");
             mapboxMap = mapView.getMapboxMap();
+            android.util.Log.d("MapFragment", "1. Estilo cargado");
 
             android.util.Log.d("MapFragment", "2. Inicializando components...");
             setupAnnotationManager();
@@ -96,29 +110,45 @@ public class MapFragment extends Fragment {
 
         AnnotationPlugin annotationPlugin = AnnotationsUtils.getAnnotations(mapView);
         if (annotationPlugin != null) {
+            // CircleAnnotationManager para marcador de ubicación del usuario
             circleAnnotationManager = CircleAnnotationManagerKt.createCircleAnnotationManager(
                     annotationPlugin,
                     new AnnotationConfig()
             );
 
-            if (circleAnnotationManager != null) {
-                android.util.Log.d("MapFragment", "✓ CircleAnnotationManager inicializado correctamente");
+            // PointAnnotationManager para iconos de reportes
+            pointAnnotationManager = PointAnnotationManagerKt.createPointAnnotationManager(
+                    annotationPlugin,
+                    new AnnotationConfig()
+            );
 
-                circleAnnotationManager.addClickListener(annotation -> {
-                    String annId = annotation.getId();
-                    android.util.Log.d("MapFragment", "Click en anotación: " + annId);
-                    ReportResponse.ReportData report = reportMarkers.get(annId);
-                    if (report != null) {
-                        android.util.Log.d("MapFragment", "Abriendo detalles del reporte ID: " + report.getId());
-                        showReportDetails(report);
-                        return true;
+            if (circleAnnotationManager != null && pointAnnotationManager != null) {
+                android.util.Log.d("MapFragment", "✓ CircleAnnotationManager y PointAnnotationManager inicializados");
+
+                pointAnnotationManager.addClickListener(annotation -> {
+                    String annotationUUID = annotation.getId();
+                    Integer reportId = annotationToReportId.get(annotationUUID);
+
+                    android.util.Log.d("MapFragment", "✓ Click en icono UUID:" + annotationUUID.substring(0, 8) + "...");
+
+                    if (reportId != null) {
+                        String reportKey = String.valueOf(reportId);
+                        ReportResponse.ReportData report = reportMarkers.get(reportKey);
+
+                        if (report != null) {
+                            android.util.Log.d("MapFragment", "✓ Abriendo reporte ID:" + reportId);
+                            showReportDetails(report);
+                            return true;
+                        } else {
+                            android.util.Log.w("MapFragment", "✗ Reporte ID:" + reportId + " no existe en cache");
+                        }
                     } else {
-                        android.util.Log.w("MapFragment", "No se encontró reporte para ID: " + annId);
+                        android.util.Log.w("MapFragment", "✗ Anotación UUID no mapeada a reporte");
                     }
                     return false;
                 });
             } else {
-                android.util.Log.e("MapFragment", "✗ CircleAnnotationManager es null después de crear");
+                android.util.Log.e("MapFragment", "✗ Error inicializando managers");
             }
         } else {
             android.util.Log.e("MapFragment", "✗ AnnotationPlugin es null");
@@ -243,33 +273,129 @@ public class MapFragment extends Fragment {
     }
 
     private void addReportMarker(ReportResponse.ReportData report) {
-        if (circleAnnotationManager == null) {
-            android.util.Log.e("MapFragment", "No se puede añadir marcador: circleAnnotationManager es nulo");
+        if (pointAnnotationManager == null || circleAnnotationManager == null) {
+            android.util.Log.e("MapFragment", "No se puede añadir marcador: managers son nulos");
             return;
         }
 
         // IMPORTANTE: Point.fromLngLat requiere LONGITUD primero, luego LATITUD
         Point point = Point.fromLngLat(report.getLongitude(), report.getLatitude());
-        String markerId = "report_" + report.getId();
-        reportMarkers.put(markerId, report);
+        String reportKey = String.valueOf(report.getId());
+        reportMarkers.put(reportKey, report);
 
         String categorySlug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
+        int drawableId = getCategoryDrawableId(categorySlug);
         String categoryColor = getCategoryColor(categorySlug);
-        double radius = getRadiusByStatus(report.getStatus());
-        double opacity = getOpacityByStatus(report.getStatus());
+        String statusStrokeColor = getStatusStrokeColor(report.getStatus());
 
-        android.util.Log.d("MapFragment", "Añadiendo marcador: " + markerId + " en " + point.latitude() + "," + point.longitude() + " category: " + categorySlug + " color: " + categoryColor);
+        android.util.Log.d("MapFragment", "Añadiendo marcador: ID=" + report.getId() +
+                " en " + String.format("%.4f", point.latitude()) + "," + String.format("%.4f", point.longitude()) +
+                " category: " + categorySlug + " color: " + categoryColor);
 
-        CircleAnnotationOptions options = new CircleAnnotationOptions()
-                .withPoint(point)
-                .withCircleRadius(radius)
-                .withCircleColor(categoryColor)
-                .withCircleOpacity(opacity)
-                .withCircleStrokeWidth(2.0)
-                .withCircleStrokeColor("#FFFFFF");
+        // 1. Icono del reporte (PointAnnotation con bitmap directo)
+        try {
+            Bitmap iconBitmap = bitmapFromDrawable(drawableId, categoryColor);
 
-        CircleAnnotation annotation = circleAnnotationManager.create(options);
-        annotation.setDraggable(false);
+            if (iconBitmap == null) {
+                android.util.Log.w("MapFragment", "  ✗ Bitmap es null, saltando PointAnnotation");
+                return;
+            }
+
+            // Crear PointAnnotation con bitmap directamente
+            PointAnnotationOptions pointOptions = new PointAnnotationOptions()
+                    .withPoint(point)
+                    .withIconImage(iconBitmap)
+                    .withIconSize(2.5f);
+
+            PointAnnotation pointAnnotation = pointAnnotationManager.create(pointOptions);
+            pointAnnotation.setDraggable(false);
+            annotationToReportId.put(pointAnnotation.getId(), report.getId());
+
+            android.util.Log.d("MapFragment", "  ✓ PointAnnotation creada");
+
+            // 2. Stroke del estado (CircleAnnotation - solo borde)
+            CircleAnnotationOptions strokeOptions = new CircleAnnotationOptions()
+                    .withPoint(point)
+                    .withCircleRadius(28.0)
+                    .withCircleColor("#00000000")  // Transparente
+                    .withCircleOpacity(0.0)
+                    .withCircleStrokeWidth(4.0)
+                    .withCircleStrokeColor(statusStrokeColor);
+
+            CircleAnnotation strokeAnnotation = circleAnnotationManager.create(strokeOptions);
+            strokeAnnotation.setDraggable(false);
+
+            android.util.Log.d("MapFragment", "  ✓ Marcador completado");
+
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "✗ Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private Bitmap bitmapFromDrawable(int drawableId, String categoryColorHex) {
+        try {
+            android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(requireContext(), drawableId);
+
+            if (drawable == null) {
+                android.util.Log.e("MapFragment", "✗ Drawable es null");
+                return null;
+            }
+
+            // Tamaño del bitmap
+            final int SIZE = 96;
+
+            // Si es BitmapDrawable, procesar igual
+            Bitmap bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+
+            // 1. Dibujar círculo de color de categoría
+            android.graphics.Paint circlePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            circlePaint.setColor(android.graphics.Color.parseColor(categoryColorHex));
+            canvas.drawCircle(SIZE / 2f, SIZE / 2f, SIZE / 2.2f, circlePaint);
+
+            // 2. Dibujar icono blanco en el centro
+            try {
+                drawable.setTint(0xFFFFFFFF);  // Icono blanco
+            } catch (Exception ignored) {
+            }
+
+            int iconSize = (int) (SIZE * 0.6);  // 60% del tamaño total
+            int iconOffset = (SIZE - iconSize) / 2;
+            drawable.setBounds(iconOffset, iconOffset, iconOffset + iconSize, iconOffset + iconSize);
+            drawable.draw(canvas);
+
+            android.util.Log.d("MapFragment", "  ✓ Bitmap circular creado: " + SIZE + "x" + SIZE + " color: " + categoryColorHex);
+            return bitmap;
+
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "✗ Error: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private String getStatusStrokeColor(String status) {
+        return switch (status) {
+            case "pending" -> "#FF9800";      // Naranja - pendiente
+            case "verified" -> "#4CAF50";     // Verde - verificado
+            case "resolved" -> "#2196F3";     // Azul - resuelto
+            case "archived" -> "#9E9E9E";     // Gris - archivado
+            default -> "#757575";              // Gris oscuro - desconocido
+        };
+    }
+
+    private int getCategoryDrawableId(String categorySlug) {
+        // Retorna el ID del drawable para cada categoría
+        return switch (categorySlug) {
+            case "bache", "vialidad" -> R.drawable.remove_road_24px;
+            case "alumbrado-publico", "alumbrado" -> R.drawable.backlight_high_off_24px;
+            case "fuga-de-agua", "agua" -> R.drawable.agua;
+            case "semaforo-danado", "trafico" -> R.drawable.traffic_jam_24px;
+            case "inseguridad", "seguridad" -> R.drawable.warning_24px;
+            case "basura-acumulada", "parques", "basura" -> R.drawable.trash;
+            default -> R.drawable.ic_category_otros;
+        };
     }
 
     private String getCategoryColor(String categorySlug) {

@@ -16,6 +16,6 @@
         android:layout_gravity="bottom|start"
         android:layout_margin="@dimen/spacing_lg"
         android:contentDescription="@string/my_location"
-        app:srcCompat="@drawable/ic_my_location" />
+        app:srcCompat="@drawable/near_me" />
 
 </FrameLayout>
