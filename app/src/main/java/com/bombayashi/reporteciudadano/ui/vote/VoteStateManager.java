@@ -53,9 +53,9 @@ public class VoteStateManager {
         return reportStatusUpdateLiveData;
     }
 
-    private void initialize() {
+    public void initialize() {
         Log.d(TAG, "═══════════════════════════════════════════");
-        Log.d(TAG, "Inicializando VoteStateManager para reporte ID: " + reportData.getId());
+        Log.d(TAG, "🔧 Inicializando VoteStateManager para reporte ID: " + reportData.getId());
         Log.d(TAG, "User: " + (reportData.getUser() != null ? reportData.getUser().getName() : "null"));
         Log.d(TAG, "User Location: " + userLocation.latitude() + ", " + userLocation.longitude());
         Log.d(TAG, "Report Location: " + reportData.getLatitude() + ", " + reportData.getLongitude());
@@ -434,6 +434,50 @@ public class VoteStateManager {
 
         public Type getType() { return type; }
         public String getData() { return data; }
+    }
+
+    public void refreshVoteState() {
+        Log.d(TAG, "🔄 refreshVoteState() - Refrescando solo estado sin votar...");
+
+        ApiClient.getInstance()
+            .getReportDetail(reportData.getId())
+            .enqueue(new Callback<ReportDetailResponse>() {
+                @Override
+                public void onResponse(Call<ReportDetailResponse> call, Response<ReportDetailResponse> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        ReportResponse.ReportData updatedReport = response.body().getReport();
+                        if (updatedReport != null && updatedReport.getVotes() != null) {
+                            Log.d(TAG, "✓ Estado refrescado:");
+                            Log.d(TAG, "  - confirm: " + updatedReport.getVotes().getConfirm());
+                            Log.d(TAG, "  - resolve: " + updatedReport.getVotes().getResolve());
+                            Log.d(TAG, "  - userVote: " + updatedReport.getUserVote());
+
+                            // Actualizar reportData con nuevos votos
+                            reportData = updatedReport;
+
+                            VoteState currentState = voteStateLiveData.getValue();
+                            VoteState newState = new VoteState.Builder()
+                                .currentUserVoteType(updatedReport.getUserVote())
+                                .confirmCount(updatedReport.getVotes().getConfirm())
+                                .resolveCount(updatedReport.getVotes().getResolve())
+                                .isLoading(false)
+                                .voteEditableUntil(System.currentTimeMillis() + VOTE_EDIT_WINDOW_MS)
+                                .isWithinRadius(currentState != null && currentState.isWithinRadius())
+                                .userDistance(currentState != null ? currentState.getUserDistance() : 0)
+                                .build();
+
+                            voteStateLiveData.setValue(newState);
+                        }
+                    } else {
+                        Log.e(TAG, "❌ Error refrescando estado: " + response.code());
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<ReportDetailResponse> call, Throwable t) {
+                    Log.e(TAG, "❌ Error de conexión: " + t.getMessage(), t);
+                }
+            });
     }
 
     // Evento para notificar cambios de estado del reporte al mapa
