@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?attr/colorSurfaceContainerLowest"
+        android:alpha="0.85">
+
+        <View
+            android:id="@+id/center_point"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <!-- Categoría 1: Vialidad (Arriba) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_vialidad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Vialidad"
+            app:srcCompat="@drawable/ic_category_vialidad"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="0"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 2: Alumbrado (Arriba-Derecha) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_alumbrado"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Alumbrado"
+            app:srcCompat="@drawable/ic_category_alumbrado"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="45"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 3: Agua (Derecha) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_agua"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Agua"
+            app:srcCompat="@drawable/ic_category_agua"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="90"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 4: Tráfico (Abajo-Derecha) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_trafico"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Tráfico"
+            app:srcCompat="@drawable/ic_category_trafico"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="135"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 5: Seguridad (Abajo) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_seguridad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Seguridad"
+            app:srcCompat="@drawable/ic_category_seguridad"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="180"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 6: Parques (Abajo-Izquierda) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_parques"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Parques"
+            app:srcCompat="@drawable/ic_category_parques"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="225"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 7: Basura (Izquierda) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_basura"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Basura"
+            app:srcCompat="@drawable/ic_category_basura"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="270"
+            tools:ignore="MissingConstraints" />
+
+        <!-- Categoría 8: Otros (Arriba-Izquierda) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_otros"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Otros"
+            app:srcCompat="@drawable/ic_category_otros"
+            app:fabSize="mini"
+            app:layout_constraintCircle="@id/center_point"
+            app:layout_constraintCircleRadius="120dp"
+            app:layout_constraintCircleAngle="315"
+            tools:ignore="MissingConstraints" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</FrameLayout>

@@ -78,4 +78,37 @@ Se habilitó **ViewBinding** en todo el proyecto para eliminar el uso de `findVi
 ### TODOs
 - [ ] Migrar Fragments si se añaden en el futuro.
 
+---
+
+## [2026-06-08] RadialMenuDialogFragment — Menú Circular de Categorías
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/RadialMenuDialogFragment.java` — DialogFragment con listener callback + ViewBinding
+- `app/src/main/res/layout/dialog_radial_menu.xml` — ConstraintLayout circular (8 FAB mini en 120dp radio, 45° spacing)
+- `app/src/main/res/drawable/ic_category_*.xml` × 8 — vectores MD3 para categorías (Vialidad, Alumbrado, Agua, Tráfico, Seguridad, Parques, Basura, Otros)
+
+### Características
+- **Fondo transparente** — diálogo translúcido sobre el mapa
+- **Layout circular** — usando `layout_constraintCircle` + `layout_constraintCircleAngle`
+- **8 botones** — FloatingActionButton mini distribuidos cada 45° alrededor del centro
+- **Callback pattern** — listener `OnCategorySelectedListener` pasado al crear la instancia
+- **Cierre automático** — el diálogo se cierra al tocar cualquier categoría
+
+### API pública
+
+```java
+RadialMenuDialogFragment dialog = RadialMenuDialogFragment.newInstance(
+    location,
+    (category, latitude, longitude) -> {
+        // Lógica del reporte
+    }
+);
+dialog.show(getChildFragmentManager(), "radial_menu");
+```
+
+### TODOs / Próximos pasos
+- [ ] Fase 4: Conectar callback con endpoint API de reportes
+- [ ] Fase 4: Agregar animación de entrada/salida (scale + fade)
+- [ ] Fase 4: Soporte para descripción textual del reporte antes de enviar
+
 
