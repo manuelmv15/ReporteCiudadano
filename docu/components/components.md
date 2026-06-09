@@ -112,3 +112,43 @@ dialog.show(getChildFragmentManager(), "radial_menu");
 - [ ] Fase 4: Soporte para descripción textual del reporte antes de enviar
 
 
+
+## [2026-06-09] Detección de autor y edición de descripción en ReportDetailBottomSheet
+
+### Archivos tocados
+- `app/src/main/java/.../ui/ReportDetailBottomSheet.java` — añadido `setupOwnerControls()`: lee `user_id` de prefs, compara con `report.getUserId()`, muestra `btnEditDescription` solo al autor. `showEditDescriptionDialog()` abre AlertDialog con EditText. `saveDescription()` llama PATCH /reports/{id}
+- `app/src/main/res/layout/bottom_sheet_report_detail.xml` — añadido `btnEditDescription` (TextButton, visibility=gone por defecto)
+- `app/src/main/java/.../network/ApiService.java` — añadido `@PATCH("reports/{id}") updateReport()`
+- `app/src/main/java/.../model/UpdateReportRequest.java` — nuevo modelo con campo `description`
+- `app/src/main/java/.../LoginActivity.java` — `saveTokenAndGoMain` → `saveAuthAndGoMain(AuthResponse)`: guarda también `user_id`, `user_name`, `user_email`; añadidas constantes `KEY_USER_ID`, `KEY_USER_NAME`, `KEY_USER_EMAIL`
+- `app/src/main/java/.../RegisterActivity.java` — igual: guarda id/name/email al registrar
+- `app/src/main/res/drawable/ic_edit.xml` — nuevo ícono lápiz
+
+### TODOs / Próximos pasos
+- [x] Verificar backend: PATCH no existe → corregido a PUT /reports/{id} (verificado en /api/docs)
+- [x] Actualizar `report` en memoria tras guardar → implementado via `report.setDescription()` / `report.setPhoto()`
+
+## [2026-06-09] Cámara, galería y fix persistencia de foto en ReportDetailBottomSheet
+
+### Archivos tocados
+- `app/src/main/res/layout/bottom_sheet_report_detail.xml` — `btnAddPhoto` reemplazado por `llPhotoButtons` con `btnTakePhoto` ("Tomar foto") + `btnPickPhoto` ("Galería") lado a lado
+- `app/src/main/res/drawable/ic_add_photo.xml` — ícono cámara
+- `app/src/main/res/drawable/ic_gallery.xml` — ícono galería
+- `app/src/main/AndroidManifest.xml` — `uses-permission CAMERA`, `uses-feature camera required=false`, FileProvider declarado con `${applicationId}.fileprovider`
+- `app/src/main/res/xml/file_provider_paths.xml` — nuevo, expone `cache-path` para fotos temporales de cámara
+- `app/src/main/java/.../ui/ReportDetailBottomSheet.java` — `galleryLauncher` (GetContent), `cameraLauncher` (TakePicture con FileProvider URI), `cameraPermissionLauncher` (RequestPermission); `launchCamera()` crea tmpFile en cacheDir + obtiene URI via FileProvider; upload foto ahora via `PUT /reports/{id}` multipart; success callback llama `report.setPhoto(url)` para persistir en memoria
+- `app/src/main/java/.../model/ReportResponse.java` — añadidos `setPhoto(String)` y `setDescription(String)` a `ReportData`
+- `app/src/main/java/.../network/ApiService.java` — `PATCH /reports/{id}` → `@Multipart @PUT("reports/{id}")` con `@Part("description") RequestBody` + `@Part MultipartBody.Part photo`; eliminado endpoint inexistente `POST /reports/{id}/photo`; eliminado import `UpdateReportRequest`
+
+### TODOs / Próximos pasos
+- [ ] Verificar que `PUT /reports/{id}` acepte `photo = null` (solo actualizar descripción sin borrar foto existente)
+- [ ] Comprimir imagen antes de subir si supera 5MB (límite del backend)
+
+## [2026-06-09] Foto fullscreen al tap en ReportDetailBottomSheet
+
+### Archivos tocados
+- `app/src/main/java/.../ui/ReportDetailBottomSheet.java` — `showFullscreenPhoto(url)`: abre Dialog fullscreen negro con ImageView; tap cierra. Listener set al cargar foto existente y tras upload exitoso
+- `app/src/main/res/layout/bottom_sheet_report_detail.xml` — `ivReportPhoto` ahora clickable + focusable + ripple foreground
+
+### TODOs / Próximos pasos
+- [ ] Agregar gesto de pinch-to-zoom en la vista fullscreen

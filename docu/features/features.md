@@ -1,7 +1,7 @@
 # Features — Estado vs Planteamiento v1
 
 > Actualizar cada vez que se implementa una función nueva.
-> Última revisión: 2026-06-09
+> Última revisión: 2026-06-09 (sesión tarde)
 
 **Leyenda:** ✅ completo · 🔶 a medias · ❌ no iniciado
 
@@ -9,14 +9,14 @@
 
 ## Módulo A — Autenticación
 
-| ID | Requerimiento | Estado | Notas |
-|----|--------------|--------|-------|
-| RF-A01 | Registro con correo/contraseña o Google OAuth | ✅ | LoginActivity + RegisterActivity + /auth/google |
-| RF-A02 | Sesión persistente con token en EncryptedSharedPreferences | 🔶 | Token guardado en SharedPreferences normal, pendiente migrar a EncryptedSharedPreferences |
-| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP) | ❌ | No implementado en Android ni en API |
-| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401 | ❌ | No existe flujo guest |
-| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login | 🔶 | API crea usuario pero app no muestra perfil completo |
-| RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅ | handleLogout() en UserProfileBottomSheet |
+| ID     | Requerimiento                                                       | Estado | Notas                                                                                     |
+| ------ | ------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------- |
+| RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                           |
+| RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | 🔶     | Token guardado en SharedPreferences normal, pendiente migrar a EncryptedSharedPreferences |
+| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                      |
+| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ❌      | No existe flujo guest                                                                     |
+| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | 🔶     | API crea usuario pero app no muestra perfil completo                                      |
+| RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                  |
 
 ---
 
@@ -27,7 +27,7 @@
 | RF-01 | Toque largo en mapa → menú radial con 8 categorías | ✅ | RadialMenuDialogFragment + OnMapLongClickListener |
 | RF-02 | Toque en categoría envía reporte sin formulario adicional | ✅ | POST /reports desde RadialMenuDialogFragment |
 | RF-03 | GPS capturado del punto tocado, sin confirmación extra | ✅ | coords del LongClick pasadas directamente |
-| RF-04 | Foto y descripción opcionales desde tarjeta del reporte | ❌ | BottomSheet no tiene opción de editar foto/descripción post-creación |
+| RF-04 | Foto y descripción opcionales desde tarjeta del reporte | ✅ | Owner edita descripción + sube foto (cámara/galería) via PUT /reports/{id}; foto fullscreen al tap; storage:link activo en servidor |
 | RF-05 | Sin conexión: guardar en Room DB + WorkManager sync | ❌ | No hay Room DB ni WorkManager |
 | RF-06 | Retirar propio reporte en primeros 5 min si < 3 votos | ❌ | No implementado |
 
@@ -44,7 +44,7 @@
 | RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | 🔶 | Lógica en API Laravel (pendiente confirmar); cliente refleja estado RESOLVED |
 | RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí" | 🔶 | Estado VERIFIED en cliente; marcador cambia; sello visual no diferenciado claramente |
 | RF-13 | Auto-archivo a las 24 h sin interacción | ❌ | Solo en servidor (pendiente confirmar); cliente no muestra reportes archivados |
-| RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte | 🔶 | No hay restricción explícita; flujo normal permite votar el propio reporte |
+| RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte | ❌ | Owner detectado por user_id; botones de voto ocultos para owner — no puede votar en propio reporte (decisión de diseño inversa al RF) |
 | RF-15 | Concurrencia de votos con bloqueo optimista en servidor | 🔶 | Documentado en API; cliente no aplica lógica de conflicto (correcto según spec) |
 
 ---
@@ -57,7 +57,7 @@
 | RF-17 | Reportes verificados muestran ícono distinto y mayor tamaño | 🔶 | CircleAnnotation más grande para VERIFIED; sin ícono especial (círculo vs ícono) |
 | RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer | 🔶 | Color gris para RESOLVED pero no desaparecen automáticamente después de 2 h |
 | RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h) | ❌ | No hay filtros en el mapa |
-| RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | 🔶 | ReportDetailBottomSheet muestra categoría y votos; foto no implementada |
+| RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | ✅ | Categoría, votos, foto con Glide + fullscreen tap; storage activo |
 
 ---
 
@@ -111,11 +111,11 @@
 | Módulo | Total RF | ✅ Completos | 🔶 A medias | ❌ No iniciados |
 |--------|----------|-------------|------------|----------------|
 | Autenticación (A) | 6 | 2 | 2 | 2 |
-| Reporte ultrarrápido (1) | 6 | 3 | 0 | 3 |
-| Votos comunitarios (2) | 9 | 1 | 7 | 1 |
-| Mapa en vivo (3) | 5 | 0 | 4 | 1 |
+| Reporte ultrarrápido (1) | 6 | 4 | 0 | 2 |
+| Votos comunitarios (2) | 9 | 1 | 6 | 2 |
+| Mapa en vivo (3) | 5 | 1 | 4 | 0 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
 | Puntuación y confiabilidad (5) | 5 | 0 | 0 | 5 |
 | Perfil e historial (6) | 3 | 0 | 0 | 3 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **6 (14%)** | **13 (30%)** | **24 (56%)** |
+| **TOTAL** | **43** | **8 (19%)** | **12 (28%)** | **23 (53%)** |
