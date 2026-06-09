@@ -52,3 +52,5 @@
 - [2026-06-09] [components] — ReportDetailBottomSheet: modo invitado completo; isGuest() + setupGuestMode() ocultan votos y muestran btnLoginToVote → LoginActivity
 - [2026-06-09] [map] — MapFragment: handleExpiredSession() limpia token y actualiza FABs si API devuelve 401 al crear reporte
 - [2026-06-09] [components] — ReportDetailBottomSheet: clearTokenAndGoToLogin() en votos/descripción/foto si API devuelve 401
+- [2026-06-09] [features] — RF-A04 ✅ completo: backend confirmado auth:sanctum en POST/PUT/DELETE/PATCH; GET público
+- [2026-06-09] [login] — RF-A02 ✅: TokenManager singleton con EncryptedSharedPreferences (AES256-GCM); migrados LoginActivity, RegisterActivity, UserProfileBottomSheet, MapFragment, ReportDetailBottomSheet, VoteStateManager

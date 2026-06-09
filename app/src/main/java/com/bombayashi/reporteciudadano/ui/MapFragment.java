@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment;
 
 import com.bombayashi.reporteciudadano.LoginActivity;
 import com.bombayashi.reporteciudadano.R;
+import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.bombayashi.reporteciudadano.databinding.FragmentMapBinding;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
@@ -619,8 +620,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
-        String token = requireActivity().getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
-                .getString("token", "");
+        String token = TokenManager.getInstance(requireContext()).getToken();
 
         if (token.isEmpty()) {
             android.util.Log.w("MapFragment", "Token de autenticación no encontrado");
@@ -789,10 +789,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         FloatingActionButton fabProfile = binding.fabProfile;
         fabProfile.setOnClickListener(v -> {
-            String token = requireActivity()
-                    .getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
-                    .getString("token", "");
-            if (token.isEmpty()) {
+            if (!TokenManager.getInstance(requireContext()).isLoggedIn()) {
                 startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
             } else {
                 showUserProfile();
@@ -804,17 +801,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void updateFabVisibility() {
         if (binding == null) return;
-        String token = requireActivity()
-                .getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
-                .getString("token", "");
-        boolean loggedIn = !token.isEmpty();
+        boolean loggedIn = TokenManager.getInstance(requireContext()).isLoggedIn();
         binding.fabAddReport.setVisibility(loggedIn ? View.VISIBLE : View.GONE);
     }
 
     private void handleExpiredSession() {
-        requireActivity()
-                .getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
-                .edit().remove("token").apply();
+        TokenManager.getInstance(requireContext()).clearAuth();
         updateFabVisibility();
         if (getView() != null)
             SnackbarHelper.show(getView(), "Sesión expirada. Iniciá sesión de nuevo.", SnackbarHelper.Variant.WARNING);

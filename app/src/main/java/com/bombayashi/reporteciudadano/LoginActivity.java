@@ -1,7 +1,6 @@
 package com.bombayashi.reporteciudadano;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 
@@ -10,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bombayashi.reporteciudadano.databinding.ActivityLoginBinding;
+import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
@@ -129,14 +129,10 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void saveAuthAndGoMain(AuthResponse auth) {
-        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-        editor.putString(KEY_TOKEN, auth.getToken());
-        if (auth.getUser() != null) {
-            editor.putInt(KEY_USER_ID, auth.getUser().getId());
-            editor.putString(KEY_USER_NAME, auth.getUser().getName());
-            editor.putString(KEY_USER_EMAIL, auth.getUser().getEmail());
-        }
-        editor.apply();
+        int userId = auth.getUser() != null ? auth.getUser().getId() : -1;
+        String userName = auth.getUser() != null ? auth.getUser().getName() : "";
+        String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
+        TokenManager.getInstance(this).saveAuth(auth.getToken(), userId, userName, userEmail);
         goToMain();
     }
 

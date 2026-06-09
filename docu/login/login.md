@@ -79,3 +79,20 @@ El `tv_error` era un `TextView` estático sin animación, hardcodeado en color `
 ### TODOs / Próximos pasos
 - [ ] Mostrar `SnackbarHelper.show(... Variant.SUCCESS)` tras login/registro exitoso antes de navegar
 - [ ] Evaluar agregar outline rojo en `TextInputLayout` además del Snackbar para errores de validación
+
+## [2026-06-09] RF-A02 — Migración a EncryptedSharedPreferences
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/util/TokenManager.java` — nuevo singleton; wraps EncryptedSharedPreferences con MasterKey AES256-GCM; expone saveAuth(), getToken(), getUserId(), getUserName(), getUserEmail(), isLoggedIn(), clearAuth(); fallback a SharedPreferences normal si crypto falla
+- `gradle/libs.versions.toml` — agregada versión `securityCrypto = "1.1.0-alpha06"` y lib `security-crypto`
+- `app/build.gradle` — agregada dependencia `libs.security.crypto`
+- `LoginActivity.java` — saveAuthAndGoMain() usa TokenManager; import SharedPreferences eliminado
+- `RegisterActivity.java` — onResponse() usa TokenManager; import SharedPreferences eliminado
+- `UserProfileBottomSheet.java` — displayUserInfo() y handleLogout() usan TokenManager
+- `MapFragment.java` — createReport, updateFabVisibility, handleExpiredSession, fabProfile usan TokenManager
+- `ReportDetailBottomSheet.java` — isGuest(), setupOwnerControls(), saveDescription(), uploadPhoto(), clearTokenAndGoToLogin() usan TokenManager
+- `VoteStateManager.java` — constructor y submitVote() usan TokenManager
+
+### TODOs / Próximos pasos
+- [x] RF-A02 completo
+- [ ] Validar que token persiste entre reinicios de app en dispositivo físico

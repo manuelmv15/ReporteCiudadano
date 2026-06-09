@@ -1,19 +1,18 @@
 package com.bombayashi.reporteciudadano.ui.vote;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.util.Log;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import com.bombayashi.reporteciudadano.LoginActivity;
 import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
 import com.bombayashi.reporteciudadano.model.VoteRequest;
 import com.bombayashi.reporteciudadano.model.VoteResponse;
 import com.bombayashi.reporteciudadano.network.ApiClient;
 import com.bombayashi.reporteciudadano.util.LocationUtil;
+import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.mapbox.geojson.Point;
 
 import retrofit2.Call;
@@ -26,7 +25,7 @@ public class VoteStateManager {
 
     private ReportResponse.ReportData reportData;
     private Point userLocation;
-    private SharedPreferences preferences;
+    private TokenManager tokenManager;
 
     private MutableLiveData<VoteState> voteStateLiveData = new MutableLiveData<>();
     private MutableLiveData<VoteEvent> voteEventLiveData = new MutableLiveData<>();
@@ -35,8 +34,7 @@ public class VoteStateManager {
     public VoteStateManager(Context context, ReportResponse.ReportData reportData, Point userLocation) {
         this.reportData = reportData;
         this.userLocation = userLocation;
-        // Usar el mismo SharedPreferences que LoginActivity
-        this.preferences = context.getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        this.tokenManager = TokenManager.getInstance(context);
 
         initialize();
     }
@@ -118,14 +116,11 @@ public class VoteStateManager {
             return;
         }
 
-        // Obtener token guardado usando LoginActivity.PREFS_NAME y LoginActivity.KEY_TOKEN
-        String token = preferences.getString(LoginActivity.KEY_TOKEN, "");
+        String token = tokenManager.getToken();
         Log.d(TAG, "🔑 Token obtenido: " + (token.isEmpty() ? "VACÍO" : "✓ " + token.substring(0, Math.min(20, token.length())) + "..."));
-        Log.d(TAG, "   - SharedPreferences: " + LoginActivity.PREFS_NAME);
-        Log.d(TAG, "   - Key: " + LoginActivity.KEY_TOKEN);
 
         if (token.isEmpty()) {
-            Log.e(TAG, "❌ Token no encontrado en SharedPreferences");
+            Log.e(TAG, "❌ Token no encontrado");
             voteEventLiveData.setValue(
                 new VoteEvent(VoteEvent.Type.ERROR, "Debes iniciar sesión para votar")
             );

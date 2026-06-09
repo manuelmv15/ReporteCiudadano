@@ -1,7 +1,6 @@
 package com.bombayashi.reporteciudadano.ui;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,8 +10,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.bombayashi.reporteciudadano.LoginActivity;
 import com.bombayashi.reporteciudadano.databinding.BottomSheetUserProfileBinding;
+import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 public class UserProfileBottomSheet extends BottomSheetDialogFragment {
@@ -44,13 +43,9 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void displayUserInfo() {
-        // Obtener información del usuario de SharedPreferences
-        SharedPreferences prefs = requireContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        String userName = prefs.getString("user_name", "Usuario");
-        String userEmail = prefs.getString("user_email", "usuario@email.com");
-
-        binding.tvUserName.setText(userName);
-        binding.tvUserEmail.setText(userEmail);
+        TokenManager tm = TokenManager.getInstance(requireContext());
+        binding.tvUserName.setText(tm.getUserName());
+        binding.tvUserEmail.setText(tm.getUserEmail());
     }
 
     private void setupMenuListeners() {
@@ -83,9 +78,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     private void handleLogout() {
         android.util.Log.d("UserProfileBS", "🔓 Cerrando sesión...");
 
-        // Eliminar token de SharedPreferences
-        SharedPreferences prefs = requireContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().remove(LoginActivity.KEY_TOKEN).apply();
+        TokenManager.getInstance(requireContext()).clearAuth();
 
         android.util.Log.d("UserProfileBS", "✓ Token eliminado");
 

@@ -1,13 +1,13 @@
 package com.bombayashi.reporteciudadano;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bombayashi.reporteciudadano.databinding.ActivityRegisterBinding;
+import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.network.ApiClient;
@@ -58,14 +58,10 @@ public class RegisterActivity extends AppCompatActivity {
                         setLoading(false);
                         if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                             AuthResponse auth = response.body();
-                            SharedPreferences.Editor editor = getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE).edit();
-                            editor.putString(LoginActivity.KEY_TOKEN, auth.getToken());
-                            if (auth.getUser() != null) {
-                                editor.putInt(LoginActivity.KEY_USER_ID, auth.getUser().getId());
-                                editor.putString(LoginActivity.KEY_USER_NAME, auth.getUser().getName());
-                                editor.putString(LoginActivity.KEY_USER_EMAIL, auth.getUser().getEmail());
-                            }
-                            editor.apply();
+                            int userId = auth.getUser() != null ? auth.getUser().getId() : -1;
+                            String userName = auth.getUser() != null ? auth.getUser().getName() : "";
+                            String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
+                            TokenManager.getInstance(RegisterActivity.this).saveAuth(auth.getToken(), userId, userName, userEmail);
                             Intent intent = new Intent(RegisterActivity.this, MainActivity.class);
                             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                             startActivity(intent);
