@@ -18,6 +18,9 @@ import com.bombayashi.reporteciudadano.ui.vote.VoteStateManager;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.mapbox.geojson.Point;
 
+// Imports que estaban faltando
+import static com.bombayashi.reporteciudadano.ui.SnackbarHelper.*;
+
 public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
     private BottomSheetReportDetailBinding binding;
@@ -75,7 +78,11 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private void initializeVoteManager() {
         if (getContext() == null) return;
 
+        android.util.Log.d("ReportDetailBS", "🔧 Inicializando VoteStateManager para reporteId=" + report.getId());
         voteStateManager = new VoteStateManager(getContext(), report, userLocation);
+        // ⚠️ CRÍTICO: initialize() debe ser llamado para cargar el estado inicial
+        voteStateManager.initialize();
+        android.util.Log.d("ReportDetailBS", "✓ VoteStateManager inicializado");
     }
 
     private void setupVoteObservers() {
@@ -99,7 +106,32 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                     break;
 
                 case ERROR:
-                    Toast.makeText(getContext(), event.getData(), Toast.LENGTH_SHORT).show();
+                    android.util.Log.e("ReportDetailBS", "❌ Error en voto: " + event.getData());
+
+                    // Detectar voto duplicado (409)
+                    if (event.getData().contains("409") || event.getData().contains("Ya votaste")) {
+                        android.util.Log.d("ReportDetailBS", "🔄 Voto duplicado detectado, refrescando estado...");
+                        // Recargar estado del reporte para mostrar que ya votó
+                        if (voteStateManager != null) {
+                            voteStateManager.refreshVoteState();
+                        }
+                        if (getView() != null) {
+                            SnackbarHelper.show(
+                                getView(),
+                                "Ya has votado en este reporte",
+                                SnackbarHelper.Variant.WARNING
+                            );
+                        }
+                    } else {
+                        // Otro error
+                        if (getView() != null) {
+                            SnackbarHelper.show(
+                                getView(),
+                                event.getData(),
+                                SnackbarHelper.Variant.ERROR
+                            );
+                        }
+                    }
                     break;
             }
         });

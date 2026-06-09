@@ -69,10 +69,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final double DEFAULT_LONGITUDE = -58.3816;
     private static final double DEFAULT_ZOOM = 15.0;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
+    private static final int INITIAL_REPORTS_PAGE_SIZE = 25;  // Pagination: cargar 25 iniciales
+    private static final int MAX_REPORTS = 200;  // Máximo de reportes en caché local
     private java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
     private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
     private java.util.HashMap<Integer, CircleAnnotation> reportStrokeMarkers = new java.util.HashMap<>();  // ReportID → CircleAnnotation (stroke)
     private java.util.HashMap<Integer, CircleAnnotation> reportStatusCircles = new java.util.HashMap<>();  // ReportID → CircleAnnotation (status)
+    private int currentReportsPage = 1;  // Para pagination
+    private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -327,12 +331,20 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void loadReportsFromAPI() {
-        android.util.Log.d("MapFragment", "Iniciando carga de reportes desde API...");
+        if (isLoadingReports) {
+            android.util.Log.w("MapFragment", "⏳ Ya está cargando reportes, ignorando solicitud duplicada");
+            return;
+        }
 
-        // Cargar TODOS los reportes sin filtro de status
-        ApiClient.getInstance().getReports("", 100).enqueue(new Callback<ReportResponse>() {
+        android.util.Log.d("MapFragment", "📥 Cargando reportes (página " + currentReportsPage + ")...");
+        isLoadingReports = true;
+
+        // Cargar con pagination: 25 reportes por página
+        ApiClient.getInstance().getReports("", INITIAL_REPORTS_PAGE_SIZE).enqueue(new Callback<ReportResponse>() {
             @Override
             public void onResponse(@NonNull Call<ReportResponse> call, @NonNull Response<ReportResponse> response) {
+                isLoadingReports = false;
+
                 if (!isAdded() || getView() == null) {
                     android.util.Log.w("MapFragment", "Fragment no está adjunto o view es null");
                     return;
@@ -342,33 +354,48 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     ReportResponse reportResponse = response.body();
                     java.util.List<ReportResponse.ReportData> reports = reportResponse.getData();
 
-                    android.util.Log.d("MapFragment", "✓ Respuesta exitosa. Total reportes: " +
-                            (reports != null ? reports.size() : "null"));
+                    android.util.Log.d("MapFragment", "✓ Reportes recibidos: " +
+                            (reports != null ? reports.size() : "0"));
 
                     if (reports != null && !reports.isEmpty()) {
-                        android.util.Log.d("MapFragment", "Agregando " + reports.size() + " marcadores al mapa");
-                        for (ReportResponse.ReportData report : reports) {
-                            android.util.Log.d("MapFragment", "  - Reporte ID:" + report.getId() +
-                                    " Cat:" + (report.getCategory() != null ? report.getCategory().getSlug() : "null") +
-                                    " Coords:" + report.getLatitude() + "," + report.getLongitude());
-                            addReportMarker(report);
+                        // Limitar caché local a MAX_REPORTS
+                        if (reportMarkers.size() >= MAX_REPORTS) {
+                            android.util.Log.w("MapFragment", "⚠️ Caché de reportes alcanzó máximo (" + MAX_REPORTS + "), ignorando más");
+                            return;
                         }
-                        SnackbarHelper.show(getView(), "Reportes cargados: " + reports.size(), SnackbarHelper.Variant.INFO);
+
+                        int addedCount = 0;
+                        for (ReportResponse.ReportData report : reports) {
+                            if (reportMarkers.size() < MAX_REPORTS) {
+                                addReportMarker(report);
+                                addedCount++;
+                            }
+                        }
+
+                        android.util.Log.d("MapFragment", "📍 Agregados " + addedCount + " marcadores");
+                        currentReportsPage++;
+
+                        if (addedCount > 0) {
+                            SnackbarHelper.show(getView(), "Cargados " + addedCount + " reportes",
+                                    SnackbarHelper.Variant.INFO);
+                        }
                     } else {
-                        android.util.Log.w("MapFragment", "Lista de reportes está vacía");
-                        SnackbarHelper.show(getView(), "Sin reportes disponibles", SnackbarHelper.Variant.INFO);
+                        android.util.Log.w("MapFragment", "⚠️ Lista de reportes vacía");
                     }
                 } else {
-                    android.util.Log.e("MapFragment", "✗ Respuesta no exitosa. Código: " + response.code());
+                    android.util.Log.e("MapFragment", "✗ Error HTTP: " + response.code());
                     SnackbarHelper.show(getView(), "Error: " + response.code(), SnackbarHelper.Variant.ERROR);
                 }
             }
 
             @Override
             public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
+                isLoadingReports = false;
+
                 if (!isAdded() || getView() == null) return;
-                android.util.Log.e("MapFragment", "✗ Error al cargar reportes: " + t.getMessage(), t);
-                SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
+
+                android.util.Log.e("MapFragment", "❌ Error de red: " + t.getMessage(), t);
+                SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
             }
         });
     }
