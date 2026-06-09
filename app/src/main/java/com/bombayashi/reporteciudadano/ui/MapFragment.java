@@ -14,6 +14,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.bombayashi.reporteciudadano.LoginActivity;
 import com.bombayashi.reporteciudadano.R;
 import com.bombayashi.reporteciudadano.databinding.FragmentMapBinding;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
@@ -52,7 +53,7 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class MapFragment extends Fragment {
+public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnReportStatusChangeListener {
 
     private FragmentMapBinding binding;
     private MapView mapView;
@@ -70,6 +71,8 @@ public class MapFragment extends Fragment {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
     private java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
     private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
+    private java.util.HashMap<Integer, CircleAnnotation> reportStrokeMarkers = new java.util.HashMap<>();  // ReportID → CircleAnnotation (stroke)
+    private java.util.HashMap<Integer, CircleAnnotation> reportStatusCircles = new java.util.HashMap<>();  // ReportID → CircleAnnotation (status)
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -187,22 +190,120 @@ public class MapFragment extends Fragment {
             return;
         }
 
-        fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
+        android.util.Log.d("MapFragment", "🔍 Obteniendo ubicación actual (FINE)...");
+
+        // Primero, intenta obtener la última ubicación conocida
+        fusedLocationClient.getLastLocation().addOnSuccessListener(lastLocation -> {
             if (!isAdded() || getView() == null) return;
 
-            if (location != null) {
-                currentLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
-                addUserLocationMarker(currentLocation);
-                animateCameraTo(currentLocation);
-                SnackbarHelper.show(
-                        getView(),
-                        String.format(Locale.getDefault(), "Tu ubicación: %.4f, %.4f", location.getLatitude(), location.getLongitude()),
-                        SnackbarHelper.Variant.SUCCESS
-                );
+            if (lastLocation != null) {
+                android.util.Log.d("MapFragment", "📍 Última ubicación obtenida (±" +
+                    String.format("%.0f", lastLocation.getAccuracy()) + "m)");
+
+                // Si la ubicación es reciente y precisa, usarla
+                long ageMs = System.currentTimeMillis() - lastLocation.getTime();
+                if (ageMs < 60000 && lastLocation.getAccuracy() < 50) {  // < 1min y < 50m
+                    useLocation(lastLocation);
+                } else {
+                    // Si es vieja o imprecisa, solicitar actualización
+                    android.util.Log.d("MapFragment", "📍 Ubicación vieja/imprecisa, solicitando actualización...");
+                    requestLocationUpdates();
+                }
             } else {
-                centerOnDefaultLocation();
+                // Sin última ubicación, solicitar actualización
+                android.util.Log.d("MapFragment", "📍 Sin ubicación previa, solicitando actualización...");
+                requestLocationUpdates();
             }
+        }).addOnFailureListener(e -> {
+            android.util.Log.e("MapFragment", "✗ Error en getLastLocation: " + e.getMessage());
+            centerOnDefaultLocation();
         });
+    }
+
+    private void requestLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            centerOnDefaultLocation();
+            return;
+        }
+
+        // Crear LocationRequest compatible con versiones antiguas
+        com.google.android.gms.location.LocationRequest locationRequest =
+            com.google.android.gms.location.LocationRequest.create()
+                .setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY)
+                .setInterval(500)
+                .setFastestInterval(250);
+
+        final boolean[] locationUpdated = {false};  // Flag para rastrear si ya obtuvimos una actualización
+
+        com.google.android.gms.location.LocationCallback locationCallback =
+            new com.google.android.gms.location.LocationCallback() {
+                @Override
+                public void onLocationResult(com.google.android.gms.location.LocationResult locationResult) {
+                    if (locationResult == null || locationResult.getLocations().isEmpty()) return;
+
+                    // Obtener la ubicación más precisa de la lista
+                    android.location.Location bestLocation = locationResult.getLocations().get(0);
+                    for (android.location.Location loc : locationResult.getLocations()) {
+                        if (loc.getAccuracy() < bestLocation.getAccuracy()) {
+                            bestLocation = loc;
+                        }
+                    }
+
+                    locationUpdated[0] = true;
+                    useLocation(bestLocation);
+
+                    // Detener actualizaciones después de obtener una ubicación precisa
+                    if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                            == PackageManager.PERMISSION_GRANTED) {
+                        fusedLocationClient.removeLocationUpdates(this);
+                    }
+                }
+            };
+
+        // Solicitar una única actualización (timeout 5 segundos - más corto ahora)
+        java.util.Timer timer = new java.util.Timer();
+        timer.schedule(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                            == PackageManager.PERMISSION_GRANTED) {
+                        fusedLocationClient.removeLocationUpdates(locationCallback);
+                    }
+
+                    // Si NO obtuvimos actualización, mantener la ubicación anterior (no ir a Buenos Aires)
+                    if (!locationUpdated[0]) {
+                        android.util.Log.w("MapFragment", "⏱ Timeout en locationUpdates, manteniendo última ubicación conocida");
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("MapFragment", "Error en timeout: " + e.getMessage());
+                }
+            }
+        }, 5000);  // 5 segundos timeout (más corto)
+
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null);
+    }
+
+    private void useLocation(android.location.Location location) {
+        if (!isAdded() || getView() == null) return;
+
+        currentLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
+        addUserLocationMarker(currentLocation);
+        animateCameraTo(currentLocation);
+
+        android.util.Log.i("MapFragment", "✓ Ubicación utilizada (Precisión: " +
+            String.format("%.1f", location.getAccuracy()) + "m)");
+
+        SnackbarHelper.show(
+                getView(),
+                String.format(Locale.getDefault(),
+                    "Tu ubicación (±%.0fm): %.4f, %.4f",
+                    location.getAccuracy(),
+                    location.getLatitude(),
+                    location.getLongitude()),
+                SnackbarHelper.Variant.SUCCESS
+        );
     }
 
     private void addUserLocationMarker(Point point) {
@@ -301,11 +402,11 @@ public class MapFragment extends Fragment {
                 return;
             }
 
-            // Crear PointAnnotation con bitmap directamente
+            // Crear PointAnnotation con bitmap directamente (25% más pequeño)
             PointAnnotationOptions pointOptions = new PointAnnotationOptions()
                     .withPoint(point)
                     .withIconImage(iconBitmap)
-                    .withIconSize(2.5f);
+                    .withIconSize(1.9f);  // Reducido de 2.5f (25% menor)
 
             PointAnnotation pointAnnotation = pointAnnotationManager.create(pointOptions);
             pointAnnotation.setDraggable(false);
@@ -313,17 +414,20 @@ public class MapFragment extends Fragment {
 
             android.util.Log.d("MapFragment", "  ✓ PointAnnotation creada");
 
-            // 2. Stroke del estado (CircleAnnotation - solo borde)
+            // 2. Stroke del estado (CircleAnnotation - ajustado para cerrar el gap)
             CircleAnnotationOptions strokeOptions = new CircleAnnotationOptions()
                     .withPoint(point)
-                    .withCircleRadius(28.0)
+                    .withCircleRadius(38.0)  // Ajustado para contacto directo con icono (25% reducción)
                     .withCircleColor("#00000000")  // Transparente
                     .withCircleOpacity(0.0)
-                    .withCircleStrokeWidth(4.0)
+                    .withCircleStrokeWidth(6.0)  // Stroke grueso y visible
                     .withCircleStrokeColor(statusStrokeColor);
 
             CircleAnnotation strokeAnnotation = circleAnnotationManager.create(strokeOptions);
             strokeAnnotation.setDraggable(false);
+
+            // Guardar referencia para actualizaciones posteriores
+            reportStrokeMarkers.put(report.getId(), strokeAnnotation);
 
             android.util.Log.d("MapFragment", "  ✓ Marcador completado");
 
@@ -535,8 +639,73 @@ public class MapFragment extends Fragment {
 
     private void showReportDetails(ReportResponse.ReportData report) {
         if (report == null) return;
-        ReportDetailBottomSheet bottomSheet = ReportDetailBottomSheet.newInstance(report);
+        // Pasar ubicación del usuario para validar distancia de votación
+        ReportDetailBottomSheet bottomSheet = ReportDetailBottomSheet.newInstance(report, currentLocation);
+        // Pasar listener para cambios de estado
+        bottomSheet.setStatusChangeListener(this);
         bottomSheet.show(getChildFragmentManager(), "report_detail");
+    }
+
+    @Override
+    public void onReportStatusChanged(int reportId, String newStatus, int confirmCount, int resolveCount) {
+        android.util.Log.d("MapFragment", "═══════════════════════════════════════════");
+        android.util.Log.d("MapFragment", "📊 onReportStatusChanged() - ReportID: " + reportId);
+        android.util.Log.d("MapFragment", "   Status: " + newStatus);
+        android.util.Log.d("MapFragment", "   Confirm: " + confirmCount + ", Resolve: " + resolveCount);
+
+        updateReportMarker(reportId, newStatus, confirmCount, resolveCount);
+    }
+
+    private void updateReportMarker(int reportId, String newStatus, int confirmCount, int resolveCount) {
+        CircleAnnotation strokeMarker = reportStrokeMarkers.get(reportId);
+        if (strokeMarker == null) {
+            android.util.Log.w("MapFragment", "⚠️ No se encontró marcador de stroke para reportId: " + reportId);
+            return;
+        }
+
+        android.util.Log.d("MapFragment", "✓ Marcador encontrado, actualizando...");
+
+        // Determinar color y radio según estado
+        String newColor = "#757575";  // Valor por defecto
+        double newRadius = 28.0;
+
+        switch (newStatus) {
+            case "VERIFIED":
+                newColor = "#4CAF50";  // Verde
+                newRadius = 35.0;      // Más grande
+                android.util.Log.d("MapFragment", "✅ Reporte VERIFICADO - Verde");
+                break;
+
+            case "RESOLVED":
+                newColor = "#9E9E9E";  // Gris
+                newRadius = 30.0;
+                android.util.Log.d("MapFragment", "✅ Reporte RESUELTO - Gris");
+                break;
+
+            case "PENDING":
+            default:
+                ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
+                if (report != null) {
+                    newColor = getStatusStrokeColor(report.getStatus());
+                }
+                android.util.Log.d("MapFragment", "ℹ️ Reporte PENDIENTE - Color de estado");
+        }
+
+        // Actualizar marcador - eliminar anterior y crear nuevo con nuevos valores
+        circleAnnotationManager.delete(strokeMarker);
+
+        CircleAnnotationOptions updatedOptions = new CircleAnnotationOptions()
+            .withPoint(strokeMarker.getPoint())
+            .withCircleColor("#00000000")
+            .withCircleOpacity(0.0)
+            .withCircleStrokeWidth(6.0)
+            .withCircleStrokeColor(newColor)
+            .withCircleRadius(newRadius);
+
+        CircleAnnotation updatedStroke = circleAnnotationManager.create(updatedOptions);
+        reportStrokeMarkers.put(reportId, updatedStroke);
+
+        android.util.Log.d("MapFragment", "✓ Marcador actualizado: color=" + newColor + ", radio=" + newRadius);
     }
 
     private void setupFAB() {
@@ -548,6 +717,25 @@ public class MapFragment extends Fragment {
                 getCurrentUserLocation();
             }
         });
+
+        // FAB Perfil del usuario
+        FloatingActionButton fabProfile = binding.fabProfile;
+        fabProfile.setOnClickListener(v -> {
+            showUserProfile();
+        });
+    }
+
+    private void showUserProfile() {
+        UserProfileBottomSheet profileSheet = new UserProfileBottomSheet();
+        profileSheet.setLogoutListener(this::handleLogout);
+        profileSheet.show(getChildFragmentManager(), "user_profile");
+    }
+
+    private void handleLogout() {
+        android.util.Log.d("MapFragment", "🔓 Usuario cerró sesión, volviendo a login...");
+        // Ir a LoginActivity
+        requireActivity().startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+        requireActivity().finish();
     }
 
     private void centerOnDefaultLocation() {

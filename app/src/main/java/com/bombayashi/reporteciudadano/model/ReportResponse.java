@@ -56,6 +56,10 @@ public class ReportResponse {
         private CategoryInfo category;
         @SerializedName("votes")
         private VotesInfo votes;
+        @SerializedName("user_vote")
+        private String userVote;  // "confirm", "resolve", o null si no ha votado
+        @SerializedName("user_voted_at")
+        private String userVotedAt;  // timestamp cuando el usuario votó
 
         public int getId() { return id; }
         public int getCategoryId() { return categoryId; }
@@ -69,6 +73,8 @@ public class ReportResponse {
         public UserInfo getUser() { return user; }
         public CategoryInfo getCategory() { return category; }
         public VotesInfo getVotes() { return votes; }
+        public String getUserVote() { return userVote; }
+        public String getUserVotedAt() { return userVotedAt; }
     }
 
     public static class UserInfo {

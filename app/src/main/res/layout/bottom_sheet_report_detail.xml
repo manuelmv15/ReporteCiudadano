@@ -51,10 +51,73 @@
         android:textAppearance="?attr/textAppearanceLabelMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
-    <LinearLayout
+    <!-- Conteo de Votos -->
+    <TextView
+        android:id="@+id/tvVoteCount"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
+        android:text="0 confirman, 0 dicen que ya se resolvió"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textStyle="bold"
+        android:textAlignment="center" />
+
+    <!-- Distancia / Aviso de Ubicación -->
+    <LinearLayout
+        android:id="@+id/llDistanceWarning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:visibility="gone"
+        android:background="@drawable/bg_status_badge"
+        android:padding="8dp">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="8dp"
+            android:tint="@android:color/white"
+            app:srcCompat="@drawable/ic_my_location" />
+
+        <TextView
+            android:id="@+id/tvDistance"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Debes estar a 500m del reporte para votar"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+
+    <!-- Indicador de Voto del Usuario -->
+    <TextView
+        android:id="@+id/tvUserVoteStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Tu voto: Sigue ahí"
+        android:textAppearance="?attr/textAppearanceLabelMedium"
+        android:textColor="?attr/colorPrimary"
+        android:visibility="gone"
+        android:textAlignment="center" />
+
+    <!-- Loading Progress -->
+    <ProgressBar
+        android:id="@+id/pbVoteLoading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp"
+        android:visibility="gone"
+        android:indeterminate="true" />
+
+    <!-- Botones de Votación -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
@@ -64,7 +127,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
-            android:text="Confirmar (0)"
+            android:text="Sigue ahí"
             app:icon="@drawable/ic_thumb_up" />
 
         <com.google.android.material.button.MaterialButton
@@ -74,7 +137,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:text="Resuelto (0)"
+            android:text="Ya se resolvió"
             app:icon="@drawable/ic_check" />
     </LinearLayout>
 

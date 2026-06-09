@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="?attr/colorSurfaceContainerLowest"
-        android:alpha="0.85">
+        android:alpha="0.6">
 
         <View
             android:id="@+id/center_point"
@@ -92,7 +92,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:contentDescription="Parques"
-            app:srcCompat="@drawable/unpaved_road_24px"
+            app:srcCompat="@drawable/trash"
             app:fabSize="mini"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"

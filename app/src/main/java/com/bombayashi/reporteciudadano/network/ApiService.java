@@ -5,14 +5,19 @@ import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
+import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.bombayashi.reporteciudadano.model.VoteRequest;
+import com.bombayashi.reporteciudadano.model.VoteResponse;
 
 import retrofit2.Call;
 import retrofit2.http.Body;
+import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.POST;
+import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 public interface ApiService {
@@ -34,9 +39,28 @@ public interface ApiService {
             @Query("per_page") int perPage
     );
 
+    @GET("reports/{id}")
+    Call<ReportDetailResponse> getReportDetail(
+            @Path("id") int reportId
+    );
+
     @POST("reports")
     Call<CreateReportResponse> createReport(
             @Header("Authorization") String token,
             @Body ReportRequest request
+    );
+
+    @POST("reports/{id}/votes")
+    Call<VoteResponse> submitVote(
+            @Path("id") int reportId,
+            @Header("Authorization") String token,
+            @Body VoteRequest request
+    );
+
+    @DELETE("reports/{id}/votes/{type}")
+    Call<VoteResponse> deleteVote(
+            @Path("id") int reportId,
+            @Path("type") String voteType,
+            @Header("Authorization") String token
     );
 }
