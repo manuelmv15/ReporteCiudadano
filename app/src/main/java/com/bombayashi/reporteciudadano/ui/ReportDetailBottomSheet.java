@@ -2,7 +2,6 @@ package com.bombayashi.reporteciudadano.ui;
 
 import android.Manifest;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -19,8 +18,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
-import com.bombayashi.reporteciudadano.LoginActivity;
 import com.bombayashi.reporteciudadano.R;
+import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.bombayashi.reporteciudadano.databinding.BottomSheetReportDetailBinding;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
@@ -52,7 +51,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private VoteStateManager voteStateManager;
     private OnReportStatusChangeListener statusChangeListener;
     private boolean isOwner = false;
-    private SharedPreferences ownerPrefs;
+    private TokenManager tokenManager;
     private Uri cameraPhotoUri;
 
     private final ActivityResultLauncher<String> galleryLauncher =
@@ -114,10 +113,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
     private boolean isGuest() {
         if (getContext() == null) return true;
-        String token = getContext()
-                .getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(LoginActivity.KEY_TOKEN, "");
-        return token.isEmpty();
+        return !TokenManager.getInstance(getContext()).isLoggedIn();
     }
 
     private void setupGuestMode() {
@@ -128,7 +124,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.btnLoginToVote.setVisibility(View.VISIBLE);
         binding.btnLoginToVote.setOnClickListener(v -> {
             dismiss();
-            startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+            startActivity(new android.content.Intent(requireContext(), com.bombayashi.reporteciudadano.LoginActivity.class));
         });
     }
 
@@ -146,13 +142,13 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
     private void setupOwnerControls() {
         if (getContext() == null) return;
-        ownerPrefs = getContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        int currentUserId = ownerPrefs.getInt(LoginActivity.KEY_USER_ID, -1);
+        tokenManager = TokenManager.getInstance(getContext());
+        int currentUserId = tokenManager.getUserId();
 
         if (currentUserId != -1 && currentUserId == report.getUserId()) {
             isOwner = true;
             binding.btnEditDescription.setVisibility(View.VISIBLE);
-            binding.btnEditDescription.setOnClickListener(v -> showEditDescriptionDialog(ownerPrefs));
+            binding.btnEditDescription.setOnClickListener(v -> showEditDescriptionDialog());
             binding.llPhotoButtons.setVisibility(View.VISIBLE);
             binding.btnTakePhoto.setOnClickListener(v -> {
                 if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA)
@@ -192,7 +188,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         dialog.show();
     }
 
-    private void showEditDescriptionDialog(SharedPreferences prefs) {
+    private void showEditDescriptionDialog() {
         EditText input = new EditText(requireContext());
         input.setText(report.getDescription());
         input.setSelection(input.getText().length());
@@ -212,14 +208,13 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
     private void clearTokenAndGoToLogin() {
         if (getContext() == null) return;
-        getContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().remove(LoginActivity.KEY_TOKEN).apply();
+        TokenManager.getInstance(getContext()).clearAuth();
         dismiss();
-        startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+        startActivity(new android.content.Intent(requireContext(), com.bombayashi.reporteciudadano.LoginActivity.class));
     }
 
     private void saveDescription(String newDesc) {
-        String token = "Bearer " + ownerPrefs.getString(LoginActivity.KEY_TOKEN, "");
+        String token = "Bearer " + tokenManager.getToken();
         RequestBody descBody = RequestBody.create(newDesc, MediaType.parse("text/plain"));
         ApiClient.getInstance().updateReport(report.getId(), token, descBody, null)
             .enqueue(new Callback<CreateReportResponse>() {
@@ -431,7 +426,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void uploadPhoto(Uri uri) {
-        if (getContext() == null || ownerPrefs == null) return;
+        if (getContext() == null || tokenManager == null) return;
         try {
             InputStream is = getContext().getContentResolver().openInputStream(uri);
             if (is == null) return;
@@ -445,7 +440,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
             RequestBody reqBody = RequestBody.create(tmpFile, MediaType.parse("image/jpeg"));
             MultipartBody.Part photoPart = MultipartBody.Part.createFormData("photo", tmpFile.getName(), reqBody);
-            String token = "Bearer " + ownerPrefs.getString(LoginActivity.KEY_TOKEN, "");
+            String token = "Bearer " + tokenManager.getToken();
 
             String currentDesc = report.getDescription() != null ? report.getDescription() : "";
             RequestBody descBody = RequestBody.create(currentDesc, MediaType.parse("text/plain"));

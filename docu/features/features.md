@@ -12,9 +12,9 @@
 | ID     | Requerimiento                                                       | Estado | Notas                                                                                                                                                                                                                          |
 | ------ | ------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                                                                                                                                                                |
-| RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | 🔶     | Token guardado en SharedPreferences normal, pendiente migrar a EncryptedSharedPreferences                                                                                                                                      |
+| RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | ✅      | TokenManager singleton (util/TokenManager.java) usa EncryptedSharedPreferences AES256-GCM/SIV; fallback a prefs normales si crypto no disponible; guarda token + user_id + user_name + user_email; todos los callers migrados (LoginActivity, RegisterActivity, UserProfileBottomSheet, MapFragment, ReportDetailBottomSheet, VoteStateManager) |
 | RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                                                                                                                                                           |
-| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅     | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear reporte/votar/editar/subir foto → clearToken + redirect a login; pendiente confirmación backend auth:sanctum |
+| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅     | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear/votar/editar/foto → clearToken + redirect a login; backend confirmado: POST/PUT/DELETE/PATCH auth:sanctum, GET público |
 | RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | 🔶     | API crea usuario pero app no muestra perfil completo                                                                                                                                                                           |
 | RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                                                                                                                                                       |
 
@@ -110,7 +110,7 @@
 
 | Módulo | Total RF | ✅ Completos | 🔶 A medias | ❌ No iniciados |
 |--------|----------|-------------|------------|----------------|
-| Autenticación (A) | 6 | 3 | 2 | 1 |
+| Autenticación (A) | 6 | 4 | 1 | 1 |
 | Reporte ultrarrápido (1) | 6 | 4 | 0 | 2 |
 | Votos comunitarios (2) | 9 | 1 | 6 | 2 |
 | Mapa en vivo (3) | 5 | 1 | 4 | 0 |
@@ -118,4 +118,4 @@
 | Puntuación y confiabilidad (5) | 5 | 0 | 0 | 5 |
 | Perfil e historial (6) | 3 | 0 | 0 | 3 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **9 (21%)** | **12 (28%)** | **22 (51%)** |
+| **TOTAL** | **43** | **10 (23%)** | **11 (26%)** | **22 (51%)** |
