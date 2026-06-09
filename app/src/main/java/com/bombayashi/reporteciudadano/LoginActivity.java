@@ -30,6 +30,9 @@ public class LoginActivity extends AppCompatActivity {
 
     public static final String PREFS_NAME = "auth_prefs";
     public static final String KEY_TOKEN = "token";
+    public static final String KEY_USER_ID = "user_id";
+    public static final String KEY_USER_NAME = "user_name";
+    public static final String KEY_USER_EMAIL = "user_email";
 
     private ActivityLoginBinding binding;
     private GoogleSignInClient googleSignInClient;
@@ -86,7 +89,7 @@ public class LoginActivity extends AppCompatActivity {
                     public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                         setLoading(false);
                         if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                            saveTokenAndGoMain(response.body().getToken());
+                            saveAuthAndGoMain(response.body());
                         } else {
                             showError("Credenciales incorrectas");
                         }
@@ -115,7 +118,7 @@ public class LoginActivity extends AppCompatActivity {
                         public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                             setLoading(false);
                             if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                                saveTokenAndGoMain(response.body().getToken());
+                                saveAuthAndGoMain(response.body());
                             } else {
                                 showError("Error del servidor: " + response.code());
                             }
@@ -133,11 +136,15 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    private void saveTokenAndGoMain(String token) {
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                .edit()
-                .putString(KEY_TOKEN, token)
-                .apply();
+    private void saveAuthAndGoMain(AuthResponse auth) {
+        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+        editor.putString(KEY_TOKEN, auth.getToken());
+        if (auth.getUser() != null) {
+            editor.putInt(KEY_USER_ID, auth.getUser().getId());
+            editor.putString(KEY_USER_NAME, auth.getUser().getName());
+            editor.putString(KEY_USER_EMAIL, auth.getUser().getEmail());
+        }
+        editor.apply();
         goToMain();
     }
 

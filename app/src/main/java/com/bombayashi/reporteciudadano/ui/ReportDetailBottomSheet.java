@@ -1,24 +1,47 @@
 package com.bombayashi.reporteciudadano.ui;
 
+import android.Manifest;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
+import android.widget.EditText;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
+import com.bombayashi.reporteciudadano.LoginActivity;
 import com.bombayashi.reporteciudadano.R;
 import com.bombayashi.reporteciudadano.databinding.BottomSheetReportDetailBinding;
+import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.bombayashi.reporteciudadano.network.ApiClient;
 import com.bombayashi.reporteciudadano.ui.vote.VoteState;
 import com.bombayashi.reporteciudadano.ui.vote.VoteStateManager;
+import com.bumptech.glide.Glide;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.mapbox.geojson.Point;
 
-// Imports que estaban faltando
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 import static com.bombayashi.reporteciudadano.ui.SnackbarHelper.*;
 
 public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
@@ -28,6 +51,26 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private Point userLocation;
     private VoteStateManager voteStateManager;
     private OnReportStatusChangeListener statusChangeListener;
+    private boolean isOwner = false;
+    private SharedPreferences ownerPrefs;
+    private Uri cameraPhotoUri;
+
+    private final ActivityResultLauncher<String> galleryLauncher =
+        registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+            if (uri != null) uploadPhoto(uri);
+        });
+
+    private final ActivityResultLauncher<Uri> cameraLauncher =
+        registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
+            if (Boolean.TRUE.equals(success) && cameraPhotoUri != null) uploadPhoto(cameraPhotoUri);
+        });
+
+    private final ActivityResultLauncher<String> cameraPermissionLauncher =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+            if (granted) launchCamera();
+            else if (getView() != null)
+                SnackbarHelper.show(getView(), "Permiso de cámara denegado", SnackbarHelper.Variant.WARNING);
+        });
 
     public interface OnReportStatusChangeListener {
         void onReportStatusChanged(int reportId, String newStatus, int confirmCount, int resolveCount);
@@ -58,6 +101,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         if (report == null || userLocation == null) return;
 
         displayReportInfo();
+        setupOwnerControls();
         initializeVoteManager();
         setupVoteObservers();
         setupButtonListeners();
@@ -73,6 +117,97 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.tvStatus.setText(status);
         binding.tvDescription.setText(description);
         binding.tvUser.setText("Reportado por: " + userName);
+    }
+
+    private void setupOwnerControls() {
+        if (getContext() == null) return;
+        ownerPrefs = getContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        int currentUserId = ownerPrefs.getInt(LoginActivity.KEY_USER_ID, -1);
+
+        if (currentUserId != -1 && currentUserId == report.getUserId()) {
+            isOwner = true;
+            binding.btnEditDescription.setVisibility(View.VISIBLE);
+            binding.btnEditDescription.setOnClickListener(v -> showEditDescriptionDialog(ownerPrefs));
+            binding.llPhotoButtons.setVisibility(View.VISIBLE);
+            binding.btnTakePhoto.setOnClickListener(v -> {
+                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA)
+                        == PackageManager.PERMISSION_GRANTED) {
+                    launchCamera();
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+                }
+            });
+            binding.btnPickPhoto.setOnClickListener(v -> galleryLauncher.launch("image/*"));
+            // Owner no vota — ocultar sección de votación
+            binding.llVoteButtons.setVisibility(View.GONE);
+            binding.llDistanceWarning.setVisibility(View.GONE);
+            binding.tvUserVoteStatus.setVisibility(View.GONE);
+            binding.pbVoteLoading.setVisibility(View.GONE);
+        }
+
+        // Mostrar foto actual si existe
+        String existingPhotoUrl = report.getPhotoUrl();
+        if (existingPhotoUrl != null) {
+            binding.ivReportPhoto.setVisibility(View.VISIBLE);
+            Glide.with(this).load(existingPhotoUrl).into(binding.ivReportPhoto);
+            binding.ivReportPhoto.setOnClickListener(v -> showFullscreenPhoto(existingPhotoUrl));
+        }
+    }
+
+    private void showFullscreenPhoto(String url) {
+        if (getContext() == null) return;
+        android.widget.ImageView iv = new android.widget.ImageView(getContext());
+        iv.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        iv.setBackgroundColor(0xFF000000);
+        Glide.with(this).load(url).into(iv);
+
+        android.app.Dialog dialog = new android.app.Dialog(getContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        dialog.setContentView(iv);
+        iv.setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
+    }
+
+    private void showEditDescriptionDialog(SharedPreferences prefs) {
+        EditText input = new EditText(requireContext());
+        input.setText(report.getDescription());
+        input.setSelection(input.getText().length());
+
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Editar descripción")
+            .setView(input)
+            .setPositiveButton("Guardar", (dialog, which) -> {
+                String newDesc = input.getText().toString().trim();
+                if (!newDesc.isEmpty()) {
+                    saveDescription(newDesc);
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void saveDescription(String newDesc) {
+        String token = "Bearer " + ownerPrefs.getString(LoginActivity.KEY_TOKEN, "");
+        RequestBody descBody = RequestBody.create(newDesc, MediaType.parse("text/plain"));
+        ApiClient.getInstance().updateReport(report.getId(), token, descBody, null)
+            .enqueue(new Callback<CreateReportResponse>() {
+                @Override
+                public void onResponse(Call<CreateReportResponse> call, Response<CreateReportResponse> response) {
+                    if (!isAdded() || getView() == null) return;
+                    if (response.isSuccessful()) {
+                        report.setDescription(newDesc);
+                        binding.tvDescription.setText(newDesc);
+                        SnackbarHelper.show(getView(), "Descripción actualizada", SnackbarHelper.Variant.SUCCESS);
+                    } else {
+                        SnackbarHelper.show(getView(), "Error al guardar: " + response.code(), SnackbarHelper.Variant.ERROR);
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<CreateReportResponse> call, Throwable t) {
+                    if (!isAdded() || getView() == null) return;
+                    SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
+                }
+            });
     }
 
     private void initializeVoteManager() {
@@ -153,10 +288,10 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private void updateVoteUI(VoteState state) {
         if (state == null) return;
 
-        // Actualizar conteo de votos
         binding.tvVoteCount.setText(state.getFormattedVoteCount());
 
-        // Mostrar/ocultar aviso de distancia
+        if (isOwner) return;
+
         if (state.isWithinRadius()) {
             binding.llDistanceWarning.setVisibility(View.GONE);
             binding.btnConfirm.setEnabled(true);
@@ -170,7 +305,6 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             binding.btnResolve.setEnabled(false);
         }
 
-        // Mostrar estado del voto del usuario
         if (state.hasUserVoted()) {
             binding.tvUserVoteStatus.setVisibility(View.VISIBLE);
             String voteText = state.getCurrentUserVoteType().equals("confirm")
@@ -189,21 +323,18 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             binding.tvUserVoteStatus.setVisibility(View.GONE);
         }
 
-        // Mostrar/ocultar loading spinner
         if (state.isLoading()) {
             binding.pbVoteLoading.setVisibility(View.VISIBLE);
             binding.btnConfirm.setEnabled(false);
             binding.btnResolve.setEnabled(false);
         } else {
             binding.pbVoteLoading.setVisibility(View.GONE);
-            // Re-habilitar botones si están dentro de rango
             if (state.isWithinRadius()) {
                 binding.btnConfirm.setEnabled(true);
                 binding.btnResolve.setEnabled(true);
             }
         }
 
-        // Cambiar estilo de botones según voto actual
         updateButtonStyles(state);
     }
 
@@ -247,6 +378,82 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 android.util.Log.e("ReportDetailBS", "❌ voteStateManager es null");
             }
         });
+    }
+
+    private void launchCamera() {
+        if (getContext() == null) return;
+        try {
+            File photoFile = File.createTempFile("report_photo", ".jpg", getContext().getCacheDir());
+            cameraPhotoUri = FileProvider.getUriForFile(
+                getContext(),
+                getContext().getPackageName() + ".fileprovider",
+                photoFile
+            );
+            cameraLauncher.launch(cameraPhotoUri);
+        } catch (Exception e) {
+            if (getView() != null)
+                SnackbarHelper.show(getView(), "Error al iniciar cámara", SnackbarHelper.Variant.ERROR);
+        }
+    }
+
+    private void uploadPhoto(Uri uri) {
+        if (getContext() == null || ownerPrefs == null) return;
+        try {
+            InputStream is = getContext().getContentResolver().openInputStream(uri);
+            if (is == null) return;
+            File tmpFile = File.createTempFile("report_photo", ".jpg", getContext().getCacheDir());
+            try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
+                byte[] buf = new byte[4096];
+                int len;
+                while ((len = is.read(buf)) > 0) fos.write(buf, 0, len);
+            }
+            is.close();
+
+            RequestBody reqBody = RequestBody.create(tmpFile, MediaType.parse("image/jpeg"));
+            MultipartBody.Part photoPart = MultipartBody.Part.createFormData("photo", tmpFile.getName(), reqBody);
+            String token = "Bearer " + ownerPrefs.getString(LoginActivity.KEY_TOKEN, "");
+
+            String currentDesc = report.getDescription() != null ? report.getDescription() : "";
+            RequestBody descBody = RequestBody.create(currentDesc, MediaType.parse("text/plain"));
+
+            binding.pbVoteLoading.setVisibility(View.VISIBLE);
+            ApiClient.getInstance().updateReport(report.getId(), token, descBody, photoPart)
+                .enqueue(new Callback<CreateReportResponse>() {
+                    @Override
+                    public void onResponse(Call<CreateReportResponse> call, Response<CreateReportResponse> response) {
+                        if (!isAdded() || getView() == null) return;
+                        binding.pbVoteLoading.setVisibility(View.GONE);
+                        if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                            // Actualizar objeto en memoria para próximas aperturas
+                            if (response.body().getReport() != null && response.body().getReport().getPhoto() != null) {
+                                report.setPhoto(response.body().getReport().getPhoto());
+                            }
+                            binding.ivReportPhoto.setVisibility(View.VISIBLE);
+                            String photoUrl = report.getPhotoUrl();
+                            Object photoSrc = photoUrl != null ? photoUrl : uri;
+                            Glide.with(ReportDetailBottomSheet.this)
+                                .load(photoSrc)
+                                .into(binding.ivReportPhoto);
+                            binding.ivReportPhoto.setOnClickListener(v ->
+                                showFullscreenPhoto(photoUrl != null ? photoUrl : uri.toString()));
+                            SnackbarHelper.show(getView(), "Foto subida correctamente", SnackbarHelper.Variant.SUCCESS);
+                        } else {
+                            SnackbarHelper.show(getView(), "Error al subir foto: " + response.code(), SnackbarHelper.Variant.ERROR);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<CreateReportResponse> call, Throwable t) {
+                        if (!isAdded() || getView() == null) return;
+                        binding.pbVoteLoading.setVisibility(View.GONE);
+                        SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
+                    }
+                });
+        } catch (Exception e) {
+            if (getView() != null) {
+                SnackbarHelper.show(getView(), "Error al procesar imagen", SnackbarHelper.Variant.ERROR);
+            }
+        }
     }
 
     private void showChangeVoteDialog(String newVoteType) {

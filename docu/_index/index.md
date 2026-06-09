@@ -42,3 +42,9 @@
 
 - [2026-06-09] [map] — fab_add_report wired a showRadialMenu(); creado drawable add_24px; fix srcCompat vacío en fragment_map.xml
 - [2026-06-09] [features] — docu/features/features.md creado: tracking de los 43 RF del planteamiento v1 (6 ✅ completos, 13 🔶 a medias, 24 ❌ sin iniciar)
+- [2026-06-09] [components] — ReportDetailBottomSheet: detecta si reporte es del usuario actual, muestra botón "Editar descripción" solo al autor, permite editar y guardar vía PATCH /reports/{id}; LoginActivity/RegisterActivity: guardan user_id, user_name, user_email en prefs al login
+- [2026-06-09] [components] — ReportDetailBottomSheet: owner no puede votar (botones ocultos, solo muestra resumen); owner puede agregar/reemplazar foto via galería; foto actual se muestra con Glide si existe
+- [2026-06-09] [components] — ReportDetailBottomSheet: dos botones directos (Tomar foto / Galería) en lugar de dialog; cámara con FileProvider + permiso runtime CAMERA; endpoint corregido PATCH→PUT /reports/{id} (verificado en /api/docs); fix foto/desc no persiste entre aperturas via report.setPhoto()/setDescription()
+- [2026-06-09] [db/components] — Fix crítico: API devuelve `photo_path` no `photo`; ReportData ahora usa @SerializedName("photo_path"); añadido getPhotoUrl() que construye URL completa con base https://api.manuelmv.net/storage/; PENDIENTE backend: storage:link da 403
+- [2026-06-09] [components] — ReportDetailBottomSheet: tap en foto abre fullscreen Dialog negro; ivReportPhoto clickable con ripple feedback
+- [2026-06-09] [general] — Backend: php artisan storage:link ejecutado; fotos ahora accesibles en https://api.manuelmv.net/storage/; RF-04 y RF-20 marcados ✅

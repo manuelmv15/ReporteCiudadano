@@ -57,11 +57,15 @@ public class RegisterActivity extends AppCompatActivity {
                     public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                         setLoading(false);
                         if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                            String token = response.body().getToken();
-                            getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE)
-                                    .edit()
-                                    .putString(LoginActivity.KEY_TOKEN, token)
-                                    .apply();
+                            AuthResponse auth = response.body();
+                            SharedPreferences.Editor editor = getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE).edit();
+                            editor.putString(LoginActivity.KEY_TOKEN, auth.getToken());
+                            if (auth.getUser() != null) {
+                                editor.putInt(LoginActivity.KEY_USER_ID, auth.getUser().getId());
+                                editor.putString(LoginActivity.KEY_USER_NAME, auth.getUser().getName());
+                                editor.putString(LoginActivity.KEY_USER_EMAIL, auth.getUser().getEmail());
+                            }
+                            editor.apply();
                             Intent intent = new Intent(RegisterActivity.this, MainActivity.class);
                             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                             startActivity(intent);

@@ -46,7 +46,7 @@ public class ReportResponse {
         private String description;
         @SerializedName("status")
         private String status; // pending, verified, resolved, archived
-        @SerializedName("photo")
+        @SerializedName("photo_path")
         private String photo;
         @SerializedName("created_at")
         private String createdAt;
@@ -67,8 +67,15 @@ public class ReportResponse {
         public double getLatitude() { return latitude; }
         public double getLongitude() { return longitude; }
         public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
         public String getStatus() { return status; }
         public String getPhoto() { return photo; }
+        public void setPhoto(String photo) { this.photo = photo; }
+        public String getPhotoUrl() {
+            if (photo == null || photo.isEmpty()) return null;
+            if (photo.startsWith("http")) return photo;
+            return "https://api.manuelmv.net/storage/" + photo;
+        }
         public String getCreatedAt() { return createdAt; }
         public UserInfo getUser() { return user; }
         public CategoryInfo getCategory() { return category; }
