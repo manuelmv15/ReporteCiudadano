@@ -417,16 +417,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         coordOccupancy.put(coordKey, slotIndex + 1);
         if (slotIndex > 0) {
             double angle = (slotIndex - 1) * (2 * Math.PI / 6);  // máx 6 alrededor
-            double offsetDeg = 0.0001;  // ~11 metros
+            double offsetDeg = 0.00003;  // ~3 metros
             lat += offsetDeg * Math.cos(angle);
             lng += offsetDeg * Math.sin(angle);
         }
 
+        String categorySlug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
+
         Point point = Point.fromLngLat(lng, lat);
         String reportKey = String.valueOf(report.getId());
         reportMarkers.put(reportKey, report);
-
-        String categorySlug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
         int drawableId = getCategoryDrawableId(categorySlug);
         String categoryColor = getCategoryColor(categorySlug);
         String statusStrokeColor = getStatusStrokeColor(report.getStatus());
@@ -611,6 +611,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         // La API espera: latitude -> 13.6, longitude -> -87.9
         android.util.Log.d("MapFragment", "Creando reporte: " + category + " en Lat:" + latitude + ", Lng:" + longitude);
 
+        // Bloquear si ya existe reporte de misma categoría a menos de ~50m
+        int categoryId = getCategoryIdBySlug(category);
+        if (hasSameCategoryNearby(categoryId, latitude, longitude, 0.00045)) {
+            SnackbarHelper.show(getView(), "Ya existe un reporte de esta categoría cerca", SnackbarHelper.Variant.WARNING);
+            android.util.Log.w("MapFragment", "Reporte duplicado bloqueado: cat=" + category + " en " + latitude + "," + longitude);
+            return;
+        }
+
         String token = requireActivity().getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
                 .getString("token", "");
 
@@ -620,7 +628,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
-        int categoryId = getCategoryIdBySlug(category);
         // Mapbox usa (longitude, latitude) pero nuestra API y UI usualmente (latitude, longitude)
         // Aseguramos que el request lleve los valores en los campos correctos
         ReportRequest request = new ReportRequest(categoryId, latitude, longitude, "Reporte desde app");
@@ -664,6 +671,17 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 SnackbarHelper.show(getView(), "Error de red: " + t.getMessage(), SnackbarHelper.Variant.ERROR);
             }
         });
+    }
+
+    private boolean hasSameCategoryNearby(int categoryId, double lat, double lng, double radiusDeg) {
+        for (ReportResponse.ReportData report : reportMarkers.values()) {
+            if (report.getCategory() == null) continue;
+            if (report.getCategory().getId() != categoryId) continue;
+            double dLat = report.getLatitude() - lat;
+            double dLng = report.getLongitude() - lng;
+            if (Math.sqrt(dLat * dLat + dLng * dLng) <= radiusDeg) return true;
+        }
+        return false;
     }
 
     private int getCategoryIdBySlug(String slug) {
