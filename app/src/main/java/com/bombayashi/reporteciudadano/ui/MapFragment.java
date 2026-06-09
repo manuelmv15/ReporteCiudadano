@@ -75,6 +75,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
     private java.util.HashMap<Integer, CircleAnnotation> reportStrokeMarkers = new java.util.HashMap<>();  // ReportID → CircleAnnotation (stroke)
     private java.util.HashMap<Integer, CircleAnnotation> reportStatusCircles = new java.util.HashMap<>();  // ReportID → CircleAnnotation (status)
+    private java.util.HashMap<String, Integer> coordOccupancy = new java.util.HashMap<>();  // "lat,lng" → count, para offset de duplicados
     private int currentReportsPage = 1;  // Para pagination
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
@@ -407,7 +408,21 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
 
         // IMPORTANTE: Point.fromLngLat requiere LONGITUD primero, luego LATITUD
-        Point point = Point.fromLngLat(report.getLongitude(), report.getLatitude());
+        double lat = report.getLatitude();
+        double lng = report.getLongitude();
+
+        // Offset para marcadores con coords idénticas (~11m por slot)
+        String coordKey = String.format(Locale.US, "%.6f,%.6f", lat, lng);
+        int slotIndex = coordOccupancy.getOrDefault(coordKey, 0);
+        coordOccupancy.put(coordKey, slotIndex + 1);
+        if (slotIndex > 0) {
+            double angle = (slotIndex - 1) * (2 * Math.PI / 6);  // máx 6 alrededor
+            double offsetDeg = 0.0001;  // ~11 metros
+            lat += offsetDeg * Math.cos(angle);
+            lng += offsetDeg * Math.sin(angle);
+        }
+
+        Point point = Point.fromLngLat(lng, lat);
         String reportKey = String.valueOf(report.getId());
         reportMarkers.put(reportKey, report);
 
@@ -653,14 +668,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private int getCategoryIdBySlug(String slug) {
         return switch (slug) {
-            case "vialidad" -> 1;       // bache
-            case "alumbrado" -> 2;      // alumbrado-publico
-            case "agua" -> 4;           // fuga-de-agua
-            case "trafico" -> 5;        // semaforo-danado
-            case "seguridad" -> 6;      // inseguridad
-            case "parques" -> 3;        // basura-acumulada (temp mapping)
-            case "basura" -> 3;         // basura-acumulada
-            default -> 3;               // default: basura-acumulada
+            case "vialidad" -> 1;   // bache
+            case "alumbrado" -> 2;  // alumbrado-publico
+            case "agua" -> 4;       // fuga-de-agua
+            case "trafico" -> 5;    // semaforo-danado
+            case "seguridad" -> 6;  // inseguridad
+            case "parques" -> 3;    // basura-acumulada (temp)
+            case "basura" -> 3;     // basura-acumulada
+            default -> 3;
         };
     }
 
