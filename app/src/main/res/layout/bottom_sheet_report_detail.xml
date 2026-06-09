@@ -72,6 +72,17 @@
         android:textStyle="bold"
         android:textAlignment="center" />
 
+    <!-- Invitado: prompt de login para votar -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnLoginToVote"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Iniciá sesión para votar"
+        android:visibility="gone"
+        app:icon="@drawable/ic_snackbar_info" />
+
     <!-- Distancia / Aviso de Ubicación -->
     <LinearLayout
         android:id="@+id/llDistanceWarning"

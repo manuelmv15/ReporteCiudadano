@@ -9,14 +9,14 @@
 
 ## Módulo A — Autenticación
 
-| ID     | Requerimiento                                                       | Estado | Notas                                                                                     |
-| ------ | ------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------- |
-| RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                           |
-| RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | 🔶     | Token guardado en SharedPreferences normal, pendiente migrar a EncryptedSharedPreferences |
-| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                      |
-| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ❌      | No existe flujo guest                                                                     |
-| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | 🔶     | API crea usuario pero app no muestra perfil completo                                      |
-| RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                  |
+| ID     | Requerimiento                                                       | Estado | Notas                                                                                                                                                                                                                          |
+| ------ | ------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                                                                                                                                                                |
+| RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | 🔶     | Token guardado en SharedPreferences normal, pendiente migrar a EncryptedSharedPreferences                                                                                                                                      |
+| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                                                                                                                                                           |
+| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅     | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear reporte/votar/editar/subir foto → clearToken + redirect a login; pendiente confirmación backend auth:sanctum |
+| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | 🔶     | API crea usuario pero app no muestra perfil completo                                                                                                                                                                           |
+| RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                                                                                                                                                       |
 
 ---
 
@@ -110,7 +110,7 @@
 
 | Módulo | Total RF | ✅ Completos | 🔶 A medias | ❌ No iniciados |
 |--------|----------|-------------|------------|----------------|
-| Autenticación (A) | 6 | 2 | 2 | 2 |
+| Autenticación (A) | 6 | 3 | 2 | 1 |
 | Reporte ultrarrápido (1) | 6 | 4 | 0 | 2 |
 | Votos comunitarios (2) | 9 | 1 | 6 | 2 |
 | Mapa en vivo (3) | 5 | 1 | 4 | 0 |
@@ -118,4 +118,4 @@
 | Puntuación y confiabilidad (5) | 5 | 0 | 0 | 5 |
 | Perfil e historial (6) | 3 | 0 | 0 | 3 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **8 (19%)** | **12 (28%)** | **23 (53%)** |
+| **TOTAL** | **43** | **9 (21%)** | **12 (28%)** | **22 (51%)** |

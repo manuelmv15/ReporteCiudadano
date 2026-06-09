@@ -250,3 +250,22 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 ### TODOs / Próximos pasos
 - [ ] Verificar que el menú radial abre en coordenada correcta cuando no hay GPS (fallback usa DEFAULT_LONGITUDE/LATITUDE hardcodeado)
 - [ ] Considerar mostrar crosshair en el mapa cuando se abre menú desde FAB (para indicar ubicación del reporte)
+
+## [2026-06-09] Mapa como pantalla inicial — FABs condicionales por estado de auth
+
+### Archivos tocados
+- `app/src/main/AndroidManifest.xml` — LAUNCHER movido de `LoginActivity` a `MainActivity`; `MainActivity` ahora `exported=true`, `LoginActivity` `exported=false`
+- `app/src/main/java/.../ui/MapFragment.java` — `setupFAB()` refactorizado: `fab_add_report` oculto si no hay token; `fab_profile` navega a `LoginActivity` si no hay token, o muestra perfil si hay token; agregado `updateFabVisibility()` y `onResume()` para actualizar FABs al volver del login
+- `app/src/main/java/.../LoginActivity.java` — removido auto-redirect a MainActivity al inicio (ya no es launcher; solo se llega explícitamente)
+
+### TODOs / Próximos pasos
+- [ ] Cambiar ícono de `fab_profile` cuando no hay sesión (usar ícono de login/persona en lugar de info)
+- [ ] Considerar mostrar Snackbar en mapa al volver del login si el usuario autenticó exitosamente
+
+## [2026-06-09] MapFragment — manejo de 401 por sesión expirada
+
+### Archivos tocados
+- `app/src/main/java/.../ui/MapFragment.java` — agregado `handleExpiredSession()`: limpia token de SharedPreferences, llama `updateFabVisibility()` y muestra Snackbar "Sesión expirada"; en `onReportCategorySelected()` callback se agrega `else if (response.code() == 401)` → `handleExpiredSession()`
+
+### TODOs / Próximos pasos
+- [ ] Verificar que `auth:sanctum` está en rutas `/reports` y `/votes` del backend Laravel (`php artisan route:list --path=api`)

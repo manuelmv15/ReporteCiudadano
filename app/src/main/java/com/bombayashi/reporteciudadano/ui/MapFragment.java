@@ -650,6 +650,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         android.util.Log.e("MapFragment", "✗ API retornó report null");
                         SnackbarHelper.show(getView(), "Error: respuesta vacía de API", SnackbarHelper.Variant.ERROR);
                     }
+                } else if (response.code() == 401) {
+                    handleExpiredSession();
                 } else {
                     String errorMsg = "Error al crear reporte";
                     try {
@@ -778,9 +780,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
         });
 
-
-
-        // FAB Agregar reporte
         FloatingActionButton fabAddReport = binding.fabAddReport;
         fabAddReport.setOnClickListener(v -> {
             if (currentLocation != null) {
@@ -788,11 +787,37 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
         });
 
-        // FAB Perfil del usuario
         FloatingActionButton fabProfile = binding.fabProfile;
         fabProfile.setOnClickListener(v -> {
-            showUserProfile();
+            String token = requireActivity()
+                    .getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                    .getString("token", "");
+            if (token.isEmpty()) {
+                startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+            } else {
+                showUserProfile();
+            }
         });
+
+        updateFabVisibility();
+    }
+
+    private void updateFabVisibility() {
+        if (binding == null) return;
+        String token = requireActivity()
+                .getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                .getString("token", "");
+        boolean loggedIn = !token.isEmpty();
+        binding.fabAddReport.setVisibility(loggedIn ? View.VISIBLE : View.GONE);
+    }
+
+    private void handleExpiredSession() {
+        requireActivity()
+                .getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("token").apply();
+        updateFabVisibility();
+        if (getView() != null)
+            SnackbarHelper.show(getView(), "Sesión expirada. Iniciá sesión de nuevo.", SnackbarHelper.Variant.WARNING);
     }
 
     private void showUserProfile() {
@@ -822,6 +847,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     .build();
             CameraAnimationsUtils.easeTo(mapboxMap, camera, null);
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateFabVisibility();
     }
 
     @Override

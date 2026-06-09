@@ -102,9 +102,34 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         displayReportInfo();
         setupOwnerControls();
-        initializeVoteManager();
-        setupVoteObservers();
-        setupButtonListeners();
+
+        if (isGuest()) {
+            setupGuestMode();
+        } else {
+            initializeVoteManager();
+            setupVoteObservers();
+            setupButtonListeners();
+        }
+    }
+
+    private boolean isGuest() {
+        if (getContext() == null) return true;
+        String token = getContext()
+                .getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(LoginActivity.KEY_TOKEN, "");
+        return token.isEmpty();
+    }
+
+    private void setupGuestMode() {
+        binding.llVoteButtons.setVisibility(View.GONE);
+        binding.llDistanceWarning.setVisibility(View.GONE);
+        binding.tvUserVoteStatus.setVisibility(View.GONE);
+        binding.pbVoteLoading.setVisibility(View.GONE);
+        binding.btnLoginToVote.setVisibility(View.VISIBLE);
+        binding.btnLoginToVote.setOnClickListener(v -> {
+            dismiss();
+            startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+        });
     }
 
     private void displayReportInfo() {
@@ -185,6 +210,14 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             .show();
     }
 
+    private void clearTokenAndGoToLogin() {
+        if (getContext() == null) return;
+        getContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().remove(LoginActivity.KEY_TOKEN).apply();
+        dismiss();
+        startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+    }
+
     private void saveDescription(String newDesc) {
         String token = "Bearer " + ownerPrefs.getString(LoginActivity.KEY_TOKEN, "");
         RequestBody descBody = RequestBody.create(newDesc, MediaType.parse("text/plain"));
@@ -197,6 +230,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                         report.setDescription(newDesc);
                         binding.tvDescription.setText(newDesc);
                         SnackbarHelper.show(getView(), "Descripción actualizada", SnackbarHelper.Variant.SUCCESS);
+                    } else if (response.code() == 401) {
+                        clearTokenAndGoToLogin();
                     } else {
                         SnackbarHelper.show(getView(), "Error al guardar: " + response.code(), SnackbarHelper.Variant.ERROR);
                     }
@@ -243,10 +278,10 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 case ERROR:
                     android.util.Log.e("ReportDetailBS", "❌ Error en voto: " + event.getData());
 
-                    // Detectar voto duplicado (409)
-                    if (event.getData().contains("409") || event.getData().contains("Ya votaste")) {
+                    if (event.getData().contains("401")) {
+                        clearTokenAndGoToLogin();
+                    } else if (event.getData().contains("409") || event.getData().contains("Ya votaste")) {
                         android.util.Log.d("ReportDetailBS", "🔄 Voto duplicado detectado, refrescando estado...");
-                        // Recargar estado del reporte para mostrar que ya votó
                         if (voteStateManager != null) {
                             voteStateManager.refreshVoteState();
                         }
@@ -258,7 +293,6 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                             );
                         }
                     } else {
-                        // Otro error
                         if (getView() != null) {
                             SnackbarHelper.show(
                                 getView(),
@@ -437,6 +471,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                             binding.ivReportPhoto.setOnClickListener(v ->
                                 showFullscreenPhoto(photoUrl != null ? photoUrl : uri.toString()));
                             SnackbarHelper.show(getView(), "Foto subida correctamente", SnackbarHelper.Variant.SUCCESS);
+                        } else if (response.code() == 401) {
+                            clearTokenAndGoToLogin();
                         } else {
                             SnackbarHelper.show(getView(), "Error al subir foto: " + response.code(), SnackbarHelper.Variant.ERROR);
                         }
