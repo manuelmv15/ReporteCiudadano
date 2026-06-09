@@ -20,7 +20,7 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
 
-        <!-- Categoría 1: Vialidad (Arriba) -->
+        <!-- Vialidad (0°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_vialidad"
             android:layout_width="wrap_content"
@@ -33,7 +33,7 @@
             app:layout_constraintCircleAngle="0"
             tools:ignore="MissingConstraints" />
 
-        <!-- Categoría 2: Alumbrado (Arriba-Derecha) -->
+        <!-- Alumbrado (60°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_alumbrado"
             android:layout_width="wrap_content"
@@ -43,10 +43,10 @@
             app:fabSize="mini"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="45"
+            app:layout_constraintCircleAngle="60"
             tools:ignore="MissingConstraints" />
 
-        <!-- Categoría 3: Agua (Derecha) -->
+        <!-- Agua (120°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_agua"
             android:layout_width="wrap_content"
@@ -56,10 +56,10 @@
             app:fabSize="mini"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="90"
+            app:layout_constraintCircleAngle="120"
             tools:ignore="MissingConstraints" />
 
-        <!-- Categoría 4: Tráfico (Abajo-Derecha) -->
+        <!-- Tráfico (180°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_trafico"
             android:layout_width="wrap_content"
@@ -69,10 +69,10 @@
             app:fabSize="mini"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="135"
+            app:layout_constraintCircleAngle="180"
             tools:ignore="MissingConstraints" />
 
-        <!-- Categoría 5: Seguridad (Abajo) -->
+        <!-- Seguridad (240°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_seguridad"
             android:layout_width="wrap_content"
@@ -82,23 +82,10 @@
             app:fabSize="mini"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="180"
+            app:layout_constraintCircleAngle="240"
             tools:ignore="MissingConstraints" />
 
-        <!-- Categoría 6: Parques (Abajo-Izquierda) -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_parques"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="Parques"
-            app:srcCompat="@drawable/trash"
-            app:fabSize="mini"
-            app:layout_constraintCircle="@id/center_point"
-            app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="225"
-            tools:ignore="MissingConstraints" />
-
-        <!-- Categoría 7: Basura (Izquierda) -->
+        <!-- Basura (300°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_basura"
             android:layout_width="wrap_content"
@@ -108,20 +95,7 @@
             app:fabSize="mini"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="270"
-            tools:ignore="MissingConstraints" />
-
-        <!-- Categoría 8: Otros (Arriba-Izquierda) -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_otros"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="Otros"
-            app:srcCompat="@drawable/ic_category_otros"
-            app:fabSize="mini"
-            app:layout_constraintCircle="@id/center_point"
-            app:layout_constraintCircleRadius="120dp"
-            app:layout_constraintCircleAngle="315"
+            app:layout_constraintCircleAngle="300"
             tools:ignore="MissingConstraints" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

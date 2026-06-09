@@ -75,9 +75,8 @@ public class RadialMenuDialogFragment extends DialogFragment {
         setupFabWithAnimations(binding.fabAgua, "agua");
         setupFabWithAnimations(binding.fabTrafico, "trafico");
         setupFabWithAnimations(binding.fabSeguridad, "seguridad");
-        setupFabWithAnimations(binding.fabParques, "parques");
         setupFabWithAnimations(binding.fabBasura, "basura");
-        setupFabWithAnimations(binding.fabOtros, "otros");
+
     }
 
     private void setupFabWithAnimations(FloatingActionButton fab, String category) {
@@ -118,7 +117,7 @@ public class RadialMenuDialogFragment extends DialogFragment {
         // Scale in + fade in de botones con delay escalonado
         FloatingActionButton[] fabs = {
             binding.fabVialidad, binding.fabAlumbrado, binding.fabAgua, binding.fabTrafico,
-            binding.fabSeguridad, binding.fabParques, binding.fabBasura, binding.fabOtros
+            binding.fabSeguridad, binding.fabBasura
         };
 
         for (int i = 0; i < fabs.length; i++) {
@@ -181,7 +180,7 @@ public class RadialMenuDialogFragment extends DialogFragment {
         // Scale out de botones
         FloatingActionButton[] fabs = {
             binding.fabVialidad, binding.fabAlumbrado, binding.fabAgua, binding.fabTrafico,
-            binding.fabSeguridad, binding.fabParques, binding.fabBasura, binding.fabOtros
+            binding.fabSeguridad, binding.fabBasura
         };
 
         for (int i = 0; i < fabs.length; i++) {
