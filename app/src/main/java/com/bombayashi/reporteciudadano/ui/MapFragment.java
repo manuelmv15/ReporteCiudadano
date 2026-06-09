@@ -73,19 +73,27 @@ public class MapFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        android.util.Log.d("MapFragment", "=== onViewCreated ===");
 
         mapView = binding.mapView;
         mapView.getMapboxMap().loadStyleUri(Style.MAPBOX_STREETS, style -> {
+            android.util.Log.d("MapFragment", "1. Estilo cargado");
             mapboxMap = mapView.getMapboxMap();
+
+            android.util.Log.d("MapFragment", "2. Inicializando components...");
             setupAnnotationManager();
             setupMapListeners();
             setupFAB();
             requestUserLocation();
+
+            android.util.Log.d("MapFragment", "3. Cargando reportes iniciales...");
             loadReportsFromAPI();
         });
     }
 
     private void setupAnnotationManager() {
+        android.util.Log.d("MapFragment", "Inicializando AnnotationManager...");
+
         AnnotationPlugin annotationPlugin = AnnotationsUtils.getAnnotations(mapView);
         if (annotationPlugin != null) {
             circleAnnotationManager = CircleAnnotationManagerKt.createCircleAnnotationManager(
@@ -93,14 +101,27 @@ public class MapFragment extends Fragment {
                     new AnnotationConfig()
             );
 
-            circleAnnotationManager.addClickListener(annotation -> {
-                ReportResponse.ReportData report = reportMarkers.get(annotation.getId());
-                if (report != null) {
-                    showReportDetails(report);
-                    return true;
-                }
-                return false;
-            });
+            if (circleAnnotationManager != null) {
+                android.util.Log.d("MapFragment", "✓ CircleAnnotationManager inicializado correctamente");
+
+                circleAnnotationManager.addClickListener(annotation -> {
+                    String annId = annotation.getId();
+                    android.util.Log.d("MapFragment", "Click en anotación: " + annId);
+                    ReportResponse.ReportData report = reportMarkers.get(annId);
+                    if (report != null) {
+                        android.util.Log.d("MapFragment", "Abriendo detalles del reporte ID: " + report.getId());
+                        showReportDetails(report);
+                        return true;
+                    } else {
+                        android.util.Log.w("MapFragment", "No se encontró reporte para ID: " + annId);
+                    }
+                    return false;
+                });
+            } else {
+                android.util.Log.e("MapFragment", "✗ CircleAnnotationManager es null después de crear");
+            }
+        } else {
+            android.util.Log.e("MapFragment", "✗ AnnotationPlugin es null");
         }
     }
 
@@ -175,41 +196,48 @@ public class MapFragment extends Fragment {
     }
 
     private void loadReportsFromAPI() {
-        ApiClient.getInstance().getReports("pending,verified", 100).enqueue(new Callback<ReportResponse>() {
+        android.util.Log.d("MapFragment", "Iniciando carga de reportes desde API...");
+
+        // Cargar TODOS los reportes sin filtro de status
+        ApiClient.getInstance().getReports("", 100).enqueue(new Callback<ReportResponse>() {
             @Override
             public void onResponse(@NonNull Call<ReportResponse> call, @NonNull Response<ReportResponse> response) {
-                if (!isAdded() || getView() == null) return;
+                if (!isAdded() || getView() == null) {
+                    android.util.Log.w("MapFragment", "Fragment no está adjunto o view es null");
+                    return;
+                }
 
                 if (response.isSuccessful() && response.body() != null) {
                     ReportResponse reportResponse = response.body();
                     java.util.List<ReportResponse.ReportData> reports = reportResponse.getData();
-                    if (reports != null) {
+
+                    android.util.Log.d("MapFragment", "✓ Respuesta exitosa. Total reportes: " +
+                            (reports != null ? reports.size() : "null"));
+
+                    if (reports != null && !reports.isEmpty()) {
+                        android.util.Log.d("MapFragment", "Agregando " + reports.size() + " marcadores al mapa");
                         for (ReportResponse.ReportData report : reports) {
+                            android.util.Log.d("MapFragment", "  - Reporte ID:" + report.getId() +
+                                    " Cat:" + (report.getCategory() != null ? report.getCategory().getSlug() : "null") +
+                                    " Coords:" + report.getLatitude() + "," + report.getLongitude());
                             addReportMarker(report);
                         }
-                        SnackbarHelper.show(
-                                getView(),
-                                "Reportes cargados: " + reports.size(),
-                                SnackbarHelper.Variant.INFO
-                        );
+                        SnackbarHelper.show(getView(), "Reportes cargados: " + reports.size(), SnackbarHelper.Variant.INFO);
                     } else {
-                        SnackbarHelper.show(
-                                getView(),
-                                "No hay reportes disponibles",
-                                SnackbarHelper.Variant.INFO
-                        );
+                        android.util.Log.w("MapFragment", "Lista de reportes está vacía");
+                        SnackbarHelper.show(getView(), "Sin reportes disponibles", SnackbarHelper.Variant.INFO);
                     }
+                } else {
+                    android.util.Log.e("MapFragment", "✗ Respuesta no exitosa. Código: " + response.code());
+                    SnackbarHelper.show(getView(), "Error: " + response.code(), SnackbarHelper.Variant.ERROR);
                 }
             }
 
             @Override
             public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
                 if (!isAdded() || getView() == null) return;
-                SnackbarHelper.show(
-                        getView(),
-                        "Error al cargar reportes",
-                        SnackbarHelper.Variant.ERROR
-                );
+                android.util.Log.e("MapFragment", "✗ Error al cargar reportes: " + t.getMessage(), t);
+                SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
             }
         });
     }
@@ -245,15 +273,26 @@ public class MapFragment extends Fragment {
     }
 
     private String getCategoryColor(String categorySlug) {
+        // Mapear slugs del UI (cuando se crea reporte) Y slugs de API (cuando se carga)
         return switch (categorySlug) {
-            case "vialidad" -> "#FF6B6B";
-            case "alumbrado" -> "#FFD93D";
-            case "agua" -> "#6BCB77";
-            case "trafico" -> "#4D96FF";
-            case "seguridad" -> "#9D4EDD";
-            case "parques" -> "#06D6A0";
-            case "basura" -> "#8B5A3C";
-            default -> "#808080";
+            // UI slugs
+            case "vialidad" -> "#FF6B6B";      // Rojo
+            case "alumbrado" -> "#FFD93D";     // Amarillo
+            case "agua" -> "#6BCB77";          // Verde
+            case "trafico" -> "#4D96FF";       // Azul
+            case "seguridad" -> "#9D4EDD";     // Púrpura
+            case "parques" -> "#06D6A0";       // Turquesa
+            case "basura" -> "#8B5A3C";        // Marrón
+
+            // API slugs
+            case "bache" -> "#FF6B6B";                    // Rojo (vialidad)
+            case "alumbrado-publico" -> "#FFD93D";       // Amarillo (alumbrado)
+            case "fuga-de-agua" -> "#6BCB77";             // Verde (agua)
+            case "semaforo-danado" -> "#4D96FF";          // Azul (tráfico)
+            case "inseguridad" -> "#9D4EDD";              // Púrpura (seguridad)
+            case "basura-acumulada" -> "#8B5A3C";         // Marrón (basura)
+
+            default -> "#808080";  // Gris (fallback)
         };
     }
 

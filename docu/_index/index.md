@@ -20,6 +20,8 @@
 - [2026-06-08] [map] — Fix: colores hex para CircleAnnotations (#2196F3 user, #FF6B6B vialidad, etc.), Lint warnings resueltos, BottomSheetDialogFragment implementado
 - [2026-06-08] [api] — Mapeo de categorías: sincronizados IDs reales de API (bache=1, alumbrado-publico=2, basura-acumulada=3, fuga-de-agua=4, semaforo-danado=5, inseguridad=6)
 - [2026-06-08] [api] — CreateReportResponse model: API retorna {success, message, report}; ApiService.createReport() ahora parsea respuesta envuelta correctamente
+- [2026-06-08] [api] — ReportResponse fix: estructura real es {success, reports{data, current_page, ...}}; añadida clase PaginationData para parsear correctamente
+- [2026-06-08] [map] — Logging mejorado: onViewCreated sequence, AnnotationManager init, reportes cargados con detalles por reporte
 
 
 

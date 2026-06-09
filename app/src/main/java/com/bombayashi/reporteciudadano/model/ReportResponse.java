@@ -4,19 +4,32 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 public class ReportResponse {
-    @SerializedName("current_page")
-    private int currentPage;
-    @SerializedName("per_page")
-    private int perPage;
-    @SerializedName("total")
-    private int total;
-    @SerializedName("data")
-    private List<ReportData> data;
+    @SerializedName("success")
+    private boolean success;
+    @SerializedName("reports")
+    private PaginationData reports;
 
-    public int getCurrentPage() { return currentPage; }
-    public int getPerPage() { return perPage; }
-    public int getTotal() { return total; }
-    public List<ReportData> getData() { return data; }
+    public boolean isSuccess() { return success; }
+    public List<ReportData> getData() {
+        return (reports != null) ? reports.data : null;
+    }
+    public int getCurrentPage() {
+        return (reports != null) ? reports.currentPage : 0;
+    }
+    public int getTotal() {
+        return (reports != null) ? reports.total : 0;
+    }
+
+    public static class PaginationData {
+        @SerializedName("current_page")
+        public int currentPage;
+        @SerializedName("per_page")
+        public int perPage;
+        @SerializedName("total")
+        public int total;
+        @SerializedName("data")
+        public List<ReportData> data;
+    }
 
     public static class ReportData {
         @SerializedName("id")

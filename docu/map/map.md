@@ -210,6 +210,30 @@ ApiService actualizado:
 
 MapFragment ahora extrae `response.getReport()` correctamente.
 
+### Estructura Real GET /reports (2026-06-08)
+**Problema encontrado:** ReportResponse esperaba `data` en el nivel superior.
+**Estructura real de API:**
+```json
+{
+  "success": true,
+  "reports": {              // ← Envuelto en "reports"
+    "current_page": 1,
+    "per_page": 100,
+    "total": 34,
+    "data": [               // ← Array aquí
+      { "id": 1, "latitude": ..., "category": {...} },
+      ...
+    ]
+  }
+}
+```
+
+**Corrección aplicada:**
+- Agregado field `reports` a ReportResponse
+- Creado clase interna `PaginationData` para manejar la estructura
+- `getData()` ahora extrae correctamente `reports.data`
+- Logging mejorado para debuggeo de carga inicial
+
 ### TODOs / Próximos pasos
 - [ ] Fase 4: Click handler en reportes para mostrar BottomSheetDialogFragment (ya implementado, solo testear)
 - [ ] Fase 4: Verificar que los reportes nuevos aparezcan correctamente en el mapa
