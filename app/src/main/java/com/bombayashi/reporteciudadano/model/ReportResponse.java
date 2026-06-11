@@ -56,6 +56,10 @@ public class ReportResponse {
         private CategoryInfo category;
         @SerializedName("votes")
         private VotesInfo votes;
+        @SerializedName("votes_confirm")
+        private int votesConfirm;
+        @SerializedName("votes_resolve")
+        private int votesResolve;
         @SerializedName("user_vote")
         private String userVote;  // "confirm", "resolve", o null si no ha votado
         @SerializedName("user_voted_at")
@@ -80,6 +84,8 @@ public class ReportResponse {
         public UserInfo getUser() { return user; }
         public CategoryInfo getCategory() { return category; }
         public VotesInfo getVotes() { return votes; }
+        public int getVotesConfirm() { return votes != null ? votes.getConfirm() : votesConfirm; }
+        public int getVotesResolve() { return votes != null ? votes.getResolve() : votesResolve; }
         public String getUserVote() { return userVote; }
         public String getUserVotedAt() { return userVotedAt; }
     }

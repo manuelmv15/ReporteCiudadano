@@ -60,6 +60,7 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
             binding.tvDescription.setText(
                     report.getDescription() != null ? report.getDescription() : "Sin descripción");
             binding.tvDate.setText(formatDate(report.getCreatedAt()));
+            binding.tvVotes.setText("👍 " + report.getVotesConfirm() + "   ✅ " + report.getVotesResolve());
             binding.ivCategoryIcon.setImageResource(getCategoryDrawableId(categorySlug));
 
             String status = report.getStatus() != null ? report.getStatus() : "pending";

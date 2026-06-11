@@ -64,3 +64,4 @@
 - [2026-06-11] [components] — Fix #3 avatar: reemplazado Glide.circleCrop() por ShapeableImageView (estilo CircleImageView, cornerSize 50%) en ivUserAvatar/ivProfileAvatar
 - [2026-06-11] [components] — Fix #4 avatar: ivUserAvatar centerInside dejaba ver fondo verde (background no se clipea); cambiado a centerCrop
 - [2026-06-11] [components] — Fix #5 (causa raíz) avatar: android:tint/app:tint en ImageView teñía CUALQUIER drawable (incl. foto de Glide) de verde sólido; quitado tint de ivUserAvatar/ivProfileAvatar — RESUELTO
+- [2026-06-11] [components] — Mi Perfil: RF-31 (conteo votos en Mis Reportes), RF-32 (página Mis Votos con accuracy %), RF-33 (estadísticas: reportes/confirmaciones/resueltos) implementados

@@ -5,6 +5,7 @@ import com.bombayashi.reporteciudadano.model.AvatarUploadResponse;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
+import com.bombayashi.reporteciudadano.model.MyVotesResponse;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
@@ -102,6 +103,12 @@ public interface ApiService {
     Call<ReportResponse> getMyReports(
             @Header("Authorization") String token,
             @Query("status") String status,
+            @Query("per_page") int perPage
+    );
+
+    @GET("me/votes")
+    Call<MyVotesResponse> getMyVotes(
+            @Header("Authorization") String token,
             @Query("per_page") int perPage
     );
 }

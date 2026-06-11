@@ -302,3 +302,20 @@ dialog.show(getChildFragmentManager(), "radial_menu");
 - Causa real: `android:tint`/`app:tint` en un ImageView aplica un colorFilter a CUALQUIER drawable que se le asigne (placeholder, error, o foto cargada por Glide). Con tintMode default (SRC_IN), una foto opaca se vuelve un círculo/cuadrado sólido del color del tint — exactamente lo visto en todos los intentos anteriores
 - Los `tint` originales solo tenían sentido para el ícono placeholder `ic_my_location`; al quitarlos, el placeholder se ve con sus colores propios (aceptable) y la foto real se muestra sin teñir
 - Fixes #2/#3/#4 (disallowHardwareConfig, ShapeableImageView, centerCrop) no eran necesarios para el bug pero se mantienen como mejoras válidas (ShapeableImageView simplifica el recorte circular vs Glide.circleCrop)
+
+## [2026-06-11] Mi Perfil: conteo de votos, historial de votos con precisión, estadísticas (RF-31/32/33)
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/model/ReportResponse.java` — agregado `votes_confirm`/`votes_resolve` a `ReportData` (fallback cuando no viene el objeto `votes` anidado), getters `getVotesConfirm()`/`getVotesResolve()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/model/MyVotesResponse.java` — nuevo modelo para `GET /me/votes` (paginado), incluye `VoteData.isCorrect()`: compara `type` del voto contra `report.status` final (confirm correcto si verified/resolved, resolve correcto si resolved; null si reporte aún pending)
+- `app/src/main/java/com/bombayashi/reporteciudadano/network/ApiService.java` — agregado `GET me/votes` (`getMyVotes`)
+- `app/src/main/res/layout/item_my_report.xml` — agregado `tvVotes` (👍/✅ conteos)
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MyReportsAdapter.java` — bind de `tvVotes` con `votes_confirm`/`votes_resolve`
+- `app/src/main/res/layout/item_my_vote.xml` — nuevo item para historial de votos (tipo, descripción reporte, fecha, badge Acertado/Errado/Pendiente)
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MyVotesAdapter.java` — nuevo adapter
+- `app/src/main/res/layout/bottom_sheet_user_profile.xml` — nueva opción de menú "Mis Votos" (`llMyVotes`), nueva página `pageVotes` (RecyclerView + `tvVotesAccuracySummary`); `pageProfile` ahora incluye fila de estadísticas (`tvStatReports`/`tvStatConfirmations`/`tvStatResolved`)
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/UserProfileBottomSheet.java` — `setupVotesPage()`/`loadMyVotes()`/`buildAccuracySummary()` (RF-32); `loadProfileStats()` agrega `GET /me/reports` para calcular reportes creados, suma de `votes_confirm` (confirmaciones recibidas) y conteo `status=resolved` (RF-33)
+
+### TODOs / Próximos pasos
+- [ ] RF-27 (puntos automáticos): ya implementado en API (laravel_api), pendiente verificar en cliente que `score`/`level` se refrescan tras votar (refreshProfile ya se llama solo al abrir Mi Perfil)
+- [ ] RF-13 auto-archivo 24h: pendiente comando programado en laravel_api
