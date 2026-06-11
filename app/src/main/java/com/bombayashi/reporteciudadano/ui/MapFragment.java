@@ -771,8 +771,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void setupFAB() {
-        FloatingActionButton fabMyLocation = binding.fabMyLocation;
-        fabMyLocation.setOnClickListener(v -> {
+        // Botón: Mi ubicación
+        binding.fabMyLocation.setOnClickListener(v -> {
             if (userLocation != null) {
                 animateCameraTo(userLocation);
             } else {
@@ -780,8 +780,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
         });
 
-        FloatingActionButton fabAddReport = binding.fabAddReport;
-        fabAddReport.setOnClickListener(v -> {
+        // Botón: Agregar reporte
+        binding.fabAddReport.setOnClickListener(v -> {
             if (userLocation != null) {
                 showRadialMenu(userLocation);
             } else {
@@ -790,8 +790,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
         });
 
-        FloatingActionButton fabProfile = binding.fabProfile;
-        fabProfile.setOnClickListener(v -> {
+        // Botón: Perfil de usuario
+        binding.fabProfile.setOnClickListener(v -> {
             if (!TokenManager.getInstance(requireContext()).isLoggedIn()) {
                 startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
             } else {

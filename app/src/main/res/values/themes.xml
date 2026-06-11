@@ -64,6 +64,10 @@
         <item name="textAppearanceLabelLarge">@style/TextAppearance.App.LabelLarge</item>
         <item name="textAppearanceLabelMedium">@style/TextAppearance.App.LabelMedium</item>
         <item name="textAppearanceLabelSmall">@style/TextAppearance.App.LabelSmall</item>
+
+        <!-- M3 Expressive -->
+        <item name="floatingToolbarStyle">@style/Widget.Material3.FloatingToolbar</item>
+        <item name="floatingToolbarVibrantStyle">@style/Widget.Material3.FloatingToolbar.Vibrant</item>
     </style>
 
     <style name="CircleImageView">
