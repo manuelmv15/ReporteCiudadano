@@ -27,9 +27,18 @@ public class AuthResponse {
         private String name;
         @SerializedName("email")
         private String email;
+        @SerializedName("avatar_url")
+        private String avatarUrl;
+        @SerializedName("score")
+        private int score;
+        @SerializedName("level")
+        private String level;
 
         public int getId() { return id; }
         public String getName() { return name; }
         public String getEmail() { return email; }
+        public String getAvatarUrl() { return avatarUrl; }
+        public int getScore() { return score; }
+        public String getLevel() { return level; }
     }
 }

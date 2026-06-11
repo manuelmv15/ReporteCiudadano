@@ -103,3 +103,70 @@
 - [ ] Poner GOOGLE_CLIENT_ID real en .env (obtener desde Google Cloud Console)
 - [ ] Agregar rate limiting a /login y /auth/google
 - [ ] Proteger /users con policy (solo admin)
+
+---
+
+## [2026-06-10] Endpoints pendientes — Mi Perfil (frontend ya tiene UI lista)
+
+### Ruta: PUT /api/me
+
+| Campo     | Detalle                                                    |
+|-----------|--------------------------------------------------------------|
+| Método    | PUT                                                         |
+| Auth      | Bearer Token (auth:sanctum)                                 |
+| Body      | `{ name: string }`                                          |
+| Respuesta | `{ success: bool, user: { id, name, email, avatar_url, score, level } }` |
+| Estado    | [x] lista                                                   |
+| Notas     | Implementado en `updateProfile()`, usado en `showEditNameDialog()` de UserProfileBottomSheet |
+
+---
+
+### Ruta: POST /api/me/avatar
+
+| Campo     | Detalle                          |
+|-----------|------------------------------------|
+| Método    | POST                              |
+| Auth      | Bearer Token (auth:sanctum)       |
+| Body      | Multipart: `avatar` (file)        |
+| Respuesta | `{ success: bool, avatar_url: string }` |
+| Estado    | [x] lista                         |
+| Notas     | Implementado en `uploadAvatar()`, usado en `saveAvatar()` de UserProfileBottomSheet |
+
+---
+
+### Ruta: GET /api/me (extender)
+
+| Campo     | Detalle                          |
+|-----------|------------------------------------|
+| Método    | GET                                |
+| Auth      | Bearer Token (auth:sanctum)       |
+| Body      | N/A                                |
+| Respuesta | agregar `score: int`, `level: string` al objeto `user` |
+| Estado    | [x] lista                         |
+| Notas     | Implementado en `getMe()`, usado en `refreshProfile()` para mostrar score/nivel (RF-26/RF-29) |
+
+---
+
+### Ruta: GET /api/me/reports
+
+| Campo     | Detalle                          |
+|-----------|------------------------------------|
+| Método    | GET                                |
+| Auth      | Bearer Token (auth:sanctum)       |
+| Query     | `status`, `per_page`               |
+| Respuesta | igual shape que GET /reports (paginado) |
+| Estado    | [x] lista                         |
+| Notas     | Implementado en `getMyReports()`, reemplaza filtrado client-side en `loadMyReports()` |
+
+---
+
+### Ruta: GET /api/me/votes (RF-32, opcional)
+
+| Campo     | Detalle                          |
+|-----------|------------------------------------|
+| Método    | GET                                |
+| Auth      | Bearer Token (auth:sanctum)       |
+| Query     | `per_page`                         |
+| Respuesta | `{ votes: [{ report_id, type, created_at, was_correct }] }` |
+| Estado    | [ ] pendiente                     |
+| Notas     | Para historial de votos propios — no implementado en esta pasada |

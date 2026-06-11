@@ -1,6 +1,7 @@
 package com.bombayashi.reporteciudadano.network;
 
 import com.bombayashi.reporteciudadano.model.AuthResponse;
+import com.bombayashi.reporteciudadano.model.AvatarUploadResponse;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
@@ -8,6 +9,7 @@ import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.bombayashi.reporteciudadano.model.UpdateProfileRequest;
 import com.bombayashi.reporteciudadano.model.VoteRequest;
 import com.bombayashi.reporteciudadano.model.VoteResponse;
 
@@ -76,5 +78,30 @@ public interface ApiService {
             @Path("id") int reportId,
             @Path("type") String voteType,
             @Header("Authorization") String token
+    );
+
+    @GET("me")
+    Call<AuthResponse> getMe(
+            @Header("Authorization") String token
+    );
+
+    @PUT("me")
+    Call<AuthResponse> updateProfile(
+            @Header("Authorization") String token,
+            @Body UpdateProfileRequest request
+    );
+
+    @Multipart
+    @POST("me/avatar")
+    Call<AvatarUploadResponse> uploadAvatar(
+            @Header("Authorization") String token,
+            @Part MultipartBody.Part avatar
+    );
+
+    @GET("me/reports")
+    Call<ReportResponse> getMyReports(
+            @Header("Authorization") String token,
+            @Query("status") String status,
+            @Query("per_page") int perPage
     );
 }

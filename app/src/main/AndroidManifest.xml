@@ -10,6 +10,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
+        android:name=".ReporteCiudadanoApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -36,6 +37,7 @@
         <activity
             android:name=".RegisterActivity"
             android:exported="false" />
+
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -54,3 +54,13 @@
 - [2026-06-09] [components] — ReportDetailBottomSheet: clearTokenAndGoToLogin() en votos/descripción/foto si API devuelve 401
 - [2026-06-09] [features] — RF-A04 ✅ completo: backend confirmado auth:sanctum en POST/PUT/DELETE/PATCH; GET público
 - [2026-06-09] [login] — RF-A02 ✅: TokenManager singleton con EncryptedSharedPreferences (AES256-GCM); migrados LoginActivity, RegisterActivity, UserProfileBottomSheet, MapFragment, ReportDetailBottomSheet, VoteStateManager
+- [2026-06-10] [components] — fab_profile: nuevas activities ProfileActivity (Mi Perfil), MyReportsActivity (Mis Reportes, lista filtrada client-side), SettingsActivity (tema claro/oscuro/sistema + notificaciones); SettingsManager + ReporteCiudadanoApp aplican tema persistido
+- [2026-06-10] [components] — fab_profile: bottom sheet "Mi Cuenta" ahora multi-página (Mi Perfil/Mis Reportes/Configuración cambian dentro del mismo sheet, sin abrir activities); fix bug Mis Reportes vacío (status filter inválido)
+- [2026-06-10] [components] — Mi Perfil: quitado "ID de usuario"; agregado editar nombre y foto de perfil (cámara/galería), persistido local (TokenManager + filesDir/avatar.jpg) — pendiente endpoint backend para persistir server-side
+- [2026-06-10] [api] — documentados endpoints pendientes Mi Perfil: PUT /me (nombre), POST /me/avatar, GET /me +score/level, GET /me/reports, GET /me/votes
+- [2026-06-10] [api/components] — Mi Perfil conectado a backend: PUT /me, POST /me/avatar, GET /me, GET /me/reports todos [x] lista; UI muestra score/level (RF-26/RF-29); compilación OK
+- [2026-06-11] [components] — Fix avatar no visible: backend tenía APP_URL=http://localhost (bug), corregido a https://api.manuelmv.net + config:clear; verificado avatar_url ya correcto en /reports y /me
+- [2026-06-11] [components] — Fix #2 avatar: intento disallowHardwareConfig()+PREFER_ARGB_8888 insuficiente; persiste círculo verde sólido
+- [2026-06-11] [components] — Fix #3 avatar: reemplazado Glide.circleCrop() por ShapeableImageView (estilo CircleImageView, cornerSize 50%) en ivUserAvatar/ivProfileAvatar
+- [2026-06-11] [components] — Fix #4 avatar: ivUserAvatar centerInside dejaba ver fondo verde (background no se clipea); cambiado a centerCrop
+- [2026-06-11] [components] — Fix #5 (causa raíz) avatar: android:tint/app:tint en ImageView teñía CUALQUIER drawable (incl. foto de Glide) de verde sólido; quitado tint de ivUserAvatar/ivProfileAvatar — RESUELTO
