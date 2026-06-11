@@ -74,9 +74,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final int MAX_REPORTS = 200;  // Máximo de reportes en caché local
     private java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
     private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
+    private java.util.HashMap<Integer, PointAnnotation> reportIconMarkers = new java.util.HashMap<>();  // ReportID → PointAnnotation
     private java.util.HashMap<Integer, CircleAnnotation> reportStrokeMarkers = new java.util.HashMap<>();  // ReportID → CircleAnnotation (stroke)
     private java.util.HashMap<Integer, CircleAnnotation> reportStatusCircles = new java.util.HashMap<>();  // ReportID → CircleAnnotation (status)
     private java.util.HashMap<String, Integer> coordOccupancy = new java.util.HashMap<>();  // "lat,lng" → count, para offset de duplicados
+    private java.util.HashMap<String, Bitmap> bitmapCache = new java.util.HashMap<>(); // Cache de iconos
+    private double lastZoomLevel = -1; // Para optimizar escala
     private int currentReportsPage = 1;  // Para pagination
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
@@ -134,13 +137,24 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             if (circleAnnotationManager != null && pointAnnotationManager != null) {
                 android.util.Log.d("MapFragment", "✓ CircleAnnotationManager y PointAnnotationManager inicializados");
 
+                // Listener de cámara optimizado (Throttled)
+                mapboxMap.subscribeCameraChanged(event -> {
+                    double currentZoom = mapboxMap.getCameraState().getZoom();
+                    // Solo actualizar si el zoom cambió significativamente (> 0.1)
+                    if (Math.abs(currentZoom - lastZoomLevel) > 0.1) {
+                        lastZoomLevel = currentZoom;
+                        updateMarkersScale(currentZoom);
+                    }
+                });
+
                 pointAnnotationManager.addClickListener(annotation -> {
                     String annotationUUID = annotation.getId();
                     Integer reportId = annotationToReportId.get(annotationUUID);
 
-                    android.util.Log.d("MapFragment", "✓ Click en icono UUID:" + annotationUUID.substring(0, 8) + "...");
-
                     if (reportId != null) {
+                        // 1. Efecto Bounce (Feedback visual)
+                        animateBounce(annotation);
+
                         String reportKey = String.valueOf(reportId);
                         ReportResponse.ReportData report = reportMarkers.get(reportKey);
 
@@ -408,6 +422,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
+        // Eliminar si ya existe para evitar duplicados en UI
+        PointAnnotation existingIcon = reportIconMarkers.get(report.getId());
+        if (existingIcon != null) pointAnnotationManager.delete(existingIcon);
+        CircleAnnotation existingStroke = reportStrokeMarkers.get(report.getId());
+        if (existingStroke != null) circleAnnotationManager.delete(existingStroke);
+
         // IMPORTANTE: Point.fromLngLat requiere LONGITUD primero, luego LATITUD
         double lat = report.getLatitude();
         double lng = report.getLongitude();
@@ -454,6 +474,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             PointAnnotation pointAnnotation = pointAnnotationManager.create(pointOptions);
             pointAnnotation.setDraggable(false);
             annotationToReportId.put(pointAnnotation.getId(), report.getId());
+            reportIconMarkers.put(report.getId(), pointAnnotation);
 
             android.util.Log.d("MapFragment", "  ✓ PointAnnotation creada");
 
@@ -481,43 +502,48 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private Bitmap bitmapFromDrawable(int drawableId, String categoryColorHex) {
+        String cacheKey = drawableId + "_" + categoryColorHex;
+        if (bitmapCache.containsKey(cacheKey)) {
+            return bitmapCache.get(cacheKey);
+        }
+
         try {
             android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(requireContext(), drawableId);
+            if (drawable == null) return null;
 
-            if (drawable == null) {
-                android.util.Log.e("MapFragment", "✗ Drawable es null");
-                return null;
-            }
-
-            // Tamaño del bitmap
-            final int SIZE = 96;
-
-            // Si es BitmapDrawable, procesar igual
+            final int SIZE = 120;
             Bitmap bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
 
-            // 1. Dibujar círculo de color de categoría
+            android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            shadowPaint.setColor(android.graphics.Color.BLACK);
+            shadowPaint.setAlpha(35);
+            canvas.drawCircle(SIZE / 2f, SIZE / 2f + 5, SIZE / 2.3f, shadowPaint);
+
             android.graphics.Paint circlePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             circlePaint.setColor(android.graphics.Color.parseColor(categoryColorHex));
-            canvas.drawCircle(SIZE / 2f, SIZE / 2f, SIZE / 2.2f, circlePaint);
+            canvas.drawCircle(SIZE / 2f, SIZE / 2f, SIZE / 2.3f, circlePaint);
 
-            // 2. Dibujar icono blanco en el centro
+            android.graphics.Paint borderPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            borderPaint.setStyle(android.graphics.Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(3f);
+            borderPaint.setColor(android.graphics.Color.WHITE);
+            borderPaint.setAlpha(80);
+            canvas.drawCircle(SIZE / 2f, SIZE / 2f, SIZE / 2.3f, borderPaint);
+
             try {
-                drawable.setTint(0xFFFFFFFF);  // Icono blanco
-            } catch (Exception ignored) {
-            }
+                drawable.setTint(android.graphics.Color.WHITE);
+            } catch (Exception ignored) {}
 
-            int iconSize = (int) (SIZE * 0.6);  // 60% del tamaño total
+            int iconSize = (int) (SIZE * 0.55);
             int iconOffset = (SIZE - iconSize) / 2;
             drawable.setBounds(iconOffset, iconOffset, iconOffset + iconSize, iconOffset + iconSize);
             drawable.draw(canvas);
 
-            android.util.Log.d("MapFragment", "  ✓ Bitmap circular creado: " + SIZE + "x" + SIZE + " color: " + categoryColorHex);
+            bitmapCache.put(cacheKey, bitmap);
             return bitmap;
-
         } catch (Exception e) {
-            android.util.Log.e("MapFragment", "✗ Error: " + e.getMessage());
-            e.printStackTrace();
+            android.util.Log.e("MapFragment", "✗ Error creando bitmap: " + e.getMessage());
             return null;
         }
     }
@@ -726,10 +752,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void updateReportMarker(int reportId, String newStatus, int confirmCount, int resolveCount) {
         CircleAnnotation strokeMarker = reportStrokeMarkers.get(reportId);
+        PointAnnotation iconMarker = reportIconMarkers.get(reportId);
+
         if (strokeMarker == null) {
             android.util.Log.w("MapFragment", "⚠️ No se encontró marcador de stroke para reportId: " + reportId);
             return;
         }
+        
+        // También actualizar el icono si cambió algo (ej. color si fuera necesario, pero por ahora solo el stroke)
+        // ...
 
         android.util.Log.d("MapFragment", "✓ Marcador encontrado, actualizando...");
 
@@ -774,6 +805,38 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         reportStrokeMarkers.put(reportId, updatedStroke);
 
         android.util.Log.d("MapFragment", "✓ Marcador actualizado: color=" + newColor + ", radio=" + newRadius);
+    }
+
+    private void animateBounce(PointAnnotation annotation) {
+        float baseSize = 1.6f;
+        android.animation.ValueAnimator animator = android.animation.ValueAnimator.ofFloat(baseSize, baseSize * 1.4f, baseSize);
+        animator.setDuration(400);
+        animator.setInterpolator(new android.view.animation.OvershootInterpolator());
+        animator.addUpdateListener(animation1 -> {
+            annotation.setIconSize(((Float) animation1.getAnimatedValue()).doubleValue());
+            pointAnnotationManager.update(annotation);
+        });
+        animator.start();
+    }
+
+    private void updateMarkersScale(double zoom) {
+        // Factor de escala basado en zoom (Referencia: Zoom 15 = 1.0)
+        // Usamos una curva logarítmica suave para que no desaparezcan muy rápido
+        float scaleFactor = (float) Math.max(0.4, Math.min(2.5, Math.pow(1.15, zoom - 15)));
+
+        // 1. Escalar iconos
+        for (PointAnnotation annotation : reportIconMarkers.values()) {
+            annotation.setIconSize(1.6 * scaleFactor);
+        }
+        pointAnnotationManager.update(pointAnnotationManager.getAnnotations());
+
+        // 2. Escalar anillos (strokes)
+        for (CircleAnnotation stroke : reportStrokeMarkers.values()) {
+            // El radio del círculo escala linealmente con el zoom en píxeles
+            stroke.setCircleRadius(34.0 * scaleFactor);
+            stroke.setCircleStrokeWidth(5.0 * scaleFactor);
+        }
+        circleAnnotationManager.update(circleAnnotationManager.getAnnotations());
     }
 
     private void setupFAB() {
