@@ -1,7 +1,7 @@
 # Features — Estado vs Planteamiento v1
 
 > Actualizar cada vez que se implementa una función nueva.
-> Última revisión: 2026-06-09 (sesión tarde)
+> Última revisión: 2026-06-11
 
 **Leyenda:** ✅ completo · 🔶 a medias · ❌ no iniciado
 
@@ -78,10 +78,10 @@
 | ID | Requerimiento | Estado | Notas |
 |----|--------------|--------|-------|
 | RF-26 | Score de confiabilidad por reportes y votos acertados | ✅ | GET /me devuelve score; UserProfileBottomSheet (pageProfile) lo muestra como "X pts" |
-| RF-27 | Puntos: +10 reporte confirmado, +2 voto "Sigue ahí", +5 voto "Ya se resolvió" | ❌ | No implementado en cliente |
-| RF-28 | Reportes de usuarios con score alto = mayor tamaño base en mapa | ❌ | No implementado |
+| RF-27 | Puntos: +10 reporte confirmado, +2 voto "Sigue ahí", +5 voto "Ya se resolvió" | ✅ | Implementado en laravel_api (User::addScore + Report::evaluateAutoStatus); cliente refleja vía GET /me al refrescar perfil |
+| RF-28 | Reportes de usuarios con score alto = mayor tamaño base en mapa | 🔶 | API ya expone score/level en user de /reports y /reports/{id}; MapFragment aún no usa ese valor para tamaño de marcador |
 | RF-29 | Niveles: Nuevo/Colaborador/Guardián/Experto | ✅ | GET /me devuelve level; UserProfileBottomSheet (pageProfile) lo muestra como badge |
-| RF-30 | Expertos verifican reporte con 3 votos en lugar de 5 | ❌ | No implementado |
+| RF-30 | Expertos verifican reporte con 3 votos en lugar de 5 | ✅ | Implementado server-side en Report::evaluateAutoStatus (laravel_api), sin cambios necesarios en cliente |
 
 ---
 
@@ -89,9 +89,9 @@
 
 | ID | Requerimiento | Estado | Notas |
 |----|--------------|--------|-------|
-| RF-31 | Ver todos los reportes propios con votos, sello y estado final | 🔶 | UserProfileBottomSheet (pageReports) usa GET /me/reports (server-side); lista categoría, descripción, fecha, estado; falta mostrar conteo de votos |
-| RF-32 | Historial de votos propios con accuracy % por tipo | ❌ | No implementado |
-| RF-33 | Estadísticas: reportes creados, confirmaciones recibidas, problemas resueltos | ❌ | No implementado |
+| RF-31 | Ver todos los reportes propios con votos, sello y estado final | ✅ | UserProfileBottomSheet (pageReports) usa GET /me/reports (server-side); lista categoría, descripción, fecha, estado, conteo de votos (👍/✅) |
+| RF-32 | Historial de votos propios con accuracy % por tipo | ✅ | UserProfileBottomSheet (pageVotes), nueva opción "Mis Votos"; usa GET /me/votes; accuracy calculado client-side comparando vote.type vs report.status final (verified/resolved) |
+| RF-33 | Estadísticas: reportes creados, confirmaciones recibidas, problemas resueltos | ✅ | UserProfileBottomSheet (pageProfile), fila de stats vía GET /me/reports (loadProfileStats) |
 
 ---
 
@@ -115,7 +115,7 @@
 | Votos comunitarios (2) | 9 | 1 | 6 | 2 |
 | Mapa en vivo (3) | 5 | 1 | 4 | 0 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
-| Puntuación y confiabilidad (5) | 5 | 0 | 0 | 5 |
-| Perfil e historial (6) | 3 | 0 | 1 | 2 |
+| Puntuación y confiabilidad (5) | 5 | 3 | 1 | 1 |
+| Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **10 (23%)** | **11 (26%)** | **22 (51%)** |
+| **TOTAL** | **43** | **16 (37%)** | **9 (21%)** | **18 (42%)** |

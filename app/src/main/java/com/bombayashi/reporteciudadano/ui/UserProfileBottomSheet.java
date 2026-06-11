@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.bombayashi.reporteciudadano.databinding.BottomSheetUserProfileBinding;
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.AvatarUploadResponse;
+import com.bombayashi.reporteciudadano.model.MyVotesResponse;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
 import com.bombayashi.reporteciudadano.model.UpdateProfileRequest;
 import com.bombayashi.reporteciudadano.network.ApiClient;
@@ -49,6 +50,8 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     private OnLogoutListener logoutListener;
     private MyReportsAdapter reportsAdapter;
     private boolean reportsLoaded = false;
+    private MyVotesAdapter votesAdapter;
+    private boolean votesLoaded = false;
     private Uri cameraPhotoUri;
 
     private final ActivityResultLauncher<String> galleryLauncher =
@@ -91,6 +94,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         setupMenuListeners();
         setupProfilePage();
         setupReportsPage();
+        setupVotesPage();
         setupSettingsPage();
     }
 
@@ -122,6 +126,10 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
             showPage(binding.pageReports);
             if (!reportsLoaded) loadMyReports();
         });
+        binding.llMyVotes.setOnClickListener(v -> {
+            showPage(binding.pageVotes);
+            if (!votesLoaded) loadMyVotes();
+        });
         binding.llSettings.setOnClickListener(v -> showPage(binding.pageSettings));
 
         binding.llLogout.setOnClickListener(v -> handleLogout());
@@ -135,6 +143,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.pageMenu.setVisibility(View.GONE);
         binding.pageProfile.setVisibility(View.GONE);
         binding.pageReports.setVisibility(View.GONE);
+        binding.pageVotes.setVisibility(View.GONE);
         binding.pageSettings.setVisibility(View.GONE);
         page.setVisibility(View.VISIBLE);
     }
@@ -160,6 +169,38 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.btnEditName.setOnClickListener(v -> showEditNameDialog());
 
         refreshProfile();
+        loadProfileStats();
+    }
+
+    private void loadProfileStats() {
+        TokenManager tm = TokenManager.getInstance(requireContext());
+
+        ApiClient.getInstance().getMyReports("Bearer " + tm.getToken(), "", 100)
+                .enqueue(new Callback<ReportResponse>() {
+                    @Override
+                    public void onResponse(Call<ReportResponse> call, Response<ReportResponse> response) {
+                        if (binding == null || !response.isSuccessful() || response.body() == null) return;
+
+                        List<ReportResponse.ReportData> myReports = response.body().getData();
+                        if (myReports == null) return;
+
+                        int confirmations = 0;
+                        int resolved = 0;
+                        for (ReportResponse.ReportData report : myReports) {
+                            confirmations += report.getVotesConfirm();
+                            if ("resolved".equals(report.getStatus())) resolved++;
+                        }
+
+                        binding.tvStatReports.setText(String.valueOf(myReports.size()));
+                        binding.tvStatConfirmations.setText(String.valueOf(confirmations));
+                        binding.tvStatResolved.setText(String.valueOf(resolved));
+                    }
+
+                    @Override
+                    public void onFailure(Call<ReportResponse> call, Throwable t) {
+                        // sin conexión: dejar stats en 0
+                    }
+                });
     }
 
     private void refreshProfile() {
@@ -362,6 +403,72 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                         binding.tvEmptyReports.setVisibility(View.VISIBLE);
                     }
                 });
+    }
+
+    // ===================== Mis Votos =====================
+
+    private void setupVotesPage() {
+        binding.btnBackVotes.setOnClickListener(v -> showMenu());
+
+        votesAdapter = new MyVotesAdapter();
+        binding.rvMyVotes.setLayoutManager(new LinearLayoutManager(requireContext()));
+        binding.rvMyVotes.setAdapter(votesAdapter);
+    }
+
+    private void loadMyVotes() {
+        binding.progressBarVotes.setVisibility(View.VISIBLE);
+        binding.tvEmptyVotes.setVisibility(View.GONE);
+
+        TokenManager tm = TokenManager.getInstance(requireContext());
+
+        ApiClient.getInstance().getMyVotes("Bearer " + tm.getToken(), 100)
+                .enqueue(new Callback<MyVotesResponse>() {
+                    @Override
+                    public void onResponse(Call<MyVotesResponse> call, Response<MyVotesResponse> response) {
+                        if (binding == null) return;
+                        binding.progressBarVotes.setVisibility(View.GONE);
+
+                        List<MyVotesResponse.VoteData> myVotes = new ArrayList<>();
+                        if (response.isSuccessful() && response.body() != null && response.body().getData() != null) {
+                            myVotes = response.body().getData();
+                        }
+
+                        votesAdapter.setVotes(myVotes);
+                        binding.tvEmptyVotes.setVisibility(myVotes.isEmpty() ? View.VISIBLE : View.GONE);
+                        binding.tvVotesAccuracySummary.setText(buildAccuracySummary(myVotes));
+                        votesLoaded = true;
+                    }
+
+                    @Override
+                    public void onFailure(Call<MyVotesResponse> call, Throwable t) {
+                        if (binding == null) return;
+                        binding.progressBarVotes.setVisibility(View.GONE);
+                        binding.tvEmptyVotes.setText("Error al cargar tus votos");
+                        binding.tvEmptyVotes.setVisibility(View.VISIBLE);
+                    }
+                });
+    }
+
+    private String buildAccuracySummary(List<MyVotesResponse.VoteData> votes) {
+        int confirmTotal = 0, confirmCorrect = 0;
+        int resolveTotal = 0, resolveCorrect = 0;
+
+        for (MyVotesResponse.VoteData vote : votes) {
+            Boolean correct = vote.isCorrect();
+            if (correct == null) continue;
+            if ("confirm".equals(vote.getType())) {
+                confirmTotal++;
+                if (correct) confirmCorrect++;
+            } else if ("resolve".equals(vote.getType())) {
+                resolveTotal++;
+                if (correct) resolveCorrect++;
+            }
+        }
+
+        String confirmPct = confirmTotal > 0 ? (confirmCorrect * 100 / confirmTotal) + "%" : "—";
+        String resolvePct = resolveTotal > 0 ? (resolveCorrect * 100 / resolveTotal) + "%" : "—";
+
+        return "Precisión: Sigue ahí " + confirmPct + " · Ya se resolvió " + resolvePct;
     }
 
     // ===================== Configuración =====================
