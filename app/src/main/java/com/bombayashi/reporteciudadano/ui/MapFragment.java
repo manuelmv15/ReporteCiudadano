@@ -59,7 +59,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private FragmentMapBinding binding;
     private MapView mapView;
     private MapboxMap mapboxMap;
-    private Point currentLocation;
+    private Point userLocation; // Posición real del usuario
     private FusedLocationProviderClient fusedLocationClient;
     private CircleAnnotationManager circleAnnotationManager;
     private PointAnnotationManager pointAnnotationManager;
@@ -294,9 +294,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void useLocation(android.location.Location location) {
         if (!isAdded() || getView() == null) return;
 
-        currentLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
-        addUserLocationMarker(currentLocation);
-        animateCameraTo(currentLocation);
+        userLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
+        addUserLocationMarker(userLocation);
+        animateCameraTo(userLocation);
 
         android.util.Log.i("MapFragment", "✓ Ubicación utilizada (Precisión: " +
             String.format("%.1f", location.getAccuracy()) + "m)");
@@ -590,8 +590,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void setupMapListeners() {
         GesturesUtils.getGestures(mapView).addOnMapLongClickListener(point -> {
-            // point.latitude() y point.longitude() ya vienen correctamente de Mapbox
-            currentLocation = point;
+            // Ya NO sobreescribimos userLocation. 
+            // La ubicación del usuario es sagrada para el botón FAB.
             showRadialMenu(point);
             return true;
         });
@@ -701,8 +701,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void showReportDetails(ReportResponse.ReportData report) {
         if (report == null) return;
-        // Pasar ubicación del usuario para validar distancia de votación
-        ReportDetailBottomSheet bottomSheet = ReportDetailBottomSheet.newInstance(report, currentLocation);
+        // Pasar ubicación real del usuario para validar distancia de votación
+        ReportDetailBottomSheet bottomSheet = ReportDetailBottomSheet.newInstance(report, userLocation);
         // Pasar listener para cambios de estado
         bottomSheet.setStatusChangeListener(this);
         bottomSheet.show(getChildFragmentManager(), "report_detail");
@@ -773,8 +773,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void setupFAB() {
         FloatingActionButton fabMyLocation = binding.fabMyLocation;
         fabMyLocation.setOnClickListener(v -> {
-            if (currentLocation != null) {
-                animateCameraTo(currentLocation);
+            if (userLocation != null) {
+                animateCameraTo(userLocation);
             } else {
                 getCurrentUserLocation();
             }
@@ -782,8 +782,11 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         FloatingActionButton fabAddReport = binding.fabAddReport;
         fabAddReport.setOnClickListener(v -> {
-            if (currentLocation != null) {
-                showRadialMenu(currentLocation);
+            if (userLocation != null) {
+                showRadialMenu(userLocation);
+            } else {
+                SnackbarHelper.show(getView(), "Obteniendo ubicación...", SnackbarHelper.Variant.INFO);
+                getCurrentUserLocation();
             }
         });
 
@@ -826,9 +829,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void centerOnDefaultLocation() {
-        currentLocation = Point.fromLngLat(DEFAULT_LONGITUDE, DEFAULT_LATITUDE);
-        addUserLocationMarker(currentLocation);
-        animateCameraTo(currentLocation);
+        userLocation = Point.fromLngLat(DEFAULT_LONGITUDE, DEFAULT_LATITUDE);
+        addUserLocationMarker(userLocation);
+        animateCameraTo(userLocation);
     }
 
     private void animateCameraTo(Point point) {
