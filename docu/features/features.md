@@ -15,49 +15,49 @@
 | RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | ✅      | TokenManager singleton (util/TokenManager.java) usa EncryptedSharedPreferences AES256-GCM/SIV; fallback a prefs normales si crypto no disponible; guarda token + user_id + user_name + user_email; todos los callers migrados (LoginActivity, RegisterActivity, UserProfileBottomSheet, MapFragment, ReportDetailBottomSheet, VoteStateManager) |
 | RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                                                                                                                                                           |
 | RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅     | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear/votar/editar/foto → clearToken + redirect a login; backend confirmado: POST/PUT/DELETE/PATCH auth:sanctum, GET público |
-| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | 🔶     | API crea usuario pero app no muestra perfil completo                                                                                                                                                                           |
+| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | ✅     | UserProfileBottomSheet (pageProfile) muestra nombre/email/avatar; editar nombre (PUT /me) y foto (POST /me/avatar) persisten server-side                                                                                      |
 | RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                                                                                                                                                       |
 
 ---
 
 ## Módulo 1 — Reporte ultrarrápido
 
-| ID | Requerimiento | Estado | Notas |
-|----|--------------|--------|-------|
-| RF-01 | Toque largo en mapa → menú radial con 8 categorías | ✅ | RadialMenuDialogFragment + OnMapLongClickListener |
-| RF-02 | Toque en categoría envía reporte sin formulario adicional | ✅ | POST /reports desde RadialMenuDialogFragment |
-| RF-03 | GPS capturado del punto tocado, sin confirmación extra | ✅ | coords del LongClick pasadas directamente |
-| RF-04 | Foto y descripción opcionales desde tarjeta del reporte | ✅ | Owner edita descripción + sube foto (cámara/galería) via PUT /reports/{id}; foto fullscreen al tap; storage:link activo en servidor |
-| RF-05 | Sin conexión: guardar en Room DB + WorkManager sync | ❌ | No hay Room DB ni WorkManager |
-| RF-06 | Retirar propio reporte en primeros 5 min si < 3 votos | ❌ | No implementado |
+| ID    | Requerimiento                                             | Estado | Notas                                                                                                                               |
+| ----- | --------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| RF-01 | Toque largo en mapa → menú radial con 8 categorías        | ✅      | RadialMenuDialogFragment + OnMapLongClickListener                                                                                   |
+| RF-02 | Toque en categoría envía reporte sin formulario adicional | ✅      | POST /reports desde RadialMenuDialogFragment                                                                                        |
+| RF-03 | GPS capturado del punto tocado, sin confirmación extra    | ✅      | coords del LongClick pasadas directamente                                                                                           |
+| RF-04 | Foto y descripción opcionales desde tarjeta del reporte   | ✅      | Owner edita descripción + sube foto (cámara/galería) via PUT /reports/{id}; foto fullscreen al tap; storage:link activo en servidor |
+| RF-05 | Sin conexión: guardar en Room DB + WorkManager sync       | ❌      | No hay Room DB ni WorkManager                                                                                                       |
+| RF-06 | Retirar propio reporte en primeros 5 min si < 3 votos     | ❌      | No implementado                                                                                                                     |
 
 ---
 
 ## Módulo 2 — Sistema de votos comunitarios
 
-| ID | Requerimiento | Estado | Notas |
-|----|--------------|--------|-------|
-| RF-07 | Solo usuarios dentro de 500 m pueden votar | 🔶 | Validación Haversine en cliente (VoteStateManager), falta validación server-side confirmada |
-| RF-08 | Votos "Sigue ahí" y "Ya se resolvió" | ✅ | ReportDetailBottomSheet con ambos botones |
-| RF-09 | Un voto por usuario; puede cambiarlo hasta 5 min después | 🔶 | Cambio de voto con dialog implementado; ventana 5 min en VoteStateManager pero pendiente verificar lógica server |
-| RF-10 | Conteo actualizado en tiempo real tras respuesta servidor | 🔶 | Se actualiza al recibir respuesta pero no hay polling/WebSocket |
-| RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | 🔶 | Lógica en API Laravel (pendiente confirmar); cliente refleja estado RESOLVED |
-| RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí" | 🔶 | Estado VERIFIED en cliente; marcador cambia; sello visual no diferenciado claramente |
-| RF-13 | Auto-archivo a las 24 h sin interacción | ❌ | Solo en servidor (pendiente confirmar); cliente no muestra reportes archivados |
-| RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte | ❌ | Owner detectado por user_id; botones de voto ocultos para owner — no puede votar en propio reporte (decisión de diseño inversa al RF) |
-| RF-15 | Concurrencia de votos con bloqueo optimista en servidor | 🔶 | Documentado en API; cliente no aplica lógica de conflicto (correcto según spec) |
+| ID    | Requerimiento                                              | Estado | Notas                                                                                                                                 |
+| ----- | ---------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| RF-07 | Solo usuarios dentro de 500 m pueden votar                 | 🔶     | Validación Haversine en cliente (VoteStateManager), falta validación server-side confirmada                                           |
+| RF-08 | Votos "Sigue ahí" y "Ya se resolvió"                       | ✅      | ReportDetailBottomSheet con ambos botones                                                                                             |
+| RF-09 | Un voto por usuario; puede cambiarlo hasta 5 min después   | 🔶     | Cambio de voto con dialog implementado; ventana 5 min en VoteStateManager pero pendiente verificar lógica server                      |
+| RF-10 | Conteo actualizado en tiempo real tras respuesta servidor  | 🔶     | Se actualiza al recibir respuesta pero no hay polling/WebSocket                                                                       |
+| RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | 🔶     | Lógica en API Laravel (pendiente confirmar); cliente refleja estado RESOLVED                                                          |
+| RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí"         | 🔶     | Estado VERIFIED en cliente; marcador cambia; sello visual no diferenciado claramente                                                  |
+| RF-13 | Auto-archivo a las 24 h sin interacción                    | ❌      | Solo en servidor (pendiente confirmar); cliente no muestra reportes archivados                                                        |
+| RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte  | ❌      | Owner detectado por user_id; botones de voto ocultos para owner — no puede votar en propio reporte (decisión de diseño inversa al RF) |
+| RF-15 | Concurrencia de votos con bloqueo optimista en servidor    | 🔶     | Documentado en API; cliente no aplica lógica de conflicto (correcto según spec)                                                       |
 
 ---
 
 ## Módulo 3 — Mapa en vivo
 
-| ID | Requerimiento | Estado | Notas |
-|----|--------------|--------|-------|
-| RF-16 | Marcadores crecen proporcionalmente a votos "Sigue ahí" | 🔶 | Tamaño varía por estado (PENDING/VERIFIED/RESOLVED) pero no proporcional a conteo exacto de votos |
-| RF-17 | Reportes verificados muestran ícono distinto y mayor tamaño | 🔶 | CircleAnnotation más grande para VERIFIED; sin ícono especial (círculo vs ícono) |
-| RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer | 🔶 | Color gris para RESOLVED pero no desaparecen automáticamente después de 2 h |
-| RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h) | ❌ | No hay filtros en el mapa |
-| RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | ✅ | Categoría, votos, foto con Glide + fullscreen tap; storage activo |
+| ID    | Requerimiento                                                | Estado | Notas                                                                                             |
+| ----- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------- |
+| RF-16 | Marcadores crecen proporcionalmente a votos "Sigue ahí"      | 🔶     | Tamaño varía por estado (PENDING/VERIFIED/RESOLVED) pero no proporcional a conteo exacto de votos |
+| RF-17 | Reportes verificados muestran ícono distinto y mayor tamaño  | 🔶     | CircleAnnotation más grande para VERIFIED; sin ícono especial (círculo vs ícono)                  |
+| RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer  | 🔶     | Color gris para RESOLVED pero no desaparecen automáticamente después de 2 h                       |
+| RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h)       | ❌      | No hay filtros en el mapa                                                                         |
+| RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | ✅      | Categoría, votos, foto con Glide + fullscreen tap; storage activo                                 |
 
 ---
 
@@ -77,10 +77,10 @@
 
 | ID | Requerimiento | Estado | Notas |
 |----|--------------|--------|-------|
-| RF-26 | Score de confiabilidad por reportes y votos acertados | ❌ | No implementado en cliente |
+| RF-26 | Score de confiabilidad por reportes y votos acertados | ✅ | GET /me devuelve score; UserProfileBottomSheet (pageProfile) lo muestra como "X pts" |
 | RF-27 | Puntos: +10 reporte confirmado, +2 voto "Sigue ahí", +5 voto "Ya se resolvió" | ❌ | No implementado en cliente |
 | RF-28 | Reportes de usuarios con score alto = mayor tamaño base en mapa | ❌ | No implementado |
-| RF-29 | Niveles: Nuevo/Colaborador/Guardián/Experto | ❌ | No implementado en cliente |
+| RF-29 | Niveles: Nuevo/Colaborador/Guardián/Experto | ✅ | GET /me devuelve level; UserProfileBottomSheet (pageProfile) lo muestra como badge |
 | RF-30 | Expertos verifican reporte con 3 votos en lugar de 5 | ❌ | No implementado |
 
 ---
@@ -89,7 +89,7 @@
 
 | ID | Requerimiento | Estado | Notas |
 |----|--------------|--------|-------|
-| RF-31 | Ver todos los reportes propios con votos, sello y estado final | ❌ | UserProfileBottomSheet tiene opción "Mis Reportes" pero no navega a ningún lugar |
+| RF-31 | Ver todos los reportes propios con votos, sello y estado final | 🔶 | UserProfileBottomSheet (pageReports) usa GET /me/reports (server-side); lista categoría, descripción, fecha, estado; falta mostrar conteo de votos |
 | RF-32 | Historial de votos propios con accuracy % por tipo | ❌ | No implementado |
 | RF-33 | Estadísticas: reportes creados, confirmaciones recibidas, problemas resueltos | ❌ | No implementado |
 
@@ -116,6 +116,6 @@
 | Mapa en vivo (3) | 5 | 1 | 4 | 0 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
 | Puntuación y confiabilidad (5) | 5 | 0 | 0 | 5 |
-| Perfil e historial (6) | 3 | 0 | 0 | 3 |
+| Perfil e historial (6) | 3 | 0 | 1 | 2 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
 | **TOTAL** | **43** | **10 (23%)** | **11 (26%)** | **22 (51%)** |
