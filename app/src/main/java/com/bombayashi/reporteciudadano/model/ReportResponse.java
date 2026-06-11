@@ -73,6 +73,7 @@ public class ReportResponse {
         public String getDescription() { return description; }
         public void setDescription(String description) { this.description = description; }
         public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
         public String getPhoto() { return photo; }
         public void setPhoto(String photo) { this.photo = photo; }
         public String getPhotoUrl() {
@@ -120,6 +121,8 @@ public class ReportResponse {
         private int resolve;
 
         public int getConfirm() { return confirm; }
+        public void setConfirm(int confirm) { this.confirm = confirm; }
         public int getResolve() { return resolve; }
+        public void setResolve(int resolve) { this.resolve = resolve; }
     }
 }

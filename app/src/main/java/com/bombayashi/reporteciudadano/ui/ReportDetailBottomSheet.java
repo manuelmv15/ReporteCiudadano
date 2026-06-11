@@ -22,6 +22,7 @@ import com.bombayashi.reporteciudadano.R;
 import com.bombayashi.reporteciudadano.util.TokenManager;
 import com.bombayashi.reporteciudadano.databinding.BottomSheetReportDetailBinding;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
+import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
 import com.bombayashi.reporteciudadano.network.ApiClient;
 import com.bombayashi.reporteciudadano.ui.vote.VoteState;
@@ -73,6 +74,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
     public interface OnReportStatusChangeListener {
         void onReportStatusChanged(int reportId, String newStatus, int confirmCount, int resolveCount);
+        void onReportDataUpdated(ReportResponse.ReportData updatedReport);
     }
 
     public void setStatusChangeListener(OnReportStatusChangeListener listener) {
@@ -99,6 +101,9 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         if (report == null || userLocation == null) return;
 
+        // FETCH PREVENTIVO: Antes de mostrar, pedimos los datos más recientes de la API
+        fetchLatestReportData();
+
         displayReportInfo();
         setupOwnerControls();
 
@@ -109,6 +114,43 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             setupVoteObservers();
             setupButtonListeners();
         }
+    }
+
+    private void fetchLatestReportData() {
+        ApiClient.getInstance().getReportDetail(report.getId())
+            .enqueue(new Callback<ReportDetailResponse>() {
+                @Override
+                public void onResponse(Call<ReportDetailResponse> call, Response<ReportDetailResponse> response) {
+                    if (!isAdded() || getView() == null) return;
+                    if (response.isSuccessful() && response.body() != null) {
+                        ReportResponse.ReportData updated = response.body().getReport();
+                        if (updated != null) {
+                            // Actualizamos el objeto local
+                            report = updated;
+                            // Refrescamos la UI con los datos reales de la API
+                            displayReportInfo();
+
+                            // SINCRO: Notificar al mapa para que guarde esta info fresca
+                            if (statusChangeListener != null) {
+                                statusChangeListener.onReportDataUpdated(updated);
+                            }
+
+                            if (voteStateManager != null) {
+                                // Si ya se inicializó, le pasamos los nuevos conteos
+                                voteStateManager.updateCounts(
+                                    updated.getVotes().getConfirm(),
+                                    updated.getVotes().getResolve()
+                                );
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<ReportDetailResponse> call, Throwable t) {
+                    // Si falla el fetch, seguimos con los datos cacheados
+                }
+            });
     }
 
     private boolean isGuest() {

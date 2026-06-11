@@ -712,10 +712,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     public void onReportStatusChanged(int reportId, String newStatus, int confirmCount, int resolveCount) {
         android.util.Log.d("MapFragment", "═══════════════════════════════════════════");
         android.util.Log.d("MapFragment", "📊 onReportStatusChanged() - ReportID: " + reportId);
-        android.util.Log.d("MapFragment", "   Status: " + newStatus);
-        android.util.Log.d("MapFragment", "   Confirm: " + confirmCount + ", Resolve: " + resolveCount);
-
+        
         updateReportMarker(reportId, newStatus, confirmCount, resolveCount);
+    }
+
+    @Override
+    public void onReportDataUpdated(ReportResponse.ReportData updatedReport) {
+        if (updatedReport != null) {
+            android.util.Log.d("MapFragment", "💾 Sincronizando caché: Reporte " + updatedReport.getId() + " actualizado.");
+            reportMarkers.put(String.valueOf(updatedReport.getId()), updatedReport);
+        }
     }
 
     private void updateReportMarker(int reportId, String newStatus, int confirmCount, int resolveCount) {
