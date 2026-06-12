@@ -1,7 +1,7 @@
 # Features — Estado vs Planteamiento v1
 
 > Actualizar cada vez que se implementa una función nueva.
-> Última revisión: 2026-06-11
+> Última revisión: 2026-06-12
 
 **Leyenda:** ✅ completo · 🔶 a medias · ❌ no iniciado
 
@@ -39,11 +39,11 @@
 | ----- | ---------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | RF-07 | Solo usuarios dentro de 500 m pueden votar                 | 🔶     | Validación Haversine en cliente (VoteStateManager), falta validación server-side confirmada                                           |
 | RF-08 | Votos "Sigue ahí" y "Ya se resolvió"                       | ✅      | ReportDetailBottomSheet con ambos botones                                                                                             |
-| RF-09 | Un voto por usuario; puede cambiarlo hasta 5 min después   | 🔶     | Cambio de voto con dialog implementado; ventana 5 min en VoteStateManager pero pendiente verificar lógica server                      |
+| RF-09 | Un voto por usuario; puede cambiarlo hasta 5 min después   | ✅     | Server: unique(report_id,user_id) impide votos duplicados; DELETE /reports/{id}/votes/{type} rechaza con 403 tras 5 min (ReportVoteController). Cliente: VoteStateManager (delete+submit) dentro de la ventana de 5 min      |
 | RF-10 | Conteo actualizado y sincronizado entre capas             | ✅      | Fetch preventivo al abrir detalle; OnReportDataUpdated sincroniza cache de MapFragment; fin de "amnesia de interacción" |
 | RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | 🔶     | Lógica en API Laravel (pendiente confirmar); cliente refleja estado RESOLVED                                                          |
 | RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí"         | 🔶     | Estado VERIFIED en cliente; marcador cambia; sello visual no diferenciado claramente                                                  |
-| RF-13 | Auto-archivo a las 24 h sin interacción                    | ❌      | Solo en servidor (pendiente confirmar); cliente no muestra reportes archivados                                                        |
+| RF-13 | Auto-archivo a las 24 h sin interacción                    | ✅      | Comando `reports:archive-stale` (Report::archiveStaleReports, STALE_HOURS=24) programado cada 5 min vía Schedule; verificado end-to-end. Cliente no filtra reportes archivados del mapa (ver RF-18)        |
 | RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte  | ❌      | Owner detectado por user_id; botones de voto ocultos para owner — no puede votar en propio reporte (decisión de diseño inversa al RF) |
 | RF-15 | Concurrencia de votos con bloqueo optimista en servidor    | 🔶     | Documentado en API; cliente no aplica lógica de conflicto (correcto según spec)                                                       |
 
@@ -55,7 +55,7 @@
 | ----- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------- |
 | RF-16 | Escala dinámica y Throttling de zoom                      | ✅      | Marcadores escalan suavemente (base 1.06); Throttling de updates (>0.1 zoom) para rendimiento; FPS estables |
 | RF-17 | Marcadores integrados M3 (Single Layer)                   | ✅      | Bitmap dinámico con sombra, brillo interno y borde de estado; Halo dorado para "Mi Reporte"; rendimiento GPU optimizado |
-| RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer  | 🔶     | Color gris para RESOLVED pero no desaparecen automáticamente después de 2 h                       |
+| RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer  | 🔶     | Server: `reports:archive-stale` archiva resueltos con `resolved_at` > 2h (RESOLVED_VISIBLE_HOURS) → status=archived, verificado. Cliente: MapFragment pinta "archived" con el mismo gris que "resolved" y no lo filtra/oculta — falta excluir archived del mapa para que "desaparezca" |
 | RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h)       | ❌      | No hay filtros en el mapa                                                                         |
 | RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | ✅      | Categoría, votos, foto con Glide + fullscreen tap; storage activo                                 |
 
@@ -112,10 +112,10 @@
 |--------|----------|-------------|------------|----------------|
 | Autenticación (A) | 6 | 4 | 1 | 1 |
 | Reporte ultrarrápido (1) | 6 | 4 | 0 | 2 |
-| Votos comunitarios (2) | 9 | 1 | 6 | 2 |
-| Mapa en vivo (3) | 5 | 1 | 4 | 0 |
+| Votos comunitarios (2) | 9 | 4 | 4 | 1 |
+| Mapa en vivo (3) | 5 | 3 | 1 | 1 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
 | Puntuación y confiabilidad (5) | 5 | 3 | 1 | 1 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **16 (37%)** | **9 (21%)** | **18 (42%)** |
+| **TOTAL** | **43** | **21 (49%)** | **7 (16%)** | **15 (35%)** |
