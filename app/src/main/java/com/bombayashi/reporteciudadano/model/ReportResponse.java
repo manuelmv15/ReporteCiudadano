@@ -50,6 +50,8 @@ public class ReportResponse {
         private String photo;
         @SerializedName("created_at")
         private String createdAt;
+        @SerializedName("updated_at")
+        private String updatedAt;
         @SerializedName("user")
         private UserInfo user;
         @SerializedName("category")
@@ -82,6 +84,7 @@ public class ReportResponse {
             return "https://api.manuelmv.net/storage/" + photo;
         }
         public String getCreatedAt() { return createdAt; }
+        public String getUpdatedAt() { return updatedAt; }
         public UserInfo getUser() { return user; }
         public CategoryInfo getCategory() { return category; }
         public VotesInfo getVotes() { return votes; }

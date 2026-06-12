@@ -96,3 +96,13 @@ El `tv_error` era un `TextView` estático sin animación, hardcodeado en color `
 ### TODOs / Próximos pasos
 - [x] RF-A02 completo
 - [ ] Validar que token persiste entre reinicios de app en dispositivo físico
+
+---
+
+## [2026-06-12] Google Sign-In siempre muestra selector de cuentas
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/LoginActivity.java` — `signInWithGoogle()`: agregado `googleSignInClient.signOut()` antes de `getSignInIntent()`. Sin esto, `GoogleSignInClient` reusa la cuenta cacheada y nunca muestra el picker, aunque el dispositivo tenga varias cuentas Google
+
+### TODOs / Próximos pasos
+- [ ] Probar en dispositivo con 2+ cuentas Google: confirmar que aparece selector cada vez que se toca "Iniciar con Google"

@@ -65,3 +65,5 @@
 - [2026-06-11] [components] — Fix #4 avatar: ivUserAvatar centerInside dejaba ver fondo verde (background no se clipea); cambiado a centerCrop
 - [2026-06-11] [components] — Fix #5 (causa raíz) avatar: android:tint/app:tint en ImageView teñía CUALQUIER drawable (incl. foto de Glide) de verde sólido; quitado tint de ivUserAvatar/ivProfileAvatar — RESUELTO
 - [2026-06-11] [components] — Mi Perfil: RF-31 (conteo votos en Mis Reportes), RF-32 (página Mis Votos con accuracy %), RF-33 (estadísticas: reportes/confirmaciones/resueltos) implementados
+- [2026-06-12] [api/map] — Polling cada 30s (`GET /reports?updated_after=`): mapa ahora refleja reportes nuevos y cambios de estado por votos de otros usuarios sin reabrir app
+- [2026-06-12] [login] — Fix Google Sign-In: signOut() antes de getSignInIntent() para que siempre muestre selector de cuentas

@@ -269,3 +269,17 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 
 ### TODOs / Próximos pasos
 - [ ] Verificar que `auth:sanctum` está en rutas `/reports` y `/votes` del backend Laravel (`php artisan route:list --path=api`)
+
+## [2026-06-12] Polling de actualizaciones en el mapa (reportes nuevos + cambios de estado de otros usuarios)
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — agregado `pollHandler`/`pollRunnable` (cada `POLL_INTERVAL_MS`=30s, arranca en `onStart()`, se detiene en `onStop()`); `lastSyncTimestamp` inicializado en `loadReportsFromAPI()`; nuevos métodos `pollForUpdates()` (llama `getReportsUpdatedSince`) y `applyReportUpdate()` (agrega marcador si reporte es nuevo, o actualiza color/estado del marcador vía `updateReportMarker()` si cambió `status`); helper `currentTimestampIso()` (ISO8601 UTC)
+- `app/src/main/java/com/bombayashi/reporteciudadano/network/ApiService.java` — nuevo método `getReportsUpdatedSince(updatedAfter, perPage)` → `GET /reports?updated_after=...`
+- `app/src/main/java/com/bombayashi/reporteciudadano/model/ReportResponse.java` — `ReportData` ahora deserializa `updated_at` (`getUpdatedAt()`), no usado directamente por el cliente (el filtro lo aplica el backend) pero disponible
+
+### Notas post-merge (alexis/dev)
+- Tras traer `alexis/dev`, `updateReportMarker()` cambió: ahora hace `report.setStatus(newStatus.toLowerCase())` y regenera el marcador completo vía `addReportMarker()` (bitmap con borde de estado embebido). El polling (`applyReportUpdate`) sigue compatible sin cambios, ya pasa `report.getStatus()` (lowercase).
+
+### TODOs / Próximos pasos
+- [ ] Probar polling en dispositivo real con dos cuentas (crear reporte / votar desde cuenta B y verificar que aparece/actualiza en mapa de cuenta A dentro de 30s)
+- [ ] `addReportMarker()` reusado por `updateReportMarker()` sigue incrementando `coordOccupancy` en cada llamada — revisar si causa drift de offset en reportes que cambian de estado repetidamente

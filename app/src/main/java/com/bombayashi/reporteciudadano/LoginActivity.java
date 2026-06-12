@@ -97,7 +97,10 @@ public class LoginActivity extends AppCompatActivity {
 
     private void signInWithGoogle() {
         setLoading(true);
-        signInLauncher.launch(googleSignInClient.getSignInIntent());
+        // Cerrar sesión cacheada primero: si no, getSignInIntent() reusa la última
+        // cuenta sin mostrar el selector de cuentas del dispositivo.
+        googleSignInClient.signOut().addOnCompleteListener(task ->
+                signInLauncher.launch(googleSignInClient.getSignInIntent()));
     }
 
     private void handleGoogleSignInResult(Task<GoogleSignInAccount> completedTask) {

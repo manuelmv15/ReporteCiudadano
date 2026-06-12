@@ -83,6 +83,17 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private int currentReportsPage = 1;  // Para pagination
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
+    private static final long POLL_INTERVAL_MS = 30_000;  // Polling de cambios cada 30s
+    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable pollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            pollForUpdates();
+            pollHandler.postDelayed(this, POLL_INTERVAL_MS);
+        }
+    };
+    private String lastSyncTimestamp;  // ISO8601 UTC del último sync exitoso
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         String token = getString(R.string.mapbox_access_token);
@@ -354,6 +365,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         android.util.Log.d("MapFragment", "📥 Cargando reportes (página " + currentReportsPage + ")...");
         isLoadingReports = true;
+        if (lastSyncTimestamp == null) {
+            lastSyncTimestamp = currentTimestampIso();
+        }
 
         // Cargar con pagination: 25 reportes por página
         ApiClient.getInstance().getReports("", INITIAL_REPORTS_PAGE_SIZE).enqueue(new Callback<ReportResponse>() {
@@ -414,6 +428,70 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
             }
         });
+    }
+
+    private String currentTimestampIso() {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return sdf.format(new java.util.Date());
+    }
+
+    /**
+     * Polling: pide reportes nuevos o modificados desde la última sincronización
+     * (creaciones, cambios de estado, votos de otros usuarios) y actualiza el mapa.
+     */
+    private void pollForUpdates() {
+        if (!isAdded() || getView() == null || lastSyncTimestamp == null) return;
+
+        final String syncPoint = currentTimestampIso();
+
+        ApiClient.getInstance().getReportsUpdatedSince(lastSyncTimestamp, MAX_REPORTS).enqueue(new Callback<ReportResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<ReportResponse> call, @NonNull Response<ReportResponse> response) {
+                if (!isAdded() || getView() == null) return;
+
+                if (response.isSuccessful() && response.body() != null) {
+                    java.util.List<ReportResponse.ReportData> reports = response.body().getData();
+
+                    if (reports != null) {
+                        for (ReportResponse.ReportData report : reports) {
+                            applyReportUpdate(report);
+                        }
+                    }
+
+                    lastSyncTimestamp = syncPoint;
+                } else {
+                    android.util.Log.e("MapFragment", "✗ Error en polling: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
+                android.util.Log.e("MapFragment", "❌ Error de red en polling: " + t.getMessage());
+            }
+        });
+    }
+
+    private void applyReportUpdate(ReportResponse.ReportData report) {
+        String reportKey = String.valueOf(report.getId());
+        ReportResponse.ReportData cached = reportMarkers.get(reportKey);
+
+        if (cached == null) {
+            if (reportMarkers.size() < MAX_REPORTS) {
+                addReportMarker(report);
+                android.util.Log.d("MapFragment", "🆕 Reporte nuevo via polling: ID=" + report.getId());
+            }
+            return;
+        }
+
+        boolean statusChanged = !cached.getStatus().equals(report.getStatus());
+        reportMarkers.put(reportKey, report);
+
+        if (statusChanged) {
+            android.util.Log.d("MapFragment", "🔄 Estado actualizado via polling: ID=" + report.getId()
+                    + " " + cached.getStatus() + " → " + report.getStatus());
+            updateReportMarker(report.getId(), report.getStatus(), report.getVotesConfirm(), report.getVotesResolve());
+        }
     }
 
     private void addReportMarker(ReportResponse.ReportData report) {
@@ -877,10 +955,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (mapView != null) {
             mapView.onStart();
         }
+        pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
     }
 
     @Override
     public void onStop() {
+        pollHandler.removeCallbacks(pollRunnable);
         if (mapView != null) {
             mapView.onStop();
         }

@@ -47,6 +47,12 @@ public interface ApiService {
             @Query("per_page") int perPage
     );
 
+    @GET("reports")
+    Call<ReportResponse> getReportsUpdatedSince(
+            @Query("updated_after") String updatedAfter,
+            @Query("per_page") int perPage
+    );
+
     @GET("reports/{id}")
     Call<ReportDetailResponse> getReportDetail(
             @Path("id") int reportId

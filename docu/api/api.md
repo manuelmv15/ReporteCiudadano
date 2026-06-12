@@ -170,3 +170,24 @@
 | Respuesta | `{ votes: [{ report_id, type, created_at, was_correct }] }` |
 | Estado    | [ ] pendiente                     |
 | Notas     | Para historial de votos propios — no implementado en esta pasada |
+
+---
+
+## [2026-06-12] Polling de cambios (reportes nuevos / cambio de estado por votos de otros usuarios)
+
+### Archivos tocados
+- `laravel_api/src/app/Http/Controllers/API/ReportController.php` — `index()`: agregado filtro `updated_after` (`where('updated_at', '>', $request->date('updated_after'))`)
+
+### Ruta: GET /api/reports?updated_after=<ISO8601>
+
+| Campo     | Detalle                          |
+|-----------|------------------------------------|
+| Método    | GET                                |
+| Auth      | No (público)                       |
+| Query     | `status`, `category_id`, `per_page`, `updated_after` (ISO8601 UTC, ej `2026-06-12T10:00:00Z`) |
+| Respuesta | igual shape que GET /reports (paginado), filtrado a reportes con `updated_at > updated_after` |
+| Estado    | [x] lista                         |
+| Notas     | `updated_at` se actualiza automáticamente por Eloquent en `increment()` (voto) y `save()` (cambio de status en `evaluateAutoStatus()`/`transitionTo()`), así que cubre: reportes nuevos, nuevos votos y cambios de estado disparados por otros usuarios |
+
+### TODOs / Próximos pasos
+- [ ] Si el volumen de cambios simultáneos crece, subir `per_page` del polling o paginar por `updated_after` cursor en vez de timestamp fijo
