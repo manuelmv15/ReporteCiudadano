@@ -60,7 +60,7 @@
                 android:background="?attr/colorPrimaryContainer"
                 android:scaleType="centerCrop"
                 app:shapeAppearanceOverlay="@style/CircleImageView"
-                app:srcCompat="@drawable/ic_my_location" />
+                app:srcCompat="@drawable/person_24px" />
 
             <!-- Nombre -->
             <TextView
@@ -112,7 +112,7 @@
                         android:layout_marginEnd="16dp"
                         android:contentDescription="Perfil"
                         android:tint="?attr/colorPrimary"
-                        app:srcCompat="@drawable/ic_my_location" />
+                        app:srcCompat="@drawable/person_24px" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -235,7 +235,7 @@
                         android:layout_marginEnd="16dp"
                         android:contentDescription="Configuración"
                         android:tint="?attr/colorPrimary"
-                        app:srcCompat="@drawable/ic_snackbar_success" />
+                        app:srcCompat="@drawable/settings_24px" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -282,7 +282,7 @@
                         android:layout_marginEnd="16dp"
                         android:contentDescription="Cerrar sesión"
                         android:tint="@color/md_theme_error"
-                        app:srcCompat="@drawable/ic_snackbar_error" />
+                        app:srcCompat="@drawable/logout_24px" />
 
                     <LinearLayout
                         android:layout_width="0dp"
