@@ -10,6 +10,7 @@ import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.bombayashi.reporteciudadano.model.ReportStreamResponse;
 import com.bombayashi.reporteciudadano.model.UpdateProfileRequest;
 import com.bombayashi.reporteciudadano.model.VoteRequest;
 import com.bombayashi.reporteciudadano.model.VoteResponse;
@@ -47,10 +48,10 @@ public interface ApiService {
             @Query("per_page") int perPage
     );
 
-    @GET("reports")
-    Call<ReportResponse> getReportsUpdatedSince(
-            @Query("updated_after") String updatedAfter,
-            @Query("per_page") int perPage
+    @GET("reports/stream/changes")
+    Call<ReportStreamResponse> getReportsStreamChanges(
+            @Query("since") String since,
+            @Query("limit") int limit
     );
 
     @GET("reports/{id}")

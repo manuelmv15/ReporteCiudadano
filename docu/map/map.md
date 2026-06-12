@@ -283,3 +283,19 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 ### TODOs / Próximos pasos
 - [ ] Probar polling en dispositivo real con dos cuentas (crear reporte / votar desde cuenta B y verificar que aparece/actualiza en mapa de cuenta A dentro de 30s)
 - [ ] `addReportMarker()` reusado por `updateReportMarker()` sigue incrementando `coordOccupancy` en cada llamada — revisar si causa drift de offset en reportes que cambian de estado repetidamente
+
+## [2026-06-12] Polling migrado al endpoint dedicado `/reports/stream/changes`
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/model/ReportStreamResponse.java` — nuevo modelo para `{success, timestamp, count, reports: []}` (reutiliza `ReportResponse.ReportData`)
+- `app/src/main/java/com/bombayashi/reporteciudadano/network/ApiService.java` — reemplazado `getReportsUpdatedSince()` (`GET /reports?updated_after=`) por `getReportsStreamChanges(since, limit)` → `GET /reports/stream/changes?since=&limit=`
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — `pollForUpdates()` ahora llama al nuevo endpoint; `lastSyncTimestamp` se actualiza con el `timestamp` devuelto por el servidor (en vez de calcularlo localmente con `currentTimestampIso()`) para evitar drift de reloj entre cliente y servidor
+
+### Notas
+- El endpoint nuevo devuelve un array plano `reports` (no paginado), simplificando el parseo
+- `applyReportUpdate()` y `updateReportMarker()` no cambiaron, siguen compatibles
+- `currentTimestampIso()` se mantiene, usado solo para inicializar `lastSyncTimestamp` antes del primer poll
+
+### TODOs / Próximos pasos
+- [ ] Probar en dispositivo real: crear/votar reporte desde cuenta B y verificar que aparece en mapa de cuenta A dentro de 30s usando el nuevo endpoint
+- [ ] Verificar comportamiento si `/reports/stream/changes` retorna `count: 0` y `timestamp` no avanza (evitar loop de "since" estancado)

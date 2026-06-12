@@ -21,6 +21,7 @@ import com.bombayashi.reporteciudadano.databinding.FragmentMapBinding;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.bombayashi.reporteciudadano.model.ReportStreamResponse;
 import com.bombayashi.reporteciudadano.network.ApiClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -443,15 +444,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void pollForUpdates() {
         if (!isAdded() || getView() == null || lastSyncTimestamp == null) return;
 
-        final String syncPoint = currentTimestampIso();
-
-        ApiClient.getInstance().getReportsUpdatedSince(lastSyncTimestamp, MAX_REPORTS).enqueue(new Callback<ReportResponse>() {
+        ApiClient.getInstance().getReportsStreamChanges(lastSyncTimestamp, MAX_REPORTS).enqueue(new Callback<ReportStreamResponse>() {
             @Override
-            public void onResponse(@NonNull Call<ReportResponse> call, @NonNull Response<ReportResponse> response) {
+            public void onResponse(@NonNull Call<ReportStreamResponse> call, @NonNull Response<ReportStreamResponse> response) {
                 if (!isAdded() || getView() == null) return;
 
                 if (response.isSuccessful() && response.body() != null) {
-                    java.util.List<ReportResponse.ReportData> reports = response.body().getData();
+                    ReportStreamResponse streamResponse = response.body();
+                    java.util.List<ReportResponse.ReportData> reports = streamResponse.getReports();
 
                     if (reports != null) {
                         for (ReportResponse.ReportData report : reports) {
@@ -459,14 +459,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         }
                     }
 
-                    lastSyncTimestamp = syncPoint;
+                    if (streamResponse.getTimestamp() != null) {
+                        lastSyncTimestamp = streamResponse.getTimestamp();
+                    }
                 } else {
                     android.util.Log.e("MapFragment", "✗ Error en polling: " + response.code());
                 }
             }
 
             @Override
-            public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ReportStreamResponse> call, @NonNull Throwable t) {
                 android.util.Log.e("MapFragment", "❌ Error de red en polling: " + t.getMessage());
             }
         });
