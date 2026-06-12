@@ -450,50 +450,33 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         reportMarkers.put(reportKey, report);
         int drawableId = getCategoryDrawableId(categorySlug);
         String categoryColor = getCategoryColor(categorySlug);
-        String statusStrokeColor = getStatusStrokeColor(report.getStatus());
+        int currentUserId = TokenManager.getInstance(requireContext()).getUserId();
+        boolean isMine = (currentUserId != -1 && currentUserId == report.getUserId());
 
         android.util.Log.d("MapFragment", "Añadiendo marcador: ID=" + report.getId() +
-                " en " + String.format("%.4f", point.latitude()) + "," + String.format("%.4f", point.longitude()) +
-                " category: " + categorySlug + " color: " + categoryColor);
+                " | isMine=" + isMine + " color: " + categoryColor);
 
-        // 1. Icono del reporte (PointAnnotation con bitmap directo)
+        // 1. Icono del reporte (Todo-en-uno: Icono + Borde Estado + Halo Mi Reporte)
         try {
-            Bitmap iconBitmap = bitmapFromDrawable(drawableId, categoryColor);
+            Bitmap iconBitmap = bitmapFromDrawable(drawableId, categoryColor, report.getStatus(), isMine);
 
             if (iconBitmap == null) {
                 android.util.Log.w("MapFragment", "  ✗ Bitmap es null, saltando PointAnnotation");
                 return;
             }
 
-            // Crear PointAnnotation con bitmap directamente (25% más pequeño)
+            // Crear PointAnnotation con bitmap directamente
             PointAnnotationOptions pointOptions = new PointAnnotationOptions()
                     .withPoint(point)
                     .withIconImage(iconBitmap)
-                    .withIconSize(1.9f);  // Reducido de 2.5f (25% menor)
+                    .withIconSize(1.6f);
 
             PointAnnotation pointAnnotation = pointAnnotationManager.create(pointOptions);
             pointAnnotation.setDraggable(false);
             annotationToReportId.put(pointAnnotation.getId(), report.getId());
             reportIconMarkers.put(report.getId(), pointAnnotation);
 
-            android.util.Log.d("MapFragment", "  ✓ PointAnnotation creada");
-
-            // 2. Stroke del estado (CircleAnnotation - ajustado para cerrar el gap)
-            CircleAnnotationOptions strokeOptions = new CircleAnnotationOptions()
-                    .withPoint(point)
-                    .withCircleRadius(38.0)  // Ajustado para contacto directo con icono (25% reducción)
-                    .withCircleColor("#00000000")  // Transparente
-                    .withCircleOpacity(0.0)
-                    .withCircleStrokeWidth(6.0)  // Stroke grueso y visible
-                    .withCircleStrokeColor(statusStrokeColor);
-
-            CircleAnnotation strokeAnnotation = circleAnnotationManager.create(strokeOptions);
-            strokeAnnotation.setDraggable(false);
-
-            // Guardar referencia para actualizaciones posteriores
-            reportStrokeMarkers.put(report.getId(), strokeAnnotation);
-
-            android.util.Log.d("MapFragment", "  ✓ Marcador completado");
+            android.util.Log.d("MapFragment", "  ✓ Marcador completado (Capa única)");
 
         } catch (Exception e) {
             android.util.Log.e("MapFragment", "✗ Error: " + e.getMessage());
@@ -501,8 +484,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     }
 
-    private Bitmap bitmapFromDrawable(int drawableId, String categoryColorHex) {
-        String cacheKey = drawableId + "_" + categoryColorHex;
+    private Bitmap bitmapFromDrawable(int drawableId, String categoryColorHex, String status, boolean isMine) {
+        String cacheKey = drawableId + "_" + categoryColorHex + "_" + status + "_" + isMine;
         if (bitmapCache.containsKey(cacheKey)) {
             return bitmapCache.get(cacheKey);
         }
@@ -511,32 +494,45 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(requireContext(), drawableId);
             if (drawable == null) return null;
 
-            final int SIZE = 120;
+            final int SIZE = 130; // Un poco más grande para el halo
             Bitmap bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
+            float center = SIZE / 2f;
+            float radius = SIZE / 2.8f;
 
+            // 1. Halo de "Mi Reporte" (Sutil resplandor)
+            if (isMine) {
+                android.graphics.Paint haloPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                haloPaint.setColor(android.graphics.Color.parseColor("#FFD700")); // Oro
+                haloPaint.setAlpha(80);
+                canvas.drawCircle(center, center, radius + 12, haloPaint);
+            }
+
+            // 2. Sombra base
             android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             shadowPaint.setColor(android.graphics.Color.BLACK);
-            shadowPaint.setAlpha(35);
-            canvas.drawCircle(SIZE / 2f, SIZE / 2f + 5, SIZE / 2.3f, shadowPaint);
+            shadowPaint.setAlpha(40);
+            canvas.drawCircle(center, center + 4, radius, shadowPaint);
 
+            // 3. Círculo principal (Categoría)
             android.graphics.Paint circlePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             circlePaint.setColor(android.graphics.Color.parseColor(categoryColorHex));
-            canvas.drawCircle(SIZE / 2f, SIZE / 2f, SIZE / 2.3f, circlePaint);
+            canvas.drawCircle(center, center, radius, circlePaint);
 
-            android.graphics.Paint borderPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            borderPaint.setStyle(android.graphics.Paint.Style.STROKE);
-            borderPaint.setStrokeWidth(3f);
-            borderPaint.setColor(android.graphics.Color.WHITE);
-            borderPaint.setAlpha(80);
-            canvas.drawCircle(SIZE / 2f, SIZE / 2f, SIZE / 2.3f, borderPaint);
+            // 4. Borde de Estado (Reemplaza al anillo ruidoso)
+            android.graphics.Paint statusBorderPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            statusBorderPaint.setStyle(android.graphics.Paint.Style.STROKE);
+            statusBorderPaint.setStrokeWidth(isMine ? 8f : 6f);
+            statusBorderPaint.setColor(android.graphics.Color.parseColor(getStatusStrokeColor(status)));
+            canvas.drawCircle(center, center, radius, statusBorderPaint);
 
+            // 5. Icono central
             try {
                 drawable.setTint(android.graphics.Color.WHITE);
             } catch (Exception ignored) {}
 
-            int iconSize = (int) (SIZE * 0.55);
-            int iconOffset = (SIZE - iconSize) / 2;
+            int iconSize = (int) (radius * 1.1f);
+            int iconOffset = (int) (center - iconSize / 2f);
             drawable.setBounds(iconOffset, iconOffset, iconOffset + iconSize, iconOffset + iconSize);
             drawable.draw(canvas);
 
@@ -751,60 +747,19 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void updateReportMarker(int reportId, String newStatus, int confirmCount, int resolveCount) {
-        CircleAnnotation strokeMarker = reportStrokeMarkers.get(reportId);
-        PointAnnotation iconMarker = reportIconMarkers.get(reportId);
+        ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
+        if (report == null) return;
 
-        if (strokeMarker == null) {
-            android.util.Log.w("MapFragment", "⚠️ No se encontró marcador de stroke para reportId: " + reportId);
-            return;
-        }
-        
-        // También actualizar el icono si cambió algo (ej. color si fuera necesario, pero por ahora solo el stroke)
-        // ...
-
-        android.util.Log.d("MapFragment", "✓ Marcador encontrado, actualizando...");
-
-        // Determinar color y radio según estado
-        String newColor = "#757575";  // Valor por defecto
-        double newRadius = 28.0;
-
-        switch (newStatus) {
-            case "VERIFIED":
-                newColor = "#4CAF50";  // Verde
-                newRadius = 35.0;      // Más grande
-                android.util.Log.d("MapFragment", "✅ Reporte VERIFICADO - Verde");
-                break;
-
-            case "RESOLVED":
-                newColor = "#9E9E9E";  // Gris
-                newRadius = 30.0;
-                android.util.Log.d("MapFragment", "✅ Reporte RESUELTO - Gris");
-                break;
-
-            case "PENDING":
-            default:
-                ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
-                if (report != null) {
-                    newColor = getStatusStrokeColor(report.getStatus());
-                }
-                android.util.Log.d("MapFragment", "ℹ️ Reporte PENDIENTE - Color de estado");
+        // Actualizar datos del reporte
+        report.setStatus(newStatus.toLowerCase());
+        if (report.getVotes() != null) {
+            report.getVotes().setConfirm(confirmCount);
+            report.getVotes().setResolve(resolveCount);
         }
 
-        // Actualizar marcador - eliminar anterior y crear nuevo con nuevos valores
-        circleAnnotationManager.delete(strokeMarker);
-
-        CircleAnnotationOptions updatedOptions = new CircleAnnotationOptions()
-            .withPoint(strokeMarker.getPoint())
-            .withCircleColor("#00000000")
-            .withCircleOpacity(0.0)
-            .withCircleStrokeWidth(6.0)
-            .withCircleStrokeColor(newColor)
-            .withCircleRadius(newRadius);
-
-        CircleAnnotation updatedStroke = circleAnnotationManager.create(updatedOptions);
-        reportStrokeMarkers.put(reportId, updatedStroke);
-
-        android.util.Log.d("MapFragment", "✓ Marcador actualizado: color=" + newColor + ", radio=" + newRadius);
+        // Simplemente volvemos a llamar a addReportMarker, que ya tiene lógica de limpieza
+        addReportMarker(report);
+        android.util.Log.d("MapFragment", "✓ Marcador regenerado con nuevo estado: " + newStatus);
     }
 
     private void animateBounce(PointAnnotation annotation) {
@@ -820,23 +775,20 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void updateMarkersScale(double zoom) {
-        // Factor de escala basado en zoom (Referencia: Zoom 15 = 1.0)
-        // Usamos una curva logarítmica suave para que no desaparezcan muy rápido
-        float scaleFactor = (float) Math.max(0.4, Math.min(2.5, Math.pow(1.15, zoom - 15)));
+        // Factor de escala optimizado para que no se vea gigante con mucho zoom
+        // Referencia: Zoom 15 = 1.0. Crecimiento muy sutil (base 1.06)
+        float scaleFactor = (float) Math.max(0.6, Math.min(1.4, Math.pow(1.06, zoom - 15)));
 
-        // 1. Escalar iconos
+        // Tamaño base más pequeño (1.1f en lugar de 1.6f)
+        double finalIconSize = 1.1 * scaleFactor;
+
         for (PointAnnotation annotation : reportIconMarkers.values()) {
-            annotation.setIconSize(1.6 * scaleFactor);
+            annotation.setIconSize(finalIconSize);
         }
-        pointAnnotationManager.update(pointAnnotationManager.getAnnotations());
-
-        // 2. Escalar anillos (strokes)
-        for (CircleAnnotation stroke : reportStrokeMarkers.values()) {
-            // El radio del círculo escala linealmente con el zoom en píxeles
-            stroke.setCircleRadius(34.0 * scaleFactor);
-            stroke.setCircleStrokeWidth(5.0 * scaleFactor);
+        
+        if (!reportIconMarkers.isEmpty()) {
+            pointAnnotationManager.update(pointAnnotationManager.getAnnotations());
         }
-        circleAnnotationManager.update(circleAnnotationManager.getAnnotations());
     }
 
     private void setupFAB() {

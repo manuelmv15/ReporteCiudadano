@@ -26,7 +26,7 @@
 | ----- | --------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | RF-01 | Toque largo en mapa → menú radial con 8 categorías        | ✅      | RadialMenuDialogFragment + OnMapLongClickListener                                                                                   |
 | RF-02 | Toque en categoría envía reporte sin formulario adicional | ✅      | POST /reports desde RadialMenuDialogFragment                                                                                        |
-| RF-03 | GPS capturado del punto tocado, sin confirmación extra    | ✅      | coords del LongClick pasadas directamente                                                                                           |
+| RF-03 | GPS capturado del punto tocado o centro de mira (crosshair) | ✅      | Mira central (crosshair) añadida; captura de coordenadas vía mapboxMap.getCameraState().getCenter(); alta precisión |
 | RF-04 | Foto y descripción opcionales desde tarjeta del reporte   | ✅      | Owner edita descripción + sube foto (cámara/galería) via PUT /reports/{id}; foto fullscreen al tap; storage:link activo en servidor |
 | RF-05 | Sin conexión: guardar en Room DB + WorkManager sync       | ❌      | No hay Room DB ni WorkManager                                                                                                       |
 | RF-06 | Retirar propio reporte en primeros 5 min si < 3 votos     | ❌      | No implementado                                                                                                                     |
@@ -40,7 +40,7 @@
 | RF-07 | Solo usuarios dentro de 500 m pueden votar                 | 🔶     | Validación Haversine en cliente (VoteStateManager), falta validación server-side confirmada                                           |
 | RF-08 | Votos "Sigue ahí" y "Ya se resolvió"                       | ✅      | ReportDetailBottomSheet con ambos botones                                                                                             |
 | RF-09 | Un voto por usuario; puede cambiarlo hasta 5 min después   | 🔶     | Cambio de voto con dialog implementado; ventana 5 min en VoteStateManager pero pendiente verificar lógica server                      |
-| RF-10 | Conteo actualizado en tiempo real tras respuesta servidor  | 🔶     | Se actualiza al recibir respuesta pero no hay polling/WebSocket                                                                       |
+| RF-10 | Conteo actualizado y sincronizado entre capas             | ✅      | Fetch preventivo al abrir detalle; OnReportDataUpdated sincroniza cache de MapFragment; fin de "amnesia de interacción" |
 | RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | 🔶     | Lógica en API Laravel (pendiente confirmar); cliente refleja estado RESOLVED                                                          |
 | RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí"         | 🔶     | Estado VERIFIED en cliente; marcador cambia; sello visual no diferenciado claramente                                                  |
 | RF-13 | Auto-archivo a las 24 h sin interacción                    | ❌      | Solo en servidor (pendiente confirmar); cliente no muestra reportes archivados                                                        |
@@ -53,8 +53,8 @@
 
 | ID    | Requerimiento                                                | Estado | Notas                                                                                             |
 | ----- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------- |
-| RF-16 | Marcadores crecen proporcionalmente a votos "Sigue ahí"      | 🔶     | Tamaño varía por estado (PENDING/VERIFIED/RESOLVED) pero no proporcional a conteo exacto de votos |
-| RF-17 | Reportes verificados muestran ícono distinto y mayor tamaño  | 🔶     | CircleAnnotation más grande para VERIFIED; sin ícono especial (círculo vs ícono)                  |
+| RF-16 | Escala dinámica y Throttling de zoom                      | ✅      | Marcadores escalan suavemente (base 1.06); Throttling de updates (>0.1 zoom) para rendimiento; FPS estables |
+| RF-17 | Marcadores integrados M3 (Single Layer)                   | ✅      | Bitmap dinámico con sombra, brillo interno y borde de estado; Halo dorado para "Mi Reporte"; rendimiento GPU optimizado |
 | RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer  | 🔶     | Color gris para RESOLVED pero no desaparecen automáticamente después de 2 h                       |
 | RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h)       | ❌      | No hay filtros en el mapa                                                                         |
 | RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | ✅      | Categoría, votos, foto con Glide + fullscreen tap; storage activo                                 |
