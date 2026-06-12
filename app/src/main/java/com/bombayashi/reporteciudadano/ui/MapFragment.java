@@ -84,7 +84,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private int currentReportsPage = 1;  // Para pagination
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
-    private static final long POLL_INTERVAL_MS = 30_000;  // Polling de cambios cada 30s
+    private static final long POLL_INTERVAL_MS = 5_000;  // Polling de cambios cada 5s (TESTING — volver a 30_000 luego)
     private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pollRunnable = new Runnable() {
         @Override
@@ -444,6 +444,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void pollForUpdates() {
         if (!isAdded() || getView() == null || lastSyncTimestamp == null) return;
 
+        android.util.Log.d("MapFragment", "🔁 Polling stream/changes — since=" + lastSyncTimestamp);
+
         ApiClient.getInstance().getReportsStreamChanges(lastSyncTimestamp, MAX_REPORTS).enqueue(new Callback<ReportStreamResponse>() {
             @Override
             public void onResponse(@NonNull Call<ReportStreamResponse> call, @NonNull Response<ReportStreamResponse> response) {
@@ -453,8 +455,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     ReportStreamResponse streamResponse = response.body();
                     java.util.List<ReportResponse.ReportData> reports = streamResponse.getReports();
 
+                    android.util.Log.d("MapFragment", "✓ stream/changes → count=" + streamResponse.getCount()
+                            + " timestamp=" + streamResponse.getTimestamp());
+
                     if (reports != null) {
                         for (ReportResponse.ReportData report : reports) {
+                            android.util.Log.d("MapFragment", "  ↳ reporte ID=" + report.getId()
+                                    + " status=" + report.getStatus()
+                                    + " updated_at=" + report.getUpdatedAt());
                             applyReportUpdate(report);
                         }
                     }

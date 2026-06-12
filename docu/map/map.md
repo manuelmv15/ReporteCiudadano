@@ -299,3 +299,12 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 ### TODOs / Próximos pasos
 - [ ] Probar en dispositivo real: crear/votar reporte desde cuenta B y verificar que aparece en mapa de cuenta A dentro de 30s usando el nuevo endpoint
 - [ ] Verificar comportamiento si `/reports/stream/changes` retorna `count: 0` y `timestamp` no avanza (evitar loop de "since" estancado)
+
+## [2026-06-12] Polling a 5s + logs de debug para testing
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — `POLL_INTERVAL_MS` bajado de `30_000` a `5_000` (marcado TESTING, revertir luego); agregados logs `Log.d("MapFragment", ...)` en `pollForUpdates()`: request (`since=`), respuesta (`count`, `timestamp`) y detalle por reporte recibido (`id`, `status`, `updated_at`)
+
+### TODOs / Próximos pasos
+- [ ] Revertir `POLL_INTERVAL_MS` a `30_000` antes de release (actualmente 5s solo para testing)
+- [ ] Quitar/reducir logs de polling una vez validado el endpoint en dispositivo real

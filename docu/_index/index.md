@@ -68,3 +68,4 @@
 - [2026-06-12] [api/map] — Polling cada 30s (`GET /reports?updated_after=`): mapa ahora refleja reportes nuevos y cambios de estado por votos de otros usuarios sin reabrir app
 - [2026-06-12] [login] — Fix Google Sign-In: signOut() antes de getSignInIntent() para que siempre muestre selector de cuentas
 - [2026-06-12] [map/api] — Polling migrado a `GET /reports/stream/changes?since=&limit=`; ApiService.getReportsStreamChanges + ReportStreamResponse, lastSyncTimestamp usa timestamp del servidor
+- [2026-06-12] [map] — TESTING: POLL_INTERVAL_MS bajado a 5s + logs de debug en pollForUpdates() (revertir a 30s antes de release)
