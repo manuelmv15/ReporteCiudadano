@@ -75,6 +75,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     public interface OnReportStatusChangeListener {
         void onReportStatusChanged(int reportId, String newStatus, int confirmCount, int resolveCount);
         void onReportDataUpdated(ReportResponse.ReportData updatedReport);
+        void onReportRetracted(int reportId);
     }
 
     public void setStatusChangeListener(OnReportStatusChangeListener listener) {
@@ -201,6 +202,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 }
             });
             binding.btnPickPhoto.setOnClickListener(v -> galleryLauncher.launch("image/*"));
+            setupRetractButton();
             // Owner no vota — ocultar sección de votación
             binding.llVoteButtons.setVisibility(View.GONE);
             binding.llDistanceWarning.setVisibility(View.GONE);
@@ -215,6 +217,107 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             Glide.with(this).load(existingPhotoUrl).into(binding.ivReportPhoto);
             binding.ivReportPhoto.setOnClickListener(v -> showFullscreenPhoto(existingPhotoUrl));
         }
+    }
+
+    private void setupRetractButton() {
+        if (!canRetract()) return;
+        binding.btnRetractReport.setVisibility(View.VISIBLE);
+        binding.btnRetractReport.setOnClickListener(v ->
+            new AlertDialog.Builder(requireContext())
+                .setTitle("Retirar reporte")
+                .setMessage("¿Seguro que querés retirar este reporte? Esta acción no se puede deshacer.")
+                .setPositiveButton("Retirar", (dialog, which) -> retractReport())
+                .setNegativeButton("Cancelar", null)
+                .show()
+        );
+    }
+
+    private boolean canRetract() {
+        if (report.getVotesConfirm() + report.getVotesResolve() >= 3) return false;
+
+        String createdAt = report.getCreatedAt();
+        if (createdAt == null) return false;
+        try {
+            java.time.Instant createdInstant = java.time.Instant.parse(createdAt);
+            java.time.Duration age = java.time.Duration.between(createdInstant, java.time.Instant.now());
+            return age.toMinutes() < 5;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void retractReport() {
+        if (tokenManager == null || getContext() == null) return;
+
+        if (!com.bombayashi.reporteciudadano.util.ConnectivityHelper.isOnline(getContext())) {
+            queueOfflineRetract();
+            return;
+        }
+
+        String token = "Bearer " + tokenManager.getToken();
+        binding.pbVoteLoading.setVisibility(View.VISIBLE);
+        ApiClient.getInstance().deleteReport(report.getId(), token)
+            .enqueue(new Callback<com.bombayashi.reporteciudadano.model.SimpleResponse>() {
+                @Override
+                public void onResponse(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Response<com.bombayashi.reporteciudadano.model.SimpleResponse> response) {
+                    if (!isAdded() || getView() == null) return;
+                    binding.pbVoteLoading.setVisibility(View.GONE);
+                    if (response.isSuccessful()) {
+                        SnackbarHelper.show(getView(), "Reporte retirado", SnackbarHelper.Variant.SUCCESS);
+                        if (statusChangeListener != null) {
+                            statusChangeListener.onReportRetracted(report.getId());
+                        }
+                        dismiss();
+                    } else if (response.code() == 401) {
+                        clearTokenAndGoToLogin();
+                    } else {
+                        String msg = "No se pudo retirar el reporte";
+                        if (response.errorBody() != null) {
+                            try {
+                                org.json.JSONObject err = new org.json.JSONObject(response.errorBody().string());
+                                msg = err.optString("message", msg);
+                            } catch (Exception ignored) {}
+                        }
+                        SnackbarHelper.show(getView(), msg, SnackbarHelper.Variant.ERROR);
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Throwable t) {
+                    if (!isAdded() || getView() == null) return;
+                    binding.pbVoteLoading.setVisibility(View.GONE);
+                    SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
+                }
+            });
+    }
+
+    /** RF-05: sin conexión, encola el retiro del reporte para enviarlo cuando vuelva la red. */
+    private void queueOfflineRetract() {
+        org.json.JSONObject payload = new org.json.JSONObject();
+        try {
+            payload.put("report_id", report.getId());
+        } catch (org.json.JSONException e) {
+            return;
+        }
+
+        com.bombayashi.reporteciudadano.db.AppDatabase db =
+            com.bombayashi.reporteciudadano.db.AppDatabase.getInstance(requireContext());
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute(() ->
+            db.pendingActionDao().insert(new com.bombayashi.reporteciudadano.db.PendingActionEntity(
+                com.bombayashi.reporteciudadano.db.PendingActionEntity.TYPE_RETRACT_REPORT,
+                payload.toString(),
+                System.currentTimeMillis()
+            ))
+        );
+
+        if (getView() != null) {
+            SnackbarHelper.show(getView(), "Sin conexión: el reporte se retirará cuando vuelva la conexión",
+                SnackbarHelper.Variant.INFO);
+        }
+        if (statusChangeListener != null) {
+            statusChangeListener.onReportRetracted(report.getId());
+        }
+        dismiss();
     }
 
     private void showFullscreenPhoto(String url) {
@@ -310,6 +413,12 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
                 case CONFIRM_CHANGE_VOTE:
                     showChangeVoteDialog(event.getData());
+                    break;
+
+                case OFFLINE_QUEUED:
+                    if (getView() != null) {
+                        SnackbarHelper.show(getView(), event.getData(), SnackbarHelper.Variant.INFO);
+                    }
                     break;
 
                 case ERROR:

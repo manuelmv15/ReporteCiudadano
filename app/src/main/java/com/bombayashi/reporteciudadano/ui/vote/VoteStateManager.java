@@ -26,6 +26,7 @@ public class VoteStateManager {
     private ReportResponse.ReportData reportData;
     private Point userLocation;
     private TokenManager tokenManager;
+    private Context context;
 
     private MutableLiveData<VoteState> voteStateLiveData = new MutableLiveData<>();
     private MutableLiveData<VoteEvent> voteEventLiveData = new MutableLiveData<>();
@@ -34,6 +35,7 @@ public class VoteStateManager {
     public VoteStateManager(Context context, ReportResponse.ReportData reportData, Point userLocation) {
         this.reportData = reportData;
         this.userLocation = userLocation;
+        this.context = context;
         this.tokenManager = TokenManager.getInstance(context);
 
         initialize();
@@ -183,6 +185,48 @@ public class VoteStateManager {
             });
     }
 
+    /** RF-05: sin conexión, encola el voto y actualiza el estado local de forma optimista. */
+    private void queueOfflineVote(String voteType, VoteState previousState, VoteState loadingState) {
+        org.json.JSONObject payload = new org.json.JSONObject();
+        try {
+            payload.put("report_id", reportData.getId());
+            payload.put("type", voteType);
+            payload.put("latitude", userLocation.latitude());
+            payload.put("longitude", userLocation.longitude());
+        } catch (org.json.JSONException e) {
+            Log.e(TAG, "Error armando payload de voto offline: " + e.getMessage());
+            return;
+        }
+
+        com.bombayashi.reporteciudadano.db.AppDatabase db =
+            com.bombayashi.reporteciudadano.db.AppDatabase.getInstance(context);
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute(() ->
+            db.pendingActionDao().insert(new com.bombayashi.reporteciudadano.db.PendingActionEntity(
+                com.bombayashi.reporteciudadano.db.PendingActionEntity.TYPE_VOTE,
+                payload.toString(),
+                System.currentTimeMillis()
+            ))
+        );
+
+        int confirmCount = previousState.getConfirmCount();
+        int resolveCount = previousState.getResolveCount();
+        if (voteType.equals("confirm")) confirmCount++;
+        else resolveCount++;
+
+        VoteState offlineState = new VoteState.Builder()
+            .currentUserVoteType(voteType)
+            .confirmCount(confirmCount)
+            .resolveCount(resolveCount)
+            .isLoading(false)
+            .isWithinRadius(previousState.isWithinRadius())
+            .userDistance(previousState.getUserDistance())
+            .voteEditableUntil(System.currentTimeMillis() + VOTE_EDIT_WINDOW_MS)
+            .build();
+        voteStateLiveData.setValue(offlineState);
+
+        voteEventLiveData.setValue(new VoteEvent(VoteEvent.Type.OFFLINE_QUEUED, "Sin conexión: voto guardado, se enviará cuando vuelva la conexión"));
+    }
+
     private void submitVoteInternal(String voteType, String token) {
         Log.d(TAG, "═══════════════════════════════════════════");
         Log.d(TAG, "📤 submitVoteInternal()");
@@ -203,6 +247,11 @@ public class VoteStateManager {
             .build();
         voteStateLiveData.setValue(loadingState);
         Log.d(TAG, "✓ Loading state activado");
+
+        if (!com.bombayashi.reporteciudadano.util.ConnectivityHelper.isOnline(context)) {
+            queueOfflineVote(voteType, state, loadingState);
+            return;
+        }
 
         VoteRequest request = new VoteRequest(
             voteType,
@@ -416,7 +465,8 @@ public class VoteStateManager {
         public enum Type {
             VOTE_SUCCESS,
             CONFIRM_CHANGE_VOTE,
-            ERROR
+            ERROR,
+            OFFLINE_QUEUED
         }
 
         private Type type;

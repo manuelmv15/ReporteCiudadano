@@ -61,6 +61,18 @@
         android:visibility="gone"
         app:icon="@drawable/ic_edit" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnRetractReport"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Retirar reporte"
+        android:textColor="?attr/colorError"
+        android:visibility="gone"
+        app:icon="@drawable/trash"
+        app:iconTint="?attr/colorError" />
+
     <!-- Conteo de Votos -->
     <TextView
         android:id="@+id/tvVoteCount"

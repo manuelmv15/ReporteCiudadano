@@ -3,6 +3,7 @@ package com.bombayashi.reporteciudadano;
 import android.app.Application;
 
 import com.bombayashi.reporteciudadano.util.SettingsManager;
+import com.bombayashi.reporteciudadano.work.SyncManager;
 
 public class ReporteCiudadanoApp extends Application {
 
@@ -10,5 +11,6 @@ public class ReporteCiudadanoApp extends Application {
     public void onCreate() {
         super.onCreate();
         SettingsManager.getInstance(this).applyCurrentTheme();
+        SyncManager.schedulePeriodicSync(this);
     }
 }

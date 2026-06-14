@@ -28,8 +28,8 @@
 | RF-02 | Toque en categoría envía reporte sin formulario adicional | ✅      | POST /reports desde RadialMenuDialogFragment                                                                                        |
 | RF-03 | GPS capturado del punto tocado o centro de mira (crosshair) | ✅      | Mira central (crosshair) añadida; captura de coordenadas vía mapboxMap.getCameraState().getCenter(); alta precisión |
 | RF-04 | Foto y descripción opcionales desde tarjeta del reporte   | ✅      | Owner edita descripción + sube foto (cámara/galería) via PUT /reports/{id}; foto fullscreen al tap; storage:link activo en servidor |
-| RF-05 | Sin conexión: guardar en Room DB + WorkManager sync       | ❌      | No hay Room DB ni WorkManager                                                                                                       |
-| RF-06 | Retirar propio reporte en primeros 5 min si < 3 votos     | ❌      | No implementado                                                                                                                     |
+| RF-05 | Sin conexión: guardar en Room DB + WorkManager sync       | ✅      | db/ (AppDatabase, ReportCacheEntity, PendingActionEntity + DAOs) + work/ReportSyncWorker + SyncManager. MapFragment cachea reportes en Room al cargar; si offline, pinta desde caché. Creación de reporte, votos y retiro encolan PendingActionEntity (CREATE_REPORT/VOTE/RETRACT_REPORT) cuando ConnectivityHelper.isOnline()=false; ReportSyncWorker (constraint NetworkType.CONNECTED + backoff) los reenvía. Periodic sync cada 15min desde ReporteCiudadanoApp. Foto en creación offline no soportada. |
+| RF-06 | Retirar propio reporte en primeros 5 min si < 3 votos     | ✅      | Backend: ReportController::destroy() valida created_at<5min y votes_confirm+votes_resolve<3 (403 si no). Cliente: btnRetractReport en ReportDetailBottomSheet (solo owner+condiciones), DELETE /reports/{id}, remueve marker via onReportRetracted(). Offline: encola RETRACT_REPORT vía RF-05 |
 
 ---
 
@@ -111,11 +111,11 @@
 | Módulo | Total RF | ✅ Completos | 🔶 A medias | ❌ No iniciados |
 |--------|----------|-------------|------------|----------------|
 | Autenticación (A) | 6 | 4 | 1 | 1 |
-| Reporte ultrarrápido (1) | 6 | 4 | 0 | 2 |
+| Reporte ultrarrápido (1) | 6 | 6 | 0 | 0 |
 | Votos comunitarios (2) | 9 | 4 | 4 | 1 |
 | Mapa en vivo (3) | 5 | 3 | 1 | 1 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
 | Puntuación y confiabilidad (5) | 5 | 3 | 1 | 1 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **21 (49%)** | **7 (16%)** | **15 (35%)** |
+| **TOTAL** | **43** | **23 (53%)** | **7 (16%)** | **13 (30%)** |

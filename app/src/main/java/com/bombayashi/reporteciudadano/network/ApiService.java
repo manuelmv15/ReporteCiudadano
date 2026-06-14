@@ -11,6 +11,7 @@ import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
 import com.bombayashi.reporteciudadano.model.ReportStreamResponse;
+import com.bombayashi.reporteciudadano.model.SimpleResponse;
 import com.bombayashi.reporteciudadano.model.UpdateProfileRequest;
 import com.bombayashi.reporteciudadano.model.VoteRequest;
 import com.bombayashi.reporteciudadano.model.VoteResponse;
@@ -79,6 +80,12 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Part("description") RequestBody description,
             @Part MultipartBody.Part photo
+    );
+
+    @DELETE("reports/{id}")
+    Call<SimpleResponse> deleteReport(
+            @Path("id") int reportId,
+            @Header("Authorization") String token
     );
 
     @DELETE("reports/{id}/votes/{type}")

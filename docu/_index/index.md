@@ -69,3 +69,6 @@
 - [2026-06-12] [login] — Fix Google Sign-In: signOut() antes de getSignInIntent() para que siempre muestre selector de cuentas
 - [2026-06-12] [map/api] — Polling migrado a `GET /reports/stream/changes?since=&limit=`; ApiService.getReportsStreamChanges + ReportStreamResponse, lastSyncTimestamp usa timestamp del servidor
 - [2026-06-12] [map] — TESTING: POLL_INTERVAL_MS bajado a 5s + logs de debug en pollForUpdates() (revertir a 30s antes de release)
+- [2026-06-13] [features] — Plan documentado para RF-05 (Room DB + WorkManager sync offline) y RF-06 (retirar propio reporte <5min/<3 votos, requiere DELETE /reports/{id} con validación server-side); ambos siguen ❌, sin código implementado
+- [2026-06-13] [api/db] — RF-05/RF-06 implementados: backend valida retiro de reporte (5min+votos<3, ver laravel_api docu/api/api.md); Android agrega Room DB (cache offline de reportes + cola de acciones pendientes), WorkManager sync worker, botón "Retirar reporte", y encolado offline para crear reporte/votar/retirar (ver docu/db/db.md). Compila OK (./gradlew compileDebugJavaWithJavac)
+- [2026-06-13] [db] — Fix RF-05: reporte creado offline no aparecía al reconectar (worker periodic 15min + mapa sin refresh). Agregado ConnectivityManager.NetworkCallback (sync inmediato al reconectar) + observer de WorkManager (pollForUpdates al terminar sync)

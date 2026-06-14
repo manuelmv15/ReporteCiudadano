@@ -23,6 +23,12 @@ import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
 import com.bombayashi.reporteciudadano.model.ReportStreamResponse;
 import com.bombayashi.reporteciudadano.network.ApiClient;
+import com.bombayashi.reporteciudadano.db.AppDatabase;
+import com.bombayashi.reporteciudadano.db.PendingActionEntity;
+import com.bombayashi.reporteciudadano.db.ReportCacheEntity;
+import com.bombayashi.reporteciudadano.util.ConnectivityHelper;
+import com.bombayashi.reporteciudadano.work.SyncManager;
+import com.google.gson.Gson;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -95,6 +101,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     };
     private String lastSyncTimestamp;  // ISO8601 UTC del último sync exitoso
 
+    private AppDatabase appDatabase;
+    private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final Gson gson = new Gson();
+    private android.net.ConnectivityManager connectivityManager;
+    private android.net.ConnectivityManager.NetworkCallback networkCallback;
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         String token = getString(R.string.mapbox_access_token);
@@ -110,6 +122,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         android.util.Log.d("MapFragment", "=== onViewCreated ===");
+
+        appDatabase = AppDatabase.getInstance(requireContext());
+        if (ConnectivityHelper.isOnline(requireContext())) {
+            SyncManager.syncNow(requireContext());
+        }
+        registerConnectivityCallback();
+        observeSyncWork();
 
         mapView = binding.mapView;
         viewAnnotationManager = mapView.getViewAnnotationManager();
@@ -364,6 +383,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
+        if (!ConnectivityHelper.isOnline(requireContext())) {
+            android.util.Log.w("MapFragment", "📴 Sin conexión: cargando reportes desde caché local");
+            loadReportsFromCache();
+            return;
+        }
+
         android.util.Log.d("MapFragment", "📥 Cargando reportes (página " + currentReportsPage + ")...");
         isLoadingReports = true;
         if (lastSyncTimestamp == null) {
@@ -399,6 +424,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         for (ReportResponse.ReportData report : reports) {
                             if (reportMarkers.size() < MAX_REPORTS) {
                                 addReportMarker(report);
+                                cacheReport(report);
                                 addedCount++;
                             }
                         }
@@ -428,6 +454,77 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 android.util.Log.e("MapFragment", "❌ Error de red: " + t.getMessage(), t);
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
             }
+        });
+    }
+
+    /** RF-05: dispara sync apenas vuelve la conexión, sin esperar el periodic de 15min. */
+    private void registerConnectivityCallback() {
+        connectivityManager = (android.net.ConnectivityManager)
+                requireContext().getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) return;
+
+        networkCallback = new android.net.ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(@NonNull android.net.Network network) {
+                android.util.Log.d("MapFragment", "🌐 Conexión recuperada, disparando sync de pendientes");
+                SyncManager.syncNow(requireContext().getApplicationContext());
+            }
+        };
+        connectivityManager.registerDefaultNetworkCallback(networkCallback);
+    }
+
+    /** RF-05: cuando el worker termina, refresca el mapa para mostrar lo recién sincronizado. */
+    private void observeSyncWork() {
+        androidx.work.WorkManager.getInstance(requireContext())
+                .getWorkInfosForUniqueWorkLiveData("report_sync")
+                .observe(getViewLifecycleOwner(), workInfos -> {
+                    if (workInfos == null) return;
+                    for (androidx.work.WorkInfo info : workInfos) {
+                        if (info.getState() == androidx.work.WorkInfo.State.SUCCEEDED) {
+                            android.util.Log.d("MapFragment", "✓ Sync de pendientes completado, refrescando mapa");
+                            pollForUpdates();
+                        }
+                    }
+                });
+    }
+
+    /** RF-05: guarda el reporte en Room para poder mostrarlo sin conexión. */
+    private void cacheReport(ReportResponse.ReportData report) {
+        dbExecutor.execute(() -> appDatabase.reportCacheDao().upsert(new ReportCacheEntity(
+                String.valueOf(report.getId()),
+                report.getLatitude(),
+                report.getLongitude(),
+                report.getStatus(),
+                gson.toJson(report),
+                System.currentTimeMillis()
+        )));
+    }
+
+    /** RF-05: sin conexión, pinta el mapa con la última caché guardada en Room. */
+    private void loadReportsFromCache() {
+        dbExecutor.execute(() -> {
+            java.util.List<ReportCacheEntity> cached = appDatabase.reportCacheDao().getAll();
+            if (!isAdded()) return;
+
+            requireActivity().runOnUiThread(() -> {
+                if (!isAdded() || getView() == null) return;
+                int addedCount = 0;
+                for (ReportCacheEntity entity : cached) {
+                    if (reportMarkers.size() >= MAX_REPORTS) break;
+                    try {
+                        ReportResponse.ReportData report = gson.fromJson(entity.json, ReportResponse.ReportData.class);
+                        addReportMarker(report);
+                        addedCount++;
+                    } catch (Exception e) {
+                        android.util.Log.e("MapFragment", "Error parseando reporte cacheado: " + e.getMessage());
+                    }
+                }
+                android.util.Log.d("MapFragment", "📦 " + addedCount + " reportes cargados desde caché offline");
+                if (addedCount > 0) {
+                    SnackbarHelper.show(getView(), "Sin conexión: mostrando " + addedCount + " reportes guardados",
+                            SnackbarHelper.Variant.INFO);
+                }
+            });
         });
     }
 
@@ -742,6 +839,11 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         // Aseguramos que el request lleve los valores en los campos correctos
         ReportRequest request = new ReportRequest(categoryId, latitude, longitude, "Reporte desde app");
 
+        if (!ConnectivityHelper.isOnline(requireContext())) {
+            queueOfflineReport(categoryId, latitude, longitude, "Reporte desde app");
+            return;
+        }
+
         ApiClient.getInstance().createReport("Bearer " + token, request).enqueue(new Callback<CreateReportResponse>() {
             @Override
             public void onResponse(@NonNull Call<CreateReportResponse> call, @NonNull Response<CreateReportResponse> response) {
@@ -783,6 +885,27 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 SnackbarHelper.show(getView(), "Error de red: " + t.getMessage(), SnackbarHelper.Variant.ERROR);
             }
         });
+    }
+
+    /** RF-05: sin conexión, encola la creación del reporte para enviarla cuando vuelva la red. */
+    private void queueOfflineReport(int categoryId, double latitude, double longitude, String description) {
+        org.json.JSONObject payload = new org.json.JSONObject();
+        try {
+            payload.put("category_id", categoryId);
+            payload.put("latitude", latitude);
+            payload.put("longitude", longitude);
+            payload.put("description", description);
+        } catch (org.json.JSONException e) {
+            android.util.Log.e("MapFragment", "Error armando payload offline: " + e.getMessage());
+            return;
+        }
+
+        dbExecutor.execute(() -> appDatabase.pendingActionDao().insert(
+                new PendingActionEntity(PendingActionEntity.TYPE_CREATE_REPORT, payload.toString(), System.currentTimeMillis())
+        ));
+
+        SnackbarHelper.show(getView(), "Sin conexión: reporte guardado, se enviará cuando vuelva la conexión",
+                SnackbarHelper.Variant.INFO);
     }
 
     private boolean hasSameCategoryNearby(int categoryId, double lat, double lng, double radiusDeg) {
@@ -832,6 +955,18 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             android.util.Log.d("MapFragment", "💾 Sincronizando caché: Reporte " + updatedReport.getId() + " actualizado.");
             reportMarkers.put(String.valueOf(updatedReport.getId()), updatedReport);
         }
+    }
+
+    @Override
+    public void onReportRetracted(int reportId) {
+        android.util.Log.d("MapFragment", "🗑️ Reporte retirado: ID=" + reportId);
+        reportMarkers.remove(String.valueOf(reportId));
+
+        PointAnnotation icon = reportIconMarkers.remove(reportId);
+        if (icon != null && pointAnnotationManager != null) pointAnnotationManager.delete(icon);
+
+        CircleAnnotation stroke = reportStrokeMarkers.remove(reportId);
+        if (stroke != null && circleAnnotationManager != null) circleAnnotationManager.delete(stroke);
     }
 
     private void updateReportMarker(int reportId, String newStatus, int confirmCount, int resolveCount) {
@@ -982,6 +1117,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         super.onDestroyView();
         if (mapView != null) {
             mapView.onDestroy();
+        }
+        if (connectivityManager != null && networkCallback != null) {
+            connectivityManager.unregisterNetworkCallback(networkCallback);
         }
         binding = null;
     }
