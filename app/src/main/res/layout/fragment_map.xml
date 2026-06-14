@@ -45,6 +45,16 @@
                 app:icon="@drawable/add_report"
                 app:layout_overflowText="@string/add_report" />
 
+            <!-- Botón: Filtros (RF-19) -->
+            <Button
+                android:id="@+id/fab_filter"
+                style="@style/Widget.Material3.FloatingToolbar.IconButton.Vibrant"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="Filtros"
+                app:icon="@drawable/filter_alt_24px"
+                app:layout_overflowText="Filtros" />
+
             <!-- Botón: Mi Cuenta -->
             <Button
                 android:id="@+id/fab_profile"

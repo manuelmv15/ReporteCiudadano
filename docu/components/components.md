@@ -1,5 +1,21 @@
 # Documentación — Componentes
 
+## [2026-06-13] RF-18/RF-19 — Ocultar archivados y filtros de mapa (categoría/estado/antigüedad)
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — RF-18: `addReportMarker` ahora llama a `passesFilters()` antes de pintar; reportes `status="archived"` nunca se muestran (se siguen guardando en `reportMarkers` para mantener el dato, pero sin marcador visual). Nuevos métodos: `removeMarkerVisuals()` (extrae limpieza de icon+stroke), `passesFilters()`, `normalizeCategoryGroup()`, `reportAgeHours()`, `applyFilters()` (re-evalúa todos los reportes conocidos sin re-fetch), `showFilterDialog()` (MaterialAlertDialogBuilder con checkboxes de categoría + RadioGroup de estado + RadioGroup de antigüedad 1h/6h/24h). Nuevos campos: `filterCategories` (Set), `filterStatus`, `filterAge`. FAB `fab_filter` en `setupFAB()` abre el diálogo.
+- `app/src/main/res/layout/fragment_map.xml` — agregado botón `fab_filter` en el floating toolbar.
+- `app/src/main/res/layout/dialog_map_filters.xml` — nuevo layout: 7 checkboxes de categoría (vialidad/alumbrado/agua/trafico/seguridad/basura/otros), RadioGroup estado (todos/pendiente/verificado/resuelto), RadioGroup antigüedad (cualquiera/1h/6h/24h).
+- `app/src/main/res/drawable/filter_alt_24px.xml` — nuevo ícono vector 24dp.
+
+### Notas
+- RF-18: el servidor ya archiva reportes resueltos >2h vía `reports:archive-stale`; este cambio hace que el cliente los excluya del mapa (antes se pintaban en gris igual que "resolved").
+- RF-19: filtros viven en memoria del fragment (no persisten entre sesiones); aplican sobre `reportMarkers` ya cargado, sin nuevas llamadas a la API.
+
+### TODOs / Próximos pasos
+- [ ] Persistir filtros seleccionados en SharedPreferences si se quiere mantener entre sesiones.
+- [ ] Confirmar formato exacto de `created_at` del backend (asumido ISO-8601 UTC sin offset) para `reportAgeHours()`.
+
 ## [2026-06-07] SnackbarHelper — componente reutilizable MD3
 
 ### Archivos tocados

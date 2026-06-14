@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Categoría"
+            android:textStyle="bold"
+            android:layout_marginTop="8dp" />
+
+        <CheckBox android:id="@+id/cb_filter_vialidad" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vialidad (baches)" />
+        <CheckBox android:id="@+id/cb_filter_alumbrado" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Alumbrado público" />
+        <CheckBox android:id="@+id/cb_filter_agua" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Fuga de agua" />
+        <CheckBox android:id="@+id/cb_filter_trafico" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Semáforo dañado" />
+        <CheckBox android:id="@+id/cb_filter_seguridad" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Inseguridad" />
+        <CheckBox android:id="@+id/cb_filter_basura" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Basura acumulada" />
+        <CheckBox android:id="@+id/cb_filter_otros" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Otros" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Estado"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp" />
+
+        <RadioGroup
+            android:id="@+id/rg_filter_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <RadioButton android:id="@+id/rb_status_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Todos" android:checked="true" />
+            <RadioButton android:id="@+id/rb_status_pending" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Pendiente" />
+            <RadioButton android:id="@+id/rb_status_verified" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Verificado" />
+            <RadioButton android:id="@+id/rb_status_resolved" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Resuelto" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Antigüedad"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp" />
+
+        <RadioGroup
+            android:id="@+id/rg_filter_age"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <RadioButton android:id="@+id/rb_age_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cualquiera" android:checked="true" />
+            <RadioButton android:id="@+id/rb_age_1h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Última hora" />
+            <RadioButton android:id="@+id/rb_age_6h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Últimas 6 horas" />
+            <RadioButton android:id="@+id/rb_age_24h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Últimas 24 horas" />
+        </RadioGroup>
+
+    </LinearLayout>
+</ScrollView>

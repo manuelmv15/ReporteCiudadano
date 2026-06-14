@@ -93,6 +93,11 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private int currentReportsPage = 1;  // Para pagination
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
+    // RF-19: filtros de mapa (categoría / estado / antigüedad)
+    private final java.util.Set<String> filterCategories = new java.util.HashSet<>();  // vacío = todas
+    private String filterStatus = "all";  // all | pending | verified | resolved
+    private String filterAge = "all";     // all | 1h | 6h | 24h
+
     private static final long POLL_INTERVAL_MS = 5_000;  // Polling de cambios cada 5s (TESTING — volver a 30_000 luego)
     private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pollRunnable = new Runnable() {
@@ -658,17 +663,171 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     }
 
+    /** RF-18/RF-19: elimina los visuales del marcador sin perder el dato cacheado en reportMarkers. */
+    private void removeMarkerVisuals(int reportId) {
+        PointAnnotation existingIcon = reportIconMarkers.remove(reportId);
+        if (existingIcon != null && pointAnnotationManager != null) pointAnnotationManager.delete(existingIcon);
+        CircleAnnotation existingStroke = reportStrokeMarkers.remove(reportId);
+        if (existingStroke != null && circleAnnotationManager != null) circleAnnotationManager.delete(existingStroke);
+    }
+
+    /** RF-18: reportes archivados nunca se pintan en el mapa. RF-19: filtros de categoría/estado/antigüedad. */
+    private boolean passesFilters(ReportResponse.ReportData report) {
+        String status = report.getStatus();
+        if ("archived".equalsIgnoreCase(status)) return false;
+
+        if (!filterStatus.equals("all") && !filterStatus.equalsIgnoreCase(status)) return false;
+
+        if (!filterCategories.isEmpty()) {
+            String slug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
+            if (!filterCategories.contains(normalizeCategoryGroup(slug))) return false;
+        }
+
+        if (!filterAge.equals("all")) {
+            long ageHours = reportAgeHours(report.getCreatedAt());
+            int maxHours = switch (filterAge) {
+                case "1h" -> 1;
+                case "6h" -> 6;
+                case "24h" -> 24;
+                default -> Integer.MAX_VALUE;
+            };
+            if (ageHours > maxHours) return false;
+        }
+
+        return true;
+    }
+
+    /** Agrupa los distintos slugs de categoría en los 7 grupos usados por el filtro. */
+    private String normalizeCategoryGroup(String categorySlug) {
+        return switch (categorySlug) {
+            case "bache", "vialidad" -> "vialidad";
+            case "alumbrado-publico", "alumbrado" -> "alumbrado";
+            case "fuga-de-agua", "agua" -> "agua";
+            case "semaforo-danado", "trafico" -> "trafico";
+            case "inseguridad", "seguridad" -> "seguridad";
+            case "basura-acumulada", "parques", "basura" -> "basura";
+            default -> "otros";
+        };
+    }
+
+    /** Horas transcurridas desde created_at (ISO-8601). Devuelve 0 si no se puede parsear. */
+    private long reportAgeHours(String createdAtIso) {
+        if (createdAtIso == null) return 0;
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            String cleaned = createdAtIso.replace("Z", "");
+            if (cleaned.contains(".")) cleaned = cleaned.substring(0, cleaned.indexOf('.'));
+            long createdAtMs = sdf.parse(cleaned).getTime();
+            return Math.max(0, (System.currentTimeMillis() - createdAtMs) / (60 * 60 * 1000));
+        } catch (Exception e) {
+            android.util.Log.w("MapFragment", "No se pudo parsear created_at: " + createdAtIso);
+            return 0;
+        }
+    }
+
+    /** RF-19: re-evalúa filtros sobre los reportes ya conocidos, sin re-fetch. */
+    private void applyFilters() {
+        for (ReportResponse.ReportData report : new java.util.ArrayList<>(reportMarkers.values())) {
+            if (passesFilters(report)) {
+                if (!reportIconMarkers.containsKey(report.getId())) {
+                    addReportMarker(report);
+                }
+            } else {
+                removeMarkerVisuals(report.getId());
+            }
+        }
+    }
+
+    /** RF-19: muestra diálogo de filtros por categoría, estado y antigüedad. */
+    private void showFilterDialog() {
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_map_filters, null);
+
+        java.util.Map<String, Integer> categoryCheckboxIds = new java.util.LinkedHashMap<>();
+        categoryCheckboxIds.put("vialidad", R.id.cb_filter_vialidad);
+        categoryCheckboxIds.put("alumbrado", R.id.cb_filter_alumbrado);
+        categoryCheckboxIds.put("agua", R.id.cb_filter_agua);
+        categoryCheckboxIds.put("trafico", R.id.cb_filter_trafico);
+        categoryCheckboxIds.put("seguridad", R.id.cb_filter_seguridad);
+        categoryCheckboxIds.put("basura", R.id.cb_filter_basura);
+        categoryCheckboxIds.put("otros", R.id.cb_filter_otros);
+
+        for (java.util.Map.Entry<String, Integer> entry : categoryCheckboxIds.entrySet()) {
+            android.widget.CheckBox cb = dialogView.findViewById(entry.getValue());
+            cb.setChecked(filterCategories.isEmpty() || filterCategories.contains(entry.getKey()));
+        }
+
+        android.widget.RadioGroup rgStatus = dialogView.findViewById(R.id.rg_filter_status);
+        int statusCheckedId = switch (filterStatus) {
+            case "pending" -> R.id.rb_status_pending;
+            case "verified" -> R.id.rb_status_verified;
+            case "resolved" -> R.id.rb_status_resolved;
+            default -> R.id.rb_status_all;
+        };
+        rgStatus.check(statusCheckedId);
+
+        android.widget.RadioGroup rgAge = dialogView.findViewById(R.id.rg_filter_age);
+        int ageCheckedId = switch (filterAge) {
+            case "1h" -> R.id.rb_age_1h;
+            case "6h" -> R.id.rb_age_6h;
+            case "24h" -> R.id.rb_age_24h;
+            default -> R.id.rb_age_all;
+        };
+        rgAge.check(ageCheckedId);
+
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Filtrar reportes")
+                .setView(dialogView)
+                .setPositiveButton("Aplicar", (dialog, which) -> {
+                    java.util.Set<String> selected = new java.util.HashSet<>();
+                    for (java.util.Map.Entry<String, Integer> entry : categoryCheckboxIds.entrySet()) {
+                        android.widget.CheckBox cb = dialogView.findViewById(entry.getValue());
+                        if (cb.isChecked()) selected.add(entry.getKey());
+                    }
+                    // Si están todas marcadas (o ninguna), equivale a "sin filtro"
+                    filterCategories.clear();
+                    if (!selected.isEmpty() && selected.size() < categoryCheckboxIds.size()) {
+                        filterCategories.addAll(selected);
+                    }
+
+                    int checkedStatus = rgStatus.getCheckedRadioButtonId();
+                    if (checkedStatus == R.id.rb_status_pending) filterStatus = "pending";
+                    else if (checkedStatus == R.id.rb_status_verified) filterStatus = "verified";
+                    else if (checkedStatus == R.id.rb_status_resolved) filterStatus = "resolved";
+                    else filterStatus = "all";
+
+                    int checkedAge = rgAge.getCheckedRadioButtonId();
+                    if (checkedAge == R.id.rb_age_1h) filterAge = "1h";
+                    else if (checkedAge == R.id.rb_age_6h) filterAge = "6h";
+                    else if (checkedAge == R.id.rb_age_24h) filterAge = "24h";
+                    else filterAge = "all";
+
+                    applyFilters();
+                })
+                .setNeutralButton("Limpiar filtros", (dialog, which) -> {
+                    filterCategories.clear();
+                    filterStatus = "all";
+                    filterAge = "all";
+                    applyFilters();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
     private void addReportMarker(ReportResponse.ReportData report) {
         if (pointAnnotationManager == null || circleAnnotationManager == null) {
             android.util.Log.e("MapFragment", "No se puede añadir marcador: managers son nulos");
             return;
         }
 
-        // Eliminar si ya existe para evitar duplicados en UI
-        PointAnnotation existingIcon = reportIconMarkers.get(report.getId());
-        if (existingIcon != null) pointAnnotationManager.delete(existingIcon);
-        CircleAnnotation existingStroke = reportStrokeMarkers.get(report.getId());
-        if (existingStroke != null) circleAnnotationManager.delete(existingStroke);
+        // Eliminar visuales previos para evitar duplicados en UI
+        removeMarkerVisuals(report.getId());
+
+        // RF-18/RF-19: no pintar marcador si no pasa filtros (archivado, categoría, estado, antigüedad)
+        if (!passesFilters(report)) {
+            reportMarkers.put(String.valueOf(report.getId()), report);
+            return;
+        }
 
         // IMPORTANTE: Point.fromLngLat requiere LONGITUD primero, luego LATITUD
         double lat = report.getLatitude();
@@ -1090,6 +1249,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 getCurrentUserLocation();
             }
         });
+
+        // Botón: Filtros (RF-19)
+        binding.fabFilter.setOnClickListener(v -> showFilterDialog());
 
         // Botón: Perfil de usuario
         binding.fabProfile.setOnClickListener(v -> {

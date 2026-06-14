@@ -1,7 +1,7 @@
 # Features — Estado vs Planteamiento v1
 
 > Actualizar cada vez que se implementa una función nueva.
-> Última revisión: 2026-06-12
+> Última revisión: 2026-06-13
 
 **Leyenda:** ✅ completo · 🔶 a medias · ❌ no iniciado
 
@@ -55,8 +55,8 @@
 | ----- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------- |
 | RF-16 | Escala dinámica y Throttling de zoom                      | ✅      | Marcadores escalan suavemente (base 1.06); Throttling de updates (>0.1 zoom) para rendimiento; FPS estables |
 | RF-17 | Marcadores integrados M3 (Single Layer)                   | ✅      | Bitmap dinámico con sombra, brillo interno y borde de estado; Halo dorado para "Mi Reporte"; rendimiento GPU optimizado |
-| RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer  | 🔶     | Server: `reports:archive-stale` archiva resueltos con `resolved_at` > 2h (RESOLVED_VISIBLE_HOURS) → status=archived, verificado. Cliente: MapFragment pinta "archived" con el mismo gris que "resolved" y no lo filtra/oculta — falta excluir archived del mapa para que "desaparezca" |
-| RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h)       | ❌      | No hay filtros en el mapa                                                                         |
+| RF-18 | Reportes resueltos en gris durante 2 h antes de desaparecer  | ✅      | Server: `reports:archive-stale` archiva resueltos con `resolved_at` > 2h (RESOLVED_VISIBLE_HOURS) → status=archived, verificado. Cliente: `passesFilters()` en MapFragment excluye status="archived" de `addReportMarker`/`applyFilters`, desaparece del mapa |
+| RF-19 | Filtros por categoría, estado y antigüedad (1h/6h/24h)       | ✅      | FAB "Filtros" (fab_filter) abre dialog_map_filters.xml: checkboxes de 7 categorías + RadioGroup estado (pendiente/verificado/resuelto) + RadioGroup antigüedad (1h/6h/24h); `applyFilters()` re-evalúa reportMarkers ya cargados sin re-fetch |
 | RF-20 | Tocar marcador → tarjeta con categoría, votos, foto, botones | ✅      | Categoría, votos, foto con Glide + fullscreen tap; storage activo                                 |
 
 ---
@@ -113,9 +113,9 @@
 | Autenticación (A) | 6 | 4 | 1 | 1 |
 | Reporte ultrarrápido (1) | 6 | 6 | 0 | 0 |
 | Votos comunitarios (2) | 9 | 4 | 4 | 1 |
-| Mapa en vivo (3) | 5 | 3 | 1 | 1 |
+| Mapa en vivo (3) | 5 | 5 | 0 | 0 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
 | Puntuación y confiabilidad (5) | 5 | 3 | 1 | 1 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **23 (53%)** | **7 (16%)** | **13 (30%)** |
+| **TOTAL** | **43** | **25 (58%)** | **6 (14%)** | **12 (28%)** |
