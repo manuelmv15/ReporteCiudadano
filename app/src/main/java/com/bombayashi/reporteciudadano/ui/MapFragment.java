@@ -72,6 +72,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private PointAnnotationManager pointAnnotationManager;
     private CircleAnnotation userLocationMarker;
     private com.mapbox.maps.viewannotation.ViewAnnotationManager viewAnnotationManager;
+    private com.google.android.gms.location.LocationCallback continuousLocationCallback;
+    private android.location.Location lastTrackedLocation;
+    private static final float MOVEMENT_THRESHOLD_METERS = 2f;
 
     private static final double DEFAULT_LATITUDE = -34.6037;
     private static final double DEFAULT_LONGITUDE = -58.3816;
@@ -228,6 +231,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 getCurrentUserLocation();
+                startContinuousLocationTracking();
             } else {
                 centerOnDefaultLocation();
             }
@@ -340,6 +344,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (!isAdded() || getView() == null) return;
 
         userLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
+        lastTrackedLocation = location;
         addUserLocationMarker(userLocation);
         animateCameraTo(userLocation);
 
@@ -355,6 +360,58 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     location.getLongitude()),
                 SnackbarHelper.Variant.SUCCESS
         );
+    }
+
+    private void startContinuousLocationTracking() {
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        if (continuousLocationCallback != null) {
+            return; // ya activo
+        }
+
+        com.google.android.gms.location.LocationRequest locationRequest =
+                com.google.android.gms.location.LocationRequest.create()
+                        .setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY)
+                        .setInterval(1000)
+                        .setFastestInterval(1000);
+
+        continuousLocationCallback = new com.google.android.gms.location.LocationCallback() {
+            @Override
+            public void onLocationResult(com.google.android.gms.location.LocationResult locationResult) {
+                if (locationResult == null) return;
+                android.location.Location location = locationResult.getLastLocation();
+                if (location == null) return;
+                updateUserLocationIfMoved(location);
+            }
+        };
+
+        fusedLocationClient.requestLocationUpdates(locationRequest, continuousLocationCallback, null);
+    }
+
+    private void stopContinuousLocationTracking() {
+        if (continuousLocationCallback == null) {
+            return;
+        }
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient.removeLocationUpdates(continuousLocationCallback);
+        }
+        continuousLocationCallback = null;
+    }
+
+    /** Actualiza solo el marcador de ubicación si el usuario se movió, sin mover la cámara. */
+    private void updateUserLocationIfMoved(android.location.Location location) {
+        if (!isAdded() || getView() == null) return;
+
+        if (lastTrackedLocation != null && lastTrackedLocation.distanceTo(location) < MOVEMENT_THRESHOLD_METERS) {
+            return; // no se movió lo suficiente
+        }
+        lastTrackedLocation = location;
+
+        userLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
+        addUserLocationMarker(userLocation);
     }
 
     private void addUserLocationMarker(Point point) {
@@ -1101,11 +1158,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             mapView.onStart();
         }
         pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+        startContinuousLocationTracking();
     }
 
     @Override
     public void onStop() {
         pollHandler.removeCallbacks(pollRunnable);
+        stopContinuousLocationTracking();
         if (mapView != null) {
             mapView.onStop();
         }

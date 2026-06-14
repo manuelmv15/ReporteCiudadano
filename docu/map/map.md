@@ -308,3 +308,16 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 ### TODOs / Próximos pasos
 - [ ] Revertir `POLL_INTERVAL_MS` a `30_000` antes de release (actualmente 5s solo para testing)
 - [ ] Quitar/reducir logs de polling una vez validado el endpoint en dispositivo real
+
+## [2026-06-13] Tracking continuo de ubicación del usuario (cada 1s, sin mover cámara)
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — nuevos campos `continuousLocationCallback`, `lastTrackedLocation`, `MOVEMENT_THRESHOLD_METERS=2f`. Nuevos métodos `startContinuousLocationTracking()` (LocationRequest interval=1000ms, PRIORITY_HIGH_ACCURACY, se inicia en `onStart()` y tras permiso concedido en `onRequestPermissionsResult()`), `stopContinuousLocationTracking()` (en `onStop()`, hace `removeLocationUpdates`), `updateUserLocationIfMoved()` (solo actualiza marcador si `distanceTo` >= 2m, sin llamar `animateCameraTo`). `useLocation()` ahora también setea `lastTrackedLocation`.
+
+### Notas
+- Decisión: enfoque simple (1s mientras fragment visible) en vez de adaptativo 30s/1s, por simplicidad y menor código. Confirmado con usuario.
+- Marcador se mueve solo (vía `addUserLocationMarker`), cámara no se reposiciona.
+
+### TODOs / Próximos pasos
+- [ ] Probar en dispositivo real caminando, verificar marcador sigue ubicación sin saltos de cámara
+- [ ] Evaluar consumo de batería con tracking 1s continuo en sesiones largas
