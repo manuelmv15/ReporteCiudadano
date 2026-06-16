@@ -55,6 +55,8 @@ public class LoginActivity extends AppCompatActivity {
         binding.btnLogin.setOnClickListener(v -> doEmailLogin());
         binding.tvGoRegister.setOnClickListener(v ->
                 startActivity(new Intent(this, RegisterActivity.class)));
+        binding.tvForgotPassword.setOnClickListener(v ->
+                startActivity(new Intent(this, ForgotPasswordActivity.class)));
 
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.google_web_client_id))

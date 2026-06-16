@@ -3,8 +3,10 @@ package com.bombayashi.reporteciudadano.network;
 import com.bombayashi.reporteciudadano.model.AuthResponse;
 import com.bombayashi.reporteciudadano.model.AvatarUploadResponse;
 import com.bombayashi.reporteciudadano.model.CreateReportResponse;
+import com.bombayashi.reporteciudadano.model.ForgotPasswordRequest;
 import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
+import com.bombayashi.reporteciudadano.model.ResetPasswordRequest;
 import com.bombayashi.reporteciudadano.model.MyVotesResponse;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
@@ -39,6 +41,12 @@ public interface ApiService {
 
     @POST("register")
     Call<AuthResponse> register(@Body RegisterRequest request);
+
+    @POST("forgot-password")
+    Call<SimpleResponse> forgotPassword(@Body ForgotPasswordRequest request);
+
+    @POST("reset-password")
+    Call<SimpleResponse> resetPassword(@Body ResetPasswordRequest request);
 
     @POST("logout")
     Call<AuthResponse> logout(@Header("Authorization") String bearerToken);
