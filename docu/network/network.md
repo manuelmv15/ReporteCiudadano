@@ -24,3 +24,10 @@ Se ajustó la configuración para apuntar al backend de producción. Se incluyó
 ### Resumen
 Se implementó un sistema seguro para gestionar el token de Mapbox sin exponerlo en el repositorio. El token se inyecta en tiempo de compilación como un recurso de cadena.
 
+
+## [2026-06-15] Endpoints password recovery en ApiService
+
+### Archivos tocados
+- `network/ApiService.java` — agregados `forgotPassword(@Body ForgotPasswordRequest)` y `resetPassword(@Body ResetPasswordRequest)`
+- `model/ForgotPasswordRequest.java` — nuevo modelo `{ email }`
+- `model/ResetPasswordRequest.java` — nuevo modelo `{ email, token, password, password_confirmation }`

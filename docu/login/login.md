@@ -106,3 +106,17 @@ El `tv_error` era un `TextView` estático sin animación, hardcodeado en color `
 
 ### TODOs / Próximos pasos
 - [ ] Probar en dispositivo con 2+ cuentas Google: confirmar que aparece selector cada vez que se toca "Iniciar con Google"
+
+## [2026-06-15] Password Recovery — 2 pantallas nuevas
+
+### Archivos tocados
+- `ForgotPasswordActivity.java` — ingresa email, llama POST /forgot-password, navega a ResetPasswordActivity
+- `ResetPasswordActivity.java` — ingresa código 6 dígitos + nueva password, llama POST /reset-password, redirige a Login
+- `res/layout/activity_forgot_password.xml` — layout pantalla "Recuperar contraseña"
+- `res/layout/activity_reset_password.xml` — layout pantalla "Nueva contraseña" (token + password + confirm)
+- `LoginActivity.java` — agregado click listener para tv_forgot_password
+- `res/layout/activity_login.xml` — agregado TextView "¿Olvidaste tu contraseña?" entre btn_login y tv_go_register
+- `AndroidManifest.xml` — registradas ForgotPasswordActivity y ResetPasswordActivity
+
+### TODOs / Próximos pasos
+- [ ] Probar flujo completo en dispositivo: login → olvidé contraseña → email → código → nueva password → login exitoso

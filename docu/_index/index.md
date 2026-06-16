@@ -77,3 +77,5 @@
 - [2026-06-13] [components] — RF-28: marcadores de usuarios Colaborador/Guardián/Experto se pintan más grandes (multiplicador 1.1/1.2/1.3) usando score/level que ya enviaba la API en /reports (UserInfo no los deserializaba, ahora sí; ver docu/components/components.md)
 - [2026-06-13] [general] — RF-28 fix: levels de la API son lowercase sin acento (nuevo/colaborador/guardian/experto), switch en MapFragment corregido. Data de prueba sembrada en prod (api.manuelmv.net) cerca de Gotera, Morazán: 9 users + ~43 reportes para verificar tamaños en mapa (ver TODOs en docu/components/components.md)
 - [2026-06-15] [components] — Módulo 2 votos comunitarios 9/9 ✅: RF-12 tvStatus con color por estado, RF-14 owner puede votar resolve (btnConfirm oculto), RF-07/11/15 confirmados implementados (features.md actualizado)
+- [2026-06-15] [login] — password recovery: ForgotPasswordActivity + ResetPasswordActivity + link en Login
+- [2026-06-15] [network] — ApiService: forgotPassword y resetPassword endpoints
