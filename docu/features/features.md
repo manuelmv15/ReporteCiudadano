@@ -1,7 +1,7 @@
 # Features — Estado vs Planteamiento v1
 
 > Actualizar cada vez que se implementa una función nueva.
-> Última revisión: 2026-06-13
+> Última revisión: 2026-06-15
 
 **Leyenda:** ✅ completo · 🔶 a medias · ❌ no iniciado
 
@@ -9,14 +9,14 @@
 
 ## Módulo A — Autenticación
 
-| ID     | Requerimiento                                                       | Estado | Notas                                                                                                                                                                                                                          |
-| ------ | ------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                                                                                                                                                                |
+| ID     | Requerimiento                                                       | Estado | Notas                                                                                                                                                                                                                                                                                                                                           |
+| ------ | ------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                                                                                                                                                                                                                                                                                 |
 | RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | ✅      | TokenManager singleton (util/TokenManager.java) usa EncryptedSharedPreferences AES256-GCM/SIV; fallback a prefs normales si crypto no disponible; guarda token + user_id + user_name + user_email; todos los callers migrados (LoginActivity, RegisterActivity, UserProfileBottomSheet, MapFragment, ReportDetailBottomSheet, VoteStateManager) |
-| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                                                                                                                                                           |
-| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅     | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear/votar/editar/foto → clearToken + redirect a login; backend confirmado: POST/PUT/DELETE/PATCH auth:sanctum, GET público |
-| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | ✅     | UserProfileBottomSheet (pageProfile) muestra nombre/email/avatar; editar nombre (PUT /me) y foto (POST /me/avatar) persisten server-side                                                                                      |
-| RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                                                                                                                                                       |
+| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                                                                                                                                                                                                                                                                            |
+| RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅      | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear/votar/editar/foto → clearToken + redirect a login; backend confirmado: POST/PUT/DELETE/PATCH auth:sanctum, GET público                             |
+| RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | ✅      | UserProfileBottomSheet (pageProfile) muestra nombre/email/avatar; editar nombre (PUT /me) y foto (POST /me/avatar) persisten server-side                                                                                                                                                                                                        |
+| RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                                                                                                                                                                                                                                                                        |
 
 ---
 
@@ -37,15 +37,15 @@
 
 | ID    | Requerimiento                                              | Estado | Notas                                                                                                                                 |
 | ----- | ---------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| RF-07 | Solo usuarios dentro de 500 m pueden votar                 | 🔶     | Validación Haversine en cliente (VoteStateManager), falta validación server-side confirmada                                           |
+| RF-07 | Solo usuarios dentro de 500 m pueden votar                 | ✅      | Validación Haversine en cliente (VoteStateManager) + server-side en ReportVoteController::store() línea 34-39 (distanceInMetersTo, 422 si >500m)                                           |
 | RF-08 | Votos "Sigue ahí" y "Ya se resolvió"                       | ✅      | ReportDetailBottomSheet con ambos botones                                                                                             |
 | RF-09 | Un voto por usuario; puede cambiarlo hasta 5 min después   | ✅     | Server: unique(report_id,user_id) impide votos duplicados; DELETE /reports/{id}/votes/{type} rechaza con 403 tras 5 min (ReportVoteController). Cliente: VoteStateManager (delete+submit) dentro de la ventana de 5 min      |
 | RF-10 | Conteo actualizado y sincronizado entre capas             | ✅      | Fetch preventivo al abrir detalle; OnReportDataUpdated sincroniza cache de MapFragment; fin de "amnesia de interacción" |
-| RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | 🔶     | Lógica en API Laravel (pendiente confirmar); cliente refleja estado RESOLVED                                                          |
-| RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí"         | 🔶     | Estado VERIFIED en cliente; marcador cambia; sello visual no diferenciado claramente                                                  |
+| RF-11 | Auto-cierre cuando votos "Ya se resolvió" >= 70% con min 3 | ✅      | Report::meetsResolveThreshold(): votes_resolve/total >= RESOLVE_RATIO_THRESHOLD(0.7) con RESOLVE_MIN_TOTAL_VOTES(3); llamado en evaluateAutoStatus() post-voto. Cliente refleja estado RESOLVED. |
+| RF-12 | Sello "Verificado" al llegar a 5 votos "Sigue ahí"         | ✅      | Marcador: getStatusStrokeColor() verde #4CAF50 para verified. Detalle: tvStatus con color dinámico (verde=verified, azul=resolved, naranja=pending, gris=archived) en displayReportInfo() |
 | RF-13 | Auto-archivo a las 24 h sin interacción                    | ✅      | Comando `reports:archive-stale` (Report::archiveStaleReports, STALE_HOURS=24) programado cada 5 min vía Schedule; verificado end-to-end. Cliente no filtra reportes archivados del mapa (ver RF-18)        |
-| RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte  | ❌      | Owner detectado por user_id; botones de voto ocultos para owner — no puede votar en propio reporte (decisión de diseño inversa al RF) |
-| RF-15 | Concurrencia de votos con bloqueo optimista en servidor    | 🔶     | Documentado en API; cliente no aplica lógica de conflicto (correcto según spec)                                                       |
+| RF-14 | Creador puede votar "Ya se resolvió" en su propio reporte  | ✅      | setupOwnerControls() oculta solo btnConfirm (GONE); btnResolve visible y funcional para owner. updateVoteUI() ya no hace early return para owner. Server no bloquea owner. |
+| RF-15 | Concurrencia de votos con bloqueo optimista en servidor    | ✅      | DB unique(report_id,user_id,type) previene race conditions; QueryException 23000 → 409 "Ya votaste". DB::transaction() en store/destroy. Cliente no necesita lógica extra (correcto per spec). |
 
 ---
 
@@ -79,7 +79,7 @@
 |----|--------------|--------|-------|
 | RF-26 | Score de confiabilidad por reportes y votos acertados | ✅ | GET /me devuelve score; UserProfileBottomSheet (pageProfile) lo muestra como "X pts" |
 | RF-27 | Puntos: +10 reporte confirmado, +2 voto "Sigue ahí", +5 voto "Ya se resolvió" | ✅ | Implementado en laravel_api (User::addScore + Report::evaluateAutoStatus); cliente refleja vía GET /me al refrescar perfil |
-| RF-28 | Reportes de usuarios con score alto = mayor tamaño base en mapa | 🔶 | API ya expone score/level en user de /reports y /reports/{id}; MapFragment aún no usa ese valor para tamaño de marcador |
+| RF-28 | Reportes de usuarios con score alto = mayor tamaño base en mapa | ✅ | UserInfo (ReportResponse) ahora deserializa score/level; MapFragment.getUserSizeMultiplier() aplica 1.0/1.1/1.2/1.3 según level (Nuevo/Colaborador/Guardián/Experto) en addReportMarker y updateMarkersScale |
 | RF-29 | Niveles: Nuevo/Colaborador/Guardián/Experto | ✅ | GET /me devuelve level; UserProfileBottomSheet (pageProfile) lo muestra como badge |
 | RF-30 | Expertos verifican reporte con 3 votos en lugar de 5 | ✅ | Implementado server-side en Report::evaluateAutoStatus (laravel_api), sin cambios necesarios en cliente |
 
@@ -112,10 +112,10 @@
 |--------|----------|-------------|------------|----------------|
 | Autenticación (A) | 6 | 4 | 1 | 1 |
 | Reporte ultrarrápido (1) | 6 | 6 | 0 | 0 |
-| Votos comunitarios (2) | 9 | 4 | 4 | 1 |
+| Votos comunitarios (2) | 9 | 9 | 0 | 0 |
 | Mapa en vivo (3) | 5 | 5 | 0 | 0 |
 | Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
-| Puntuación y confiabilidad (5) | 5 | 3 | 1 | 1 |
+| Puntuación y confiabilidad (5) | 5 | 4 | 0 | 1 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **25 (58%)** | **6 (14%)** | **12 (28%)** |
+| **TOTAL** | **43** | **35 (81%)** | **0 (0%)** | **8 (19%)** |

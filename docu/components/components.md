@@ -1,5 +1,19 @@
 # Documentación — Componentes
 
+## [2026-06-13] RF-28 — Tamaño de marcador según score/level del autor
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/model/ReportResponse.java` — `UserInfo` ahora deserializa `score` y `level` (ya venían del backend en `/reports` y `/reports/{id}` pero el modelo Android los ignoraba).
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — nuevo método `getUserSizeMultiplier(ReportData)`: `"experto"`=1.3, `"guardian"`=1.2, `"colaborador"`=1.1, `"nuevo"`=1.0 (strings en minúsculas/sin acento, igual a `User::LEVEL_*` de laravel_api). `addReportMarker()` aplica el multiplicador al `withIconSize()` inicial; `updateMarkersScale()` lo combina con el `scaleFactor` por zoom (antes aplicaba el mismo tamaño a todos los marcadores).
+
+### Notas
+- Multiplicador hardcodeado en cliente según `level` string que devuelve la API. Verificado contra `User.php`: `LEVEL_NUEVO='nuevo'`, `LEVEL_COLABORADOR='colaborador'`, `LEVEL_GUARDIAN='guardian'`, `LEVEL_EXPERTO='experto'`.
+- Data de prueba creada en prod (api.manuelmv.net) pa verificar visualmente: 9 usuarios `rf28*_<ts>@test.local` (5 voters + 4 owners) y ~43 reportes cerca de San Francisco Gotera, Morazán, El Salvador (lat≈13.70-13.73, lon≈-88.10 a -88.99... revisar coords reales en owners, ver script /tmp/rf28_seed.sh). Owners verificados: colaborador score=20, guardian score=100, experto score=300, nuevo score=0.
+
+### TODOs / Próximos pasos
+- [ ] Verificar visualmente en mapa (zona San Carlos, Morazán, lat≈13.6975 lon≈-88.0656) reportes id=54(nuevo)/55(colaborador)/56(guardian)/57(experto) — deben verse 1.0/1.1/1.2/1.3x de tamaño respectivamente.
+- [ ] Considerar limpieza de los ~47 reportes/9 usuarios de prueba en prod una vez verificado (no hay endpoint de borrado masivo, requiere acceso directo a DB).
+
 ## [2026-06-13] RF-18/RF-19 — Ocultar archivados y filtros de mapa (categoría/estado/antigüedad)
 
 ### Archivos tocados
@@ -335,3 +349,14 @@ dialog.show(getChildFragmentManager(), "radial_menu");
 ### TODOs / Próximos pasos
 - [ ] RF-27 (puntos automáticos): ya implementado en API (laravel_api), pendiente verificar en cliente que `score`/`level` se refrescan tras votar (refreshProfile ya se llama solo al abrir Mi Perfil)
 - [ ] RF-13 auto-archivo 24h: pendiente comando programado en laravel_api
+
+## [2026-06-15] Módulo 2 — Votos comunitarios completado (RF-07/11/12/14/15)
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/ReportDetailBottomSheet.java` — RF-12: `displayReportInfo()` aplica color a `tvStatus` según estado (verde=verified, azul=resolved, naranja=pending, gris=archived). RF-14: `setupOwnerControls()` ya no oculta `llVoteButtons` completo — solo oculta `btnConfirm` (GONE); owner puede votar "Ya se resolvió". `updateVoteUI()` eliminado early return `if (isOwner) return` para que owner reciba UI de votación funcional.
+- `docu/features/features.md` — RF-07/11/12/14/15 actualizados a ✅; resumen módulo 2: 9/9; total: 35/43 (81%)
+
+### TODOs / Próximos pasos
+- [ ] Verificar en dispositivo que owner ve solo btnResolve (btnConfirm GONE) y puede votar
+- [ ] Verificar que tvStatus muestra color correcto en los 4 estados (pending/verified/resolved/archived)
+- [ ] RF-07 server: probar con usuario fuera de 500m que recibe 422 desde API

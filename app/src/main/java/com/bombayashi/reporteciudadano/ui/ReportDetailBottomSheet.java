@@ -179,6 +179,13 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         binding.tvCategory.setText(categoryName);
         binding.tvStatus.setText(status);
+        int statusColor = switch (report.getStatus() != null ? report.getStatus() : "") {
+            case "verified"  -> android.graphics.Color.parseColor("#4CAF50");
+            case "resolved"  -> android.graphics.Color.parseColor("#2196F3");
+            case "archived"  -> android.graphics.Color.parseColor("#9E9E9E");
+            default          -> android.graphics.Color.parseColor("#FF9800"); // pending
+        };
+        binding.tvStatus.setTextColor(statusColor);
         binding.tvDescription.setText(description);
         binding.tvUser.setText("Reportado por: " + userName);
     }
@@ -203,11 +210,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             });
             binding.btnPickPhoto.setOnClickListener(v -> galleryLauncher.launch("image/*"));
             setupRetractButton();
-            // Owner no vota — ocultar sección de votación
-            binding.llVoteButtons.setVisibility(View.GONE);
-            binding.llDistanceWarning.setVisibility(View.GONE);
-            binding.tvUserVoteStatus.setVisibility(View.GONE);
-            binding.pbVoteLoading.setVisibility(View.GONE);
+            // RF-14: Owner puede votar "Ya se resolvió" pero no "Sigue ahí"
+            binding.btnConfirm.setVisibility(View.GONE);
         }
 
         // Mostrar foto actual si existe
@@ -469,8 +473,6 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         if (state == null) return;
 
         binding.tvVoteCount.setText(state.getFormattedVoteCount());
-
-        if (isOwner) return;
 
         if (state.isWithinRadius()) {
             binding.llDistanceWarning.setVisibility(View.GONE);

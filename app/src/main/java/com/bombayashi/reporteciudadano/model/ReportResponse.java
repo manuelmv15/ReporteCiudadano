@@ -99,9 +99,15 @@ public class ReportResponse {
         private int id;
         @SerializedName("name")
         private String name;
+        @SerializedName("score")
+        private int score;
+        @SerializedName("level")
+        private String level;
 
         public int getId() { return id; }
         public String getName() { return name; }
+        public int getScore() { return score; }
+        public String getLevel() { return level; }
     }
 
     public static class CategoryInfo {

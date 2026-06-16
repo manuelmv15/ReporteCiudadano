@@ -482,20 +482,23 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                             return;
                         }
 
-                        int addedCount = 0;
+                        int fetchedCount = 0;
+                        int visibleCount = 0;
                         for (ReportResponse.ReportData report : reports) {
                             if (reportMarkers.size() < MAX_REPORTS) {
+                                boolean wasVisible = passesFilters(report);
                                 addReportMarker(report);
                                 cacheReport(report);
-                                addedCount++;
+                                fetchedCount++;
+                                if (wasVisible) visibleCount++;
                             }
                         }
 
-                        android.util.Log.d("MapFragment", "📍 Agregados " + addedCount + " marcadores");
+                        android.util.Log.d("MapFragment", "📍 Recibidos " + fetchedCount + ", visibles en mapa " + visibleCount);
                         currentReportsPage++;
 
-                        if (addedCount > 0) {
-                            SnackbarHelper.show(getView(), "Cargados " + addedCount + " reportes",
+                        if (visibleCount > 0) {
+                            SnackbarHelper.show(getView(), "Cargados " + visibleCount + " reportes",
                                     SnackbarHelper.Variant.INFO);
                         }
                     } else {
@@ -866,11 +869,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 return;
             }
 
+            // RF-28: marcador base más grande para usuarios con score/level alto
+            double sizeMultiplier = getUserSizeMultiplier(report);
+
             // Crear PointAnnotation con bitmap directamente
             PointAnnotationOptions pointOptions = new PointAnnotationOptions()
                     .withPoint(point)
                     .withIconImage(iconBitmap)
-                    .withIconSize(1.6f);
+                    .withIconSize(1.1 * sizeMultiplier);
 
             PointAnnotation pointAnnotation = pointAnnotationManager.create(pointOptions);
             pointAnnotation.setDraggable(false);
@@ -1219,14 +1225,32 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         float scaleFactor = (float) Math.max(0.6, Math.min(1.4, Math.pow(1.06, zoom - 15)));
 
         // Tamaño base más pequeño (1.1f en lugar de 1.6f)
-        double finalIconSize = 1.1 * scaleFactor;
+        double baseIconSize = 1.1 * scaleFactor;
 
-        for (PointAnnotation annotation : reportIconMarkers.values()) {
-            annotation.setIconSize(finalIconSize);
+        for (java.util.Map.Entry<Integer, PointAnnotation> entry : reportIconMarkers.entrySet()) {
+            ReportResponse.ReportData report = reportMarkers.get(String.valueOf(entry.getKey()));
+            double sizeMultiplier = (report != null) ? getUserSizeMultiplier(report) : 1.0;
+            entry.getValue().setIconSize(baseIconSize * sizeMultiplier);
         }
-        
+
         if (!reportIconMarkers.isEmpty()) {
             pointAnnotationManager.update(pointAnnotationManager.getAnnotations());
+        }
+    }
+
+    // RF-28: usuarios con score/level alto obtienen marcadores con tamaño base mayor
+    private double getUserSizeMultiplier(ReportResponse.ReportData report) {
+        ReportResponse.UserInfo user = report.getUser();
+        if (user == null || user.getLevel() == null) return 1.0;
+        switch (user.getLevel()) {
+            case "experto":
+                return 1.3;
+            case "guardian":
+                return 1.2;
+            case "colaborador":
+                return 1.1;
+            default:
+                return 1.0;
         }
     }
 
