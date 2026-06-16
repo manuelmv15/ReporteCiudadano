@@ -13,7 +13,7 @@
 | ------ | ------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | RF-A01 | Registro con correo/contraseña o Google OAuth                       | ✅      | LoginActivity + RegisterActivity + /auth/google                                                                                                                                                                                                                                                                                                 |
 | RF-A02 | Sesión persistente con token en EncryptedSharedPreferences          | ✅      | TokenManager singleton (util/TokenManager.java) usa EncryptedSharedPreferences AES256-GCM/SIV; fallback a prefs normales si crypto no disponible; guarda token + user_id + user_name + user_email; todos los callers migrados (LoginActivity, RegisterActivity, UserProfileBottomSheet, MapFragment, ReportDetailBottomSheet, VoteStateManager) |
-| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ❌      | No implementado en Android ni en API                                                                                                                                                                                                                                                                                                            |
+| RF-A03 | Recuperación de contraseña vía correo (API Laravel SMTP)            | ✅      | API: POST /forgot-password (token 6 dígitos, expira 60min) + POST /reset-password; email vía Brevo HTTP API desde no-reply@manuelmv.net. Android: ForgotPasswordActivity + ResetPasswordActivity; link en LoginActivity |
 | RF-A04 | Modo invitado: ver mapa sin auth, bloquear crear/votar con 401      | ✅      | MainActivity como launcher; mapa visible sin auth; fab_add_report oculto; fab_profile → LoginActivity; ReportDetailBottomSheet oculta botones de voto y muestra btnLoginToVote; 401 en crear/votar/editar/foto → clearToken + redirect a login; backend confirmado: POST/PUT/DELETE/PATCH auth:sanctum, GET público                             |
 | RF-A05 | Perfil (nombre, avatar) creado automáticamente en primer login      | ✅      | UserProfileBottomSheet (pageProfile) muestra nombre/email/avatar; editar nombre (PUT /me) y foto (POST /me/avatar) persisten server-side                                                                                                                                                                                                        |
 | RF-A06 | Cerrar sesión elimina token del dispositivo y lo revoca en servidor | ✅      | handleLogout() en UserProfileBottomSheet                                                                                                                                                                                                                                                                                                        |
@@ -110,7 +110,7 @@
 
 | Módulo | Total RF | ✅ Completos | 🔶 A medias | ❌ No iniciados |
 |--------|----------|-------------|------------|----------------|
-| Autenticación (A) | 6 | 4 | 1 | 1 |
+| Autenticación (A) | 6 | 5 | 0 | 1 |
 | Reporte ultrarrápido (1) | 6 | 6 | 0 | 0 |
 | Votos comunitarios (2) | 9 | 9 | 0 | 0 |
 | Mapa en vivo (3) | 5 | 5 | 0 | 0 |
@@ -118,4 +118,4 @@
 | Puntuación y confiabilidad (5) | 5 | 4 | 0 | 1 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **35 (81%)** | **0 (0%)** | **8 (19%)** |
+| **TOTAL** | **43** | **36 (84%)** | **0 (0%)** | **7 (16%)** |
