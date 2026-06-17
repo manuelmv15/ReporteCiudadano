@@ -133,4 +133,10 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Query("per_page") int perPage
     );
+
+    @POST("me/fcm-token")
+    Call<Void> updateFcmToken(
+            @Header("Authorization") String token,
+            @Query("fcm_token") String fcmToken
+    );
 }

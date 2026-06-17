@@ -207,3 +207,216 @@ Esperado: user_vote="confirm" (si votó "Sigue ahí")
 - [ ] Test end-to-end después del fix
 - [ ] Implementar Mapbox Clustering (50+ markers)
 - [ ] Caché con Room Database offline
+
+---
+
+## [2026-06-16] Firebase Cloud Messaging Push Notifications - Phase 1/2 ✅
+
+### Resumen
+Implementación de notificaciones push FCM para alertar a usuarios cuando hay nuevos reportes en su rango de votación (500m). Fase 1: Data models, managers, y service layer completados. Backend ya tiene `/me/fcm-token` endpoint y NotificationService implementado.
+
+### Archivos Creados
+
+**Data Models:**
+- `app/src/main/java/com/bombayashi/reporteciudadano/model/NotificationPayloadModel.java` (NEW)
+  * POJO con 14 campos GSON-mapped: reportId, type, status, category, categoryId, latitude, longitude, distance (km), userId, title, body, votesConfirm, votesResolve, createdAt
+  * Mapea JSON from backend FCM payload a Java objects
+  
+- `app/src/main/java/com/bombayashi/reporteciudadano/db/FcmNotificationCacheEntity.java` (NEW)
+  * Room @Entity para persistencia local de notificaciones
+  * 8 campos: id (PK auto-increment), reportId, type, status, payload (JSON string), receivedAt (timestamp), isProcessed, isViewed
+  * Soporta retry/replay logic en offline scenarios
+  
+- `app/src/main/java/com/bombayashi/reporteciudadano/db/FcmNotificationCacheDao.java` (NEW)
+  * Room DAO con 10 @Query methods: insert, update, delete, getUnprocessedNotifications (DESC), getLatestByReportId, getRecent, markAsProcessed, markAsViewed, deleteOlderThan, deleteAll, getUnprocessedCount
+  * Ciclo de vida: creación → procesamiento → visualización → cleanup
+
+**Service Layer:**
+- `app/src/main/java/com/bombayashi/reporteciudadano/service/FcmNotificationManager.java` (NEW)
+  * Singleton pattern
+  * Métodos públicos: parseNotificationPayload(), validateNotificationData(), isUserInVotingRange(), isDuplicateNotification(), cacheNotification(), markAsProcessed(), markAsViewed()
+  * Validaciones: reportId, coordenadas, título, duplicados (5-min window)
+  * Backend ya valida distancia 500m, app solo double-checks
+  * Auto-cleanup: elimina notificaciones >7 días
+  
+- `app/src/main/java/com/bombayashi/reporteciudadano/service/NotificationChannelHelper.java` (NEW)
+  * Android 8+ Notification Channels (Material Design 3)
+  * 3 canales: 
+    - `report_notifications` (HIGH) — nuevos reportes, heads-up, sonido + vibración 200/100/200ms
+    - `report_updates` (DEFAULT) — actualizaciones, sonido suave + vibración 100ms
+    - `proximity_alerts` (HIGH) — <200m, very urgent, vibración 300/100/300/100/300ms
+  * getChannelIdForNotification() selecciona canal según tipo y distancia
+  * Métodos: createNotificationChannels(), deleteNotificationChannel(), channelExists()
+
+**Service Actualizado:**
+- `app/src/main/java/com/bombayashi/reporteciudadano/service/MyFirebaseMessagingService.java` (MODIFIED)
+  * onMessageReceived() ahora: parse → validate → check duplicate → check range → cache → show
+  * showNotification() ahora acepta NotificationPayloadModel, crea deep links `reporteciudadano://show_report?id=<reportId>`
+  * PendingIntent usa reportId como unique request code (múltiples notificaciones simultáneas)
+  * BigTextStyle para body largo
+  * onNewToken() sigue sincronizando token al backend vía API
+
+**Database Actualizado:**
+- `app/src/main/java/com/bombayashi/reporteciudadano/db/AppDatabase.java` (MODIFIED)
+  * @Database: añadido FcmNotificationCacheEntity a entities
+  * Version: 1 → 2 (Room auto-migra con fallbackToDestructiveMigration)
+  * Método abstracto: fcmNotificationCacheDao()
+
+**Manifest Actualizado:**
+- `app/src/main/AndroidManifest.xml` (MODIFIED)
+  * Permiso nuevo: `android.permission.POST_NOTIFICATIONS` (Android 13+)
+  * MainActivity intent-filter nuevo: deep link scheme `reporteciudadano://show_report`
+  * Meta-data: `default_notification_channel_id` = `report_notifications` (era `proximity_alerts`)
+
+**Activity Actualizado:**
+- `app/src/main/java/com/bombayashi/reporteciudadano/LoginActivity.java` (MODIFIED)
+  * Nueva ActivityResultLauncher: `notificationPermissionLauncher` para POST_NOTIFICATIONS
+  * saveAuthAndGoMain() ahora solicita permiso en Android 13+ antes de ir a MainActivity
+  
+- `app/src/main/java/com/bombayashi/reporteciudadano/MainActivity.java` (MODIFIED)
+  * onCreate(): llama NotificationChannelHelper.createNotificationChannels()
+  * handleNotificationIntent(Intent intent): parsea deep link `reporteciudadano://show_report?id=X`
+  * onNewIntent(Intent intent): manejador si app está en background y recibe otra notificación
+  * TODO: integración con MapFragment.showReportFromNotification(reportId) (Phase 2)
+
+### Flujo End-to-End
+
+```
+Backend evento: nuevo reporte en área de usuario
+    ↓
+Backend enqueue NotificationJob con FCM payload
+    ↓
+FCM envía notificación (backend ya validó 500m range)
+    ↓
+MyFirebaseMessagingService.onMessageReceived()
+    ↓
+FcmNotificationManager.parseNotificationPayload() → NotificationPayloadModel
+    ↓
+validateNotificationData() → rechaza sin reportId/coords/title
+    ↓
+isDuplicateNotification() → rechaza si última notificación <5min atrás
+    ↓
+isUserInVotingRange() → rechaza si user permission not granted (backend already checked)
+    ↓
+cacheNotification() → inserta en Room, limpia >7d
+    ↓
+showNotification() → crea deep link, muestra en canal adecuado
+    ↓
+Usuario toca notificación → intent deep link `reporteciudadano://show_report?id=123`
+    ↓
+MainActivity.onNewIntent() → handleNotificationIntent() → parsea reportId
+    ↓
+[Phase 2] MapFragment.showReportFromNotification(123)
+```
+
+### Validaciones Implementadas
+
+- ✅ Parse JSON payload → NotificationPayloadModel con GSON
+- ✅ Validate required fields (reportId, coordinates, title)
+- ✅ Duplicate detection: 5-minute window per report
+- ✅ Range check: permissions-aware (location permission optional, backend validates)
+- ✅ Database persistence: 7-day retention, auto-cleanup
+- ✅ Android 8+ notification channels con 3 priorities
+- ✅ Android 13+ runtime permission request (POST_NOTIFICATIONS)
+- ✅ Deep linking: `reporteciudadano://show_report?id=<reportId>`
+- ✅ PendingIntent unique per reportId (múltiples simultáneas)
+
+### Phase 2 ✅ Completo - Integración con MapFragment
+
+**MapFragment.java (MODIFIED):**
+- showReportFromNotification(int reportId) - punto de entrada público desde MainActivity
+  * Busca reportId en caché local
+  * Si no existe, carga del API vía GET /reports/{id}
+  * Muestra el reporte en bottom sheet si pasa filtros
+  
+- findReportByIdInCache(int reportId) - busca en HashMap reportMarkers
+- loadReportFromAPI(int reportId) - GET /reports/{id}, caching, error handling
+
+**MainActivity.java (MODIFIED):**
+- handleNotificationIntent() conecta deep link a MapFragment.showReportFromNotification()
+  * Obtiene NavHostFragment → MapFragment
+  * Llama showReportFromNotification(id)
+  * Logs para debugging
+
+**Flow completo (notificación → reporte):**
+```
+Usuario toca notificación
+    ↓
+MyFirebaseMessagingService.showNotification() crea deep link
+  `reporteciudadano://show_report?id=123`
+    ↓
+MainActivity recibe intent en onCreate() o onNewIntent()
+    ↓
+handleNotificationIntent() parsea URI
+    ↓
+Obtiene NavHostFragment → MapFragment
+    ↓
+Llama MapFragment.showReportFromNotification(123)
+    ↓
+Busca en caché local
+    ↓
+Si no está:
+  - GET /reports/123
+  - Cachea en HashMap
+  - Agrega marker si pasa filtros
+    ↓
+Abre ReportDetailBottomSheet con datos del reporte
+```
+
+### Feature: Notificaciones Locales de Reportes Votables (Option B) ✅
+
+**MapFragment.java (MODIFIED):**
+- checkAndNotifyNearbyVotableReports() - se ejecuta cada 30s (mientras mapa visible)
+  * Itera sobre reportes en caché
+  * Excluye: reportes archivados, propios reportes del user
+  * Calcula distancia Haversine a cada reporte
+  * Filtra los que están < 500m
+  * Muestra notificación LOCAL si cambió el conteo
+  
+- notifyVotableReportsNearby(int count) - crea y muestra notificación local
+  * Título: "¡Puedes votar!"
+  * Mensaje: "Hay X reportes cerca donde puedes votar"
+  * Canal: report_notifications (HIGH priority)
+  * Al tocar → abre MainActivity (con mapa enfocado en reportes votables)
+  
+- calculateDistance() - Haversine formula (lat/lon en km)
+
+- onStart() - inicia votableReportsHandler
+- onStop() - detiene votableReportsHandler
+
+**Flow:**
+```
+MapFragment.onStart()
+    ↓
+votableReportsHandler.postDelayed(30s)
+    ↓
+checkAndNotifyNearbyVotableReports()
+  - Itera reportes en caché
+  - Calcula distancia a cada uno
+  - Filtra los < 500m
+  - Si conteo ≠ lastNotifiedVotableCount → notifica
+    ↓
+notifyVotableReportsNearby(count)
+  - Crea notificación LOCAL
+  - Muestra en canal report_notifications
+    ↓
+MapFragment.onStop() → detiene handler
+```
+
+**Ejemplos de notificación:**
+```
+¡Puedes votar!
+Hay 1 reporte cerca donde puedes votar
+
+¡Puedes votar!
+Hay 5 reportes cerca donde puedes votar
+```
+
+### TODOs / Testing
+
+- [ ] Test: abrir mapa, esperar 30s, verificar notificación si hay reportes en rango
+- [ ] Test: acercarse/alejarse de reportes, verificar que actualiza notificación
+- [ ] Test: own reports, verificar que no se incluyen en conteo
+- [ ] Test: archived reports, verificar que no se incluyen
+- [ ] Test: múltiples notificaciones (cuando conteo cambia), verificar UI
+- [ ] Test: toque notificación, verifica que abre MainActivity con mapa

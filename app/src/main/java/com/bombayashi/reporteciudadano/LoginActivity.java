@@ -45,6 +45,17 @@ public class LoginActivity extends AppCompatActivity {
             }
     );
 
+    private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            isGranted -> {
+                if (isGranted) {
+                    android.util.Log.d("Login", "✓ POST_NOTIFICATIONS permission granted");
+                } else {
+                    android.util.Log.d("Login", "⚠️ POST_NOTIFICATIONS permission denied");
+                }
+            }
+    );
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -138,6 +149,33 @@ public class LoginActivity extends AppCompatActivity {
         String userName = auth.getUser() != null ? auth.getUser().getName() : "";
         String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
         TokenManager.getInstance(this).saveAuth(auth.getToken(), userId, userName, userEmail);
+
+        // Request notification permission on Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
+        }
+
+        // Sincronizar FCM Token tras login exitoso
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+            .addOnCompleteListener(task -> {
+                if (task.isSuccessful() && task.getResult() != null) {
+                    String fcmToken = task.getResult();
+                    android.util.Log.i("FCM_TOKEN_DEBUG", "TOKEN_ACTUAL: " + fcmToken);
+                    String bearerToken = "Bearer " + auth.getToken();
+                    ApiClient.getInstance().updateFcmToken(bearerToken, fcmToken).enqueue(new Callback<Void>() {
+                        @Override
+                        public void onResponse(Call<Void> call, Response<Void> response) {
+                            android.util.Log.i("Login", "✓ FCM Token sincronizado con éxito.");
+                        }
+
+                        @Override
+                        public void onFailure(Call<Void> call, Throwable t) {
+                            android.util.Log.e("Login", "✗ Error sincronizando FCM Token", t);
+                        }
+                    });
+                }
+            });
+
         goToMain();
     }
 

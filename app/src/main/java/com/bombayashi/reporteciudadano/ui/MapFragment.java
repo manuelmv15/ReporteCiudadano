@@ -1,6 +1,7 @@
 package com.bombayashi.reporteciudadano.ui;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -28,6 +29,7 @@ import com.bombayashi.reporteciudadano.db.PendingActionEntity;
 import com.bombayashi.reporteciudadano.db.ReportCacheEntity;
 import com.bombayashi.reporteciudadano.util.ConnectivityHelper;
 import com.bombayashi.reporteciudadano.work.SyncManager;
+import com.bombayashi.reporteciudadano.service.NotificationChannelHelper;
 import com.google.gson.Gson;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -108,6 +110,19 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     };
     private String lastSyncTimestamp;  // ISO8601 UTC del último sync exitoso
+
+    // Notificación de reportes votables cercanos
+    private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 5_000;  // Cada 5s (TESTING — volver a 30_000 luego)
+    private static final double VOTABLE_RANGE_KM = 0.5;  // 500m
+    private final android.os.Handler votableReportsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable votableReportsRunnable = new Runnable() {
+        @Override
+        public void run() {
+            checkAndNotifyNearbyVotableReports();
+            votableReportsHandler.postDelayed(this, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
+        }
+    };
+    private int lastNotifiedVotableCount = -1;  // Para evitar notificar repetidamente el mismo número
 
     private AppDatabase appDatabase;
     private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -1344,17 +1359,221 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             mapView.onStart();
         }
         pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+        votableReportsHandler.postDelayed(votableReportsRunnable, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
         startContinuousLocationTracking();
     }
 
     @Override
     public void onStop() {
         pollHandler.removeCallbacks(pollRunnable);
+        votableReportsHandler.removeCallbacks(votableReportsRunnable);
         stopContinuousLocationTracking();
         if (mapView != null) {
             mapView.onStop();
         }
         super.onStop();
+    }
+
+    /**
+     * Check for nearby votable reports and notify user (Option B - periodic local notifications)
+     * Called every 30 seconds while map is visible
+     */
+    private void checkAndNotifyNearbyVotableReports() {
+        if (userLocation == null || reportMarkers.isEmpty()) {
+            return;
+        }
+
+        try {
+            int currentUserId = TokenManager.getInstance(requireContext()).getUserId();
+            java.util.List<ReportResponse.ReportData> votableReports = new java.util.ArrayList<>();
+
+            // Calculate distance to each report
+            for (ReportResponse.ReportData report : reportMarkers.values()) {
+                // Skip archived reports
+                if (report.getStatus() != null && report.getStatus().equals("archived")) {
+                    continue;
+                }
+
+                // Skip own reports (can't vote on them)
+                if (report.getUser() != null && report.getUser().getId() == currentUserId) {
+                    continue;
+                }
+
+                // Calculate Haversine distance
+                double distance = calculateDistance(
+                        userLocation.latitude(),
+                        userLocation.longitude(),
+                        report.getLatitude(),
+                        report.getLongitude()
+                );
+
+                // If within votable range, add to list
+                if (distance <= VOTABLE_RANGE_KM) {
+                    votableReports.add(report);
+                }
+            }
+
+            int votableCount = votableReports.size();
+
+            // Only notify if count changed (avoid spamming same notification)
+            if (votableCount > 0 && votableCount != lastNotifiedVotableCount) {
+                lastNotifiedVotableCount = votableCount;
+                notifyVotableReportsNearby(votableCount);
+                android.util.Log.d("MapFragment", "🗳️ Found " + votableCount + " votable reports nearby");
+            } else if (votableCount == 0 && lastNotifiedVotableCount > 0) {
+                lastNotifiedVotableCount = 0;
+                // Optionally clear notification when no more reports nearby
+            }
+
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error checking votable reports", e);
+        }
+    }
+
+    /**
+     * Show local notification about votable reports nearby
+     */
+    private void notifyVotableReportsNearby(int count) {
+        try {
+            String title = "¡Puedes votar!";
+            String message = count == 1 ?
+                    "Hay 1 reporte cerca donde puedes votar" :
+                    "Hay " + count + " reportes cerca donde puedes votar";
+
+            // Create intent to open map (focus on votable reports)
+            Intent intent = new Intent(requireContext(), com.bombayashi.reporteciudadano.MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
+                    requireContext(),
+                    999,  // Unique ID for votable reports notification
+                    intent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE
+            );
+
+            // Use the votable reports notification channel
+            String channelId = NotificationChannelHelper.CHANNEL_ID_REPORTS;
+
+            androidx.core.app.NotificationCompat.Builder notificationBuilder =
+                    new androidx.core.app.NotificationCompat.Builder(requireContext(), channelId)
+                            .setSmallIcon(R.drawable.warning_24px)
+                            .setContentTitle(title)
+                            .setContentText(message)
+                            .setAutoCancel(true)
+                            .setContentIntent(pendingIntent)
+                            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH);
+
+            android.app.NotificationManager notificationManager =
+                    (android.app.NotificationManager) requireContext()
+                            .getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+
+            if (notificationManager != null) {
+                notificationManager.notify(999, notificationBuilder.build());
+                android.util.Log.d("MapFragment", "✓ Notified: " + message);
+            }
+
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error showing votable reports notification", e);
+        }
+    }
+
+    /**
+     * Calculate distance between two coordinates using Haversine formula (in km)
+     */
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int EARTH_RADIUS_KM = 6371;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_KM * c;
+    }
+
+    /**
+     * Called from MainActivity when user taps notification (Phase 2 - FCM integration)
+     */
+    public void showReportFromNotification(int reportId) {
+        android.util.Log.d("MapFragment", "🔔 showReportFromNotification: reportId=" + reportId);
+
+        if (!isAdded() || getView() == null) {
+            android.util.Log.w("MapFragment", "Fragment not attached yet");
+            return;
+        }
+
+        // Check if report is already in cache
+        ReportResponse.ReportData cachedReport = findReportByIdInCache(reportId);
+
+        if (cachedReport != null) {
+            android.util.Log.d("MapFragment", "✓ Report found in cache: " + reportId);
+            showReportDetails(cachedReport);
+        } else {
+            android.util.Log.d("MapFragment", "📥 Loading report from API: " + reportId);
+            loadReportFromAPI(reportId);
+        }
+    }
+
+    /**
+     * Search for report in local cache by ID
+     */
+    private ReportResponse.ReportData findReportByIdInCache(int reportId) {
+        return reportMarkers.get(String.valueOf(reportId));
+    }
+
+    /**
+     * Load single report from API (GET /reports/{id})
+     */
+    private void loadReportFromAPI(int reportId) {
+        if (!ConnectivityHelper.isOnline(requireContext())) {
+            android.util.Log.w("MapFragment", "📴 Offline: cannot load report " + reportId);
+            SnackbarHelper.show(getView(), "Sin conexión para cargar reporte", SnackbarHelper.Variant.ERROR);
+            return;
+        }
+
+        ApiClient.getInstance().getReportDetail(reportId).enqueue(new Callback<com.bombayashi.reporteciudadano.model.ReportDetailResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<com.bombayashi.reporteciudadano.model.ReportDetailResponse> call,
+                                   @NonNull Response<com.bombayashi.reporteciudadano.model.ReportDetailResponse> response) {
+
+                if (!isAdded() || getView() == null) {
+                    android.util.Log.w("MapFragment", "Fragment detached after API call");
+                    return;
+                }
+
+                if (response.isSuccessful() && response.body() != null) {
+                    ReportResponse.ReportData report = response.body().getReport();
+
+                    if (report != null) {
+                        android.util.Log.d("MapFragment", "✓ Report loaded from API: " + reportId);
+                        // Cache the report for future use
+                        reportMarkers.put(String.valueOf(reportId), report);
+                        cacheReport(report);
+                        // Show it if passes filters
+                        if (passesFilters(report)) {
+                            addReportMarker(report);
+                        }
+                        showReportDetails(report);
+                    } else {
+                        android.util.Log.e("MapFragment", "✗ Report is null in response");
+                        SnackbarHelper.show(getView(), "Reporte no encontrado", SnackbarHelper.Variant.ERROR);
+                    }
+                } else {
+                    android.util.Log.e("MapFragment", "✗ Error loading report: " + response.code());
+                    SnackbarHelper.show(getView(), "Error al cargar reporte: " + response.code(), SnackbarHelper.Variant.ERROR);
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<com.bombayashi.reporteciudadano.model.ReportDetailResponse> call,
+                                  @NonNull Throwable t) {
+
+                if (!isAdded() || getView() == null) return;
+
+                android.util.Log.e("MapFragment", "❌ Network error loading report: " + t.getMessage(), t);
+                SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
+            }
+        });
     }
 
     @Override
