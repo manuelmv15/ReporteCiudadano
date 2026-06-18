@@ -1362,10 +1362,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void handleExpiredSession() {
-        TokenManager.getInstance(requireContext()).clearAuth();
+        // No borramos el token automáticamente — podría ser error temporal del servidor.
+        // El usuario cierra sesión explícitamente desde su perfil.
         updateFabVisibility();
-        if (getView() != null)
-            SnackbarHelper.show(getView(), "Sesión expirada. Iniciá sesión de nuevo.", SnackbarHelper.Variant.WARNING);
+        if (getView() != null) {
+            SnackbarHelper.show(getView(), "Sesión inválida. Iniciá sesión de nuevo.", SnackbarHelper.Variant.WARNING);
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (isAdded()) startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+            }, 1500);
+        }
     }
 
     private void showUserProfile() {
