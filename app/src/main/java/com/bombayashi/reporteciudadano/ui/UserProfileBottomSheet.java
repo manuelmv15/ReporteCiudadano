@@ -504,6 +504,37 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.swNotifications.setOnCheckedChangeListener((buttonView, isChecked) ->
                 settingsManager.setNotificationsEnabled(isChecked));
 
+        // RF-23: alert radius seekbar
+        binding.seekAlertRadius.setProgress(settingsManager.getAlertRadiusSeekIndex());
+        binding.tvAlertRadius.setText("Radio de alerta: " + settingsManager.getAlertRadiusMeters() + " m");
+        binding.seekAlertRadius.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                int meters = settingsManager.seekIndexToRadius(progress);
+                binding.tvAlertRadius.setText("Radio de alerta: " + meters + " m");
+                if (fromUser) settingsManager.setAlertRadiusMeters(meters);
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar seekBar) {}
+        });
+
+        // RF-23: alert categories
+        binding.cbCatBache.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyBache()));
+        binding.cbCatAlumbrado.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyAlumbrado()));
+        binding.cbCatBasura.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyBasura()));
+        binding.cbCatAgua.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyAgua()));
+        binding.cbCatAccidente.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyAccidente()));
+        binding.cbCatVandalo.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyVandalo()));
+        binding.cbCatOtro.setChecked(settingsManager.isAlertCategoryEnabled(settingsManager.getAlertCatKeyOtro()));
+
+        binding.cbCatBache.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyBache(), c));
+        binding.cbCatAlumbrado.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyAlumbrado(), c));
+        binding.cbCatBasura.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyBasura(), c));
+        binding.cbCatAgua.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyAgua(), c));
+        binding.cbCatAccidente.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyAccidente(), c));
+        binding.cbCatVandalo.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyVandalo(), c));
+        binding.cbCatOtro.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyOtro(), c));
+
         try {
             String versionName = requireContext().getPackageManager()
                     .getPackageInfo(requireContext().getPackageName(), 0).versionName;

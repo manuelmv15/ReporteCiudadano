@@ -4,6 +4,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -55,6 +56,12 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         // Check if user is in voting range (backend already validates, but double-check)
         if (!notificationManager.isUserInVotingRange(payload.getLatitude(), payload.getLongitude())) {
             Log.d(TAG, "📍 User not in voting range, suppressing notification");
+            return;
+        }
+
+        // RF-24: suppress if user is stationary or in vehicle
+        if (!ActivityStateManager.isUserMoving()) {
+            Log.d(TAG, "🧍 User not moving, suppressing proximity notification");
             return;
         }
 
@@ -132,9 +139,31 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                     .setAutoCancel(true)
                     .setContentIntent(pendingIntent);
 
-            // Add action intent for notification tap
             notificationBuilder.setStyle(new NotificationCompat.BigTextStyle()
                     .bigText(payload.getBody()));
+
+            // RF-22: action buttons "Sigue ahí" / "Ya se resolvió"
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+
+            Intent confirmIntent = new Intent(VoteActionReceiver.ACTION_VOTE_CONFIRM);
+            confirmIntent.setClass(this, VoteActionReceiver.class);
+            confirmIntent.putExtra(VoteActionReceiver.EXTRA_REPORT_ID, payload.getReportId());
+            confirmIntent.putExtra(VoteActionReceiver.EXTRA_LAT, payload.getLatitude());
+            confirmIntent.putExtra(VoteActionReceiver.EXTRA_LNG, payload.getLongitude());
+            PendingIntent confirmPI = PendingIntent.getBroadcast(
+                    this, payload.getReportId() * 10 + 1, confirmIntent, flags);
+
+            Intent resolveIntent = new Intent(VoteActionReceiver.ACTION_VOTE_RESOLVE);
+            resolveIntent.setClass(this, VoteActionReceiver.class);
+            resolveIntent.putExtra(VoteActionReceiver.EXTRA_REPORT_ID, payload.getReportId());
+            resolveIntent.putExtra(VoteActionReceiver.EXTRA_LAT, payload.getLatitude());
+            resolveIntent.putExtra(VoteActionReceiver.EXTRA_LNG, payload.getLongitude());
+            PendingIntent resolvePI = PendingIntent.getBroadcast(
+                    this, payload.getReportId() * 10 + 2, resolveIntent, flags);
+
+            notificationBuilder
+                    .addAction(R.drawable.warning_24px, "Sigue ahí", confirmPI)
+                    .addAction(R.drawable.warning_24px, "Ya se resolvió", resolvePI);
 
             // Show notification
             NotificationManager notificationManager =

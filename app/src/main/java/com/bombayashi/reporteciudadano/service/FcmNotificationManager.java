@@ -16,7 +16,7 @@ import com.google.gson.Gson;
 
 public class FcmNotificationManager {
     private static final String TAG = "FcmNotificationManager";
-    private static final double VOTING_RANGE_KM = 0.5;  // 500m
+    private static final double VOTING_RANGE_KM = 0.3;  // 300m per RF-21
     private static FcmNotificationManager instance;
     private final Context context;
     private final Gson gson;
@@ -152,7 +152,7 @@ public class FcmNotificationManager {
 
             // Consider it a duplicate if last notification was within 5 minutes
             long timeSinceLastNotification = System.currentTimeMillis() - recent.getReceivedAt();
-            boolean isDuplicate = timeSinceLastNotification < 5 * 60 * 1000;
+            boolean isDuplicate = timeSinceLastNotification < 2 * 60 * 60 * 1000; // RF-25: 2h cooldown
 
             if (isDuplicate) {
                 Log.d(TAG, "🔄 Duplicate notification for report " + reportId +

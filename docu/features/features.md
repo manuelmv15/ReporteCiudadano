@@ -65,11 +65,11 @@
 
 | ID | Requerimiento | Estado | Notas |
 |----|--------------|--------|-------|
-| RF-21 | Notificación push al acercarse a < 300 m de reporte activo | ❌ | FCM no integrado |
-| RF-22 | Notificación con botones "Sigue ahí" / "Ya se resolvió" | ❌ | FCM no integrado |
-| RF-23 | Usuario configura categorías de alertas y radio (100–500 m) | ❌ | No hay pantalla de configuración |
-| RF-24 | Alertas solo si usuario en movimiento (ActivityRecognition API) | ❌ | No implementado |
-| RF-25 | No más de 1 alerta del mismo reporte por usuario en 2 horas | ❌ | FCM no integrado |
+| RF-21 | Notificación push al acercarse a < 300 m de reporte activo | ✅ | FCM integrado (MyFirebaseMessagingService); VOTING_RANGE_KM=0.3 en FcmNotificationManager; backend valida distancia antes de enviar |
+| RF-22 | Notificación con botones "Sigue ahí" / "Ya se resolvió" | ✅ | addAction() en MyFirebaseMessagingService; VoteActionReceiver.java maneja broadcast → POST /reports/{id}/votes con ubicación fresca |
+| RF-23 | Usuario configura categorías de alertas y radio (100–500 m) | ✅ | SeekBar (100–500m, step 100) + 7 checkboxes de categoría en pageSettings; SettingsManager guarda KEY_ALERT_RADIUS + KEY_ALERT_CAT_* en SharedPreferences |
+| RF-24 | Alertas solo si usuario en movimiento (ActivityRecognition API) | ✅ | ActivityStateManager.java; registra ActivityTransitionRequest (STILL/WALKING/BICYCLE/RUNNING/IN_VEHICLE); isUserMoving() supprime notif si STILL o IN_VEHICLE; startTracking() en ReporteCiudadanoApp |
+| RF-25 | No más de 1 alerta del mismo reporte por usuario en 2 horas | ✅ | isDuplicateNotification() en FcmNotificationManager: cooldown 2*60*60*1000 ms (antes 5 min) |
 
 ---
 
@@ -114,8 +114,8 @@
 | Reporte ultrarrápido (1) | 6 | 6 | 0 | 0 |
 | Votos comunitarios (2) | 9 | 9 | 0 | 0 |
 | Mapa en vivo (3) | 5 | 5 | 0 | 0 |
-| Alertas de proximidad (4) | 5 | 0 | 0 | 5 |
+| Alertas de proximidad (4) | 5 | 5 | 0 | 0 |
 | Puntuación y confiabilidad (5) | 5 | 4 | 0 | 1 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
 | Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **36 (84%)** | **0 (0%)** | **7 (16%)** |
+| **TOTAL** | **43** | **41 (95%)** | **0 (0%)** | **2 (5%)** |
