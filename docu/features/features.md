@@ -1,7 +1,7 @@
 # Features — Estado vs Planteamiento v1
 
 > Actualizar cada vez que se implementa una función nueva.
-> Última revisión: 2026-06-15
+> Última revisión: 2026-06-17
 
 **Leyenda:** ✅ completo · 🔶 a medias · ❌ no iniciado
 
@@ -99,10 +99,10 @@
 
 | ID | Requerimiento | Estado | Notas |
 |----|--------------|--------|-------|
-| RF-34 | Onboarding automático en primer registro | ❌ | No implementado |
-| RF-35 | Botón "Omitir" en cualquier momento | ❌ | No implementado |
-| RF-36 | Onboarding accesible desde ajustes | ❌ | No hay pantalla de ajustes |
-| RF-37 | Estado "onboarding completado" en SharedPreferences | ❌ | No implementado |
+| RF-34 | Onboarding automático en primer registro | ✅ | RegisterActivity lanza OnboardingActivity en lugar de MainActivity; 3 páginas (ViewPager2 + RecyclerView.Adapter) |
+| RF-35 | Botón "Omitir" en cualquier momento | ✅ | btnSkip visible en páginas 1 y 2; oculto en última; ambos Omitir y Comenzar llaman finishOnboarding() → setOnboardingCompleted(true) |
+| RF-36 | Onboarding accesible desde ajustes | ✅ | btnViewTutorial en pageSettings de UserProfileBottomSheet → OnboardingActivity.start() |
+| RF-37 | Estado "onboarding completado" en SharedPreferences | ✅ | SettingsManager.KEY_ONBOARDING_COMPLETED; setOnboardingCompleted(true) al salir; isOnboardingCompleted() disponible |
 
 ---
 
@@ -110,12 +110,12 @@
 
 | Módulo | Total RF | ✅ Completos | 🔶 A medias | ❌ No iniciados |
 |--------|----------|-------------|------------|----------------|
-| Autenticación (A) | 6 | 5 | 0 | 1 |
+| Autenticación (A) | 6 | 6 | 0 | 0 |
 | Reporte ultrarrápido (1) | 6 | 6 | 0 | 0 |
 | Votos comunitarios (2) | 9 | 9 | 0 | 0 |
 | Mapa en vivo (3) | 5 | 5 | 0 | 0 |
 | Alertas de proximidad (4) | 5 | 5 | 0 | 0 |
-| Puntuación y confiabilidad (5) | 5 | 4 | 0 | 1 |
+| Puntuación y confiabilidad (5) | 5 | 5 | 0 | 0 |
 | Perfil e historial (6) | 3 | 3 | 0 | 0 |
-| Onboarding (7) | 4 | 0 | 0 | 4 |
-| **TOTAL** | **43** | **41 (95%)** | **0 (0%)** | **2 (5%)** |
+| Onboarding (7) | 4 | 4 | 0 | 0 |
+| **TOTAL** | **43** | **43 (100%)** | **0 (0%)** | **0 (0%)** |

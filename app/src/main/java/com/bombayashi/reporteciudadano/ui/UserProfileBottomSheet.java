@@ -535,6 +535,12 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.cbCatVandalo.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyVandalo(), c));
         binding.cbCatOtro.setOnCheckedChangeListener((b, c) -> settingsManager.setAlertCategoryEnabled(settingsManager.getAlertCatKeyOtro(), c));
 
+        // RF-36: acceso al onboarding desde ajustes
+        binding.btnViewTutorial.setOnClickListener(v -> {
+            dismiss();
+            com.bombayashi.reporteciudadano.OnboardingActivity.start(requireContext());
+        });
+
         try {
             String versionName = requireContext().getPackageManager()
                     .getPackageInfo(requireContext().getPackageName(), 0).versionName;

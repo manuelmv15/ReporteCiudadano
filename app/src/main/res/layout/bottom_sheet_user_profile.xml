@@ -905,6 +905,21 @@
                     android:background="?attr/colorOutlineVariant"
                     android:layout_marginVertical="8dp" />
 
+                <!-- RF-36: acceso al onboarding desde ajustes -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnViewTutorial"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="8dp"
+                    android:text="Ver tutorial de la app" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorOutlineVariant"
+                    android:layout_marginVertical="8dp" />
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
