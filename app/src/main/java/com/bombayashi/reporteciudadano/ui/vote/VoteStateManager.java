@@ -31,6 +31,8 @@ public class VoteStateManager {
     private MutableLiveData<VoteState> voteStateLiveData = new MutableLiveData<>();
     private MutableLiveData<VoteEvent> voteEventLiveData = new MutableLiveData<>();
     private MutableLiveData<ReportStatusUpdate> reportStatusUpdateLiveData = new MutableLiveData<>();
+    private final java.util.concurrent.ExecutorService offlineExecutor =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
 
     public VoteStateManager(Context context, ReportResponse.ReportData reportData, Point userLocation) {
         this.reportData = reportData;
@@ -73,12 +75,15 @@ public class VoteStateManager {
         boolean isWithinRadius = distance <= LocationUtil.VOTE_RADIUS_METERS;
         Log.d(TAG, "✓ Dentro de radio (500m): " + isWithinRadius);
 
-        // Calcular timestamp de edición
+        // Calcular timestamp de edición desde cuando el usuario votó (no desde ahora)
         long voteEditableUntil = 0;
         if (reportData.getUserVotedAt() != null) {
-            // Parse timestamp y agregar 5 minutos
-            // Por ahora asumimos que el servidor nos da el timestamp en ms
-            voteEditableUntil = System.currentTimeMillis() + VOTE_EDIT_WINDOW_MS;
+            try {
+                java.time.Instant votedAt = java.time.Instant.parse(reportData.getUserVotedAt());
+                voteEditableUntil = votedAt.toEpochMilli() + VOTE_EDIT_WINDOW_MS;
+            } catch (java.time.format.DateTimeParseException e) {
+                Log.e(TAG, "No se pudo parsear getUserVotedAt(): " + reportData.getUserVotedAt());
+            }
         }
 
         VoteState state = new VoteState.Builder()
@@ -200,7 +205,7 @@ public class VoteStateManager {
 
         com.bombayashi.reporteciudadano.db.AppDatabase db =
             com.bombayashi.reporteciudadano.db.AppDatabase.getInstance(context);
-        java.util.concurrent.Executors.newSingleThreadExecutor().execute(() ->
+        offlineExecutor.execute(() ->
             db.pendingActionDao().insert(new com.bombayashi.reporteciudadano.db.PendingActionEntity(
                 com.bombayashi.reporteciudadano.db.PendingActionEntity.TYPE_VOTE,
                 payload.toString(),
@@ -338,16 +343,25 @@ public class VoteStateManager {
                             Log.d(TAG, "  - confirm: " + updatedReport.getVotes().getConfirm());
                             Log.d(TAG, "  - resolve: " + updatedReport.getVotes().getResolve());
                             Log.d(TAG, "  - userVote: " + updatedReport.getUserVote());
+                            Log.d(TAG, "  - status: " + updatedReport.getStatus());
 
-                            long voteEditableUntil = System.currentTimeMillis() + VOTE_EDIT_WINDOW_MS;
+                            long voteEditableUntil = 0;
+                            if (updatedReport.getUserVotedAt() != null) {
+                                try {
+                                    java.time.Instant votedAt = java.time.Instant.parse(updatedReport.getUserVotedAt());
+                                    voteEditableUntil = votedAt.toEpochMilli() + VOTE_EDIT_WINDOW_MS;
+                                } catch (java.time.format.DateTimeParseException e) {
+                                    Log.e(TAG, "No se pudo parsear getUserVotedAt(): " + updatedReport.getUserVotedAt());
+                                }
+                            }
 
                             VoteState currentState = voteStateLiveData.getValue();
                             int newConfirmCount = updatedReport.getVotes().getConfirm();
                             int newResolveCount = updatedReport.getVotes().getResolve();
 
-                            // Verificar cambio de estado
-                            ReportStatusUpdate.Status newStatus = determineStatus(newConfirmCount, newResolveCount);
-                            Log.d(TAG, "📊 Estado determinado: " + newStatus);
+                            // Usar el estado del servidor directamente (aplica lógica de peso por rol Experto)
+                            ReportStatusUpdate.Status newStatus = serverStatusToEnum(updatedReport.getStatus());
+                            Log.d(TAG, "📊 Estado del servidor: " + newStatus);
 
                             VoteState newState = new VoteState.Builder()
                                 .currentUserVoteType(updatedReport.getUserVote())
@@ -387,20 +401,17 @@ public class VoteStateManager {
             });
     }
 
-    private ReportStatusUpdate.Status determineStatus(int confirmCount, int resolveCount) {
-        int totalVotes = confirmCount + resolveCount;
-
-        // Verificado: 5+ votos "Sigue ahí"
-        if (confirmCount >= 5) {
-            return ReportStatusUpdate.Status.VERIFIED;
+    private ReportStatusUpdate.Status serverStatusToEnum(String status) {
+        if (status == null) return ReportStatusUpdate.Status.PENDING;
+        switch (status) {
+            case "verified": return ReportStatusUpdate.Status.VERIFIED;
+            case "resolved": return ReportStatusUpdate.Status.RESOLVED;
+            default:         return ReportStatusUpdate.Status.PENDING;
         }
+    }
 
-        // Resuelto: 70%+ votos "Ya se resolvió" (mínimo 3 votos totales)
-        if (totalVotes >= 3 && (resolveCount / (double) totalVotes) >= 0.7) {
-            return ReportStatusUpdate.Status.RESOLVED;
-        }
-
-        return ReportStatusUpdate.Status.PENDING;
+    public void destroy() {
+        offlineExecutor.shutdown();
     }
 
     private void handleVoteError(String errorMessage) {

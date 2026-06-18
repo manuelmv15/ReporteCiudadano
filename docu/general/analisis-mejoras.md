@@ -5,17 +5,18 @@
 
 ## Bugs Críticos (corregir antes de producción)
 
-| Archivo | Línea | Problema | Fix |
-|---|---|---|---|
-| `MapFragment.java` | 103 | `POLL_INTERVAL_MS = 5_000` — comentario dice "volver a 30_000 luego". Nunca se cambió. 6x más API hits de lo planeado | Cambiar a `30_000` |
-| `MapFragment.java` | 115 | `VOTABLE_REPORTS_CHECK_INTERVAL_MS` mismo problema de intervalo de testing | Restaurar valor de producción |
-| `VoteStateManager.java` | 78–81 | Ventana de edición de voto (5min) se calcula desde `now`, no desde cuando el usuario votó — siempre reinicia la ventana | Calcular desde `getUserVotedAt()` del servidor |
-| `MapFragment.java` | 129 | `dbExecutor` nunca se cierra en `onDestroyView()` — thread leak | Llamar `dbExecutor.shutdown()` en `onDestroyView()` |
-| `MapFragment.java` | 394 | `LocationRequest.create()` deprecated — advertencias en Android nuevo | Migrar a `LocationRequest.Builder` |
-| `bitmapCache` | — | Sin eviction LRU — crece indefinidamente en sesiones largas | Reemplazar `HashMap` por `LruCache` |
-| `VoteStateManager.java` | 390–403 | `determineStatus()` duplica lógica server-side (5 votos verified, 70% resolved). Diverge para usuarios Experto (RF-30 usa 3 votos) | Obtener estado siempre del servidor |
-| `VoteStateManager.java` | 203 | Crea nuevo executor en cada voto offline, nunca lo cierra | Reutilizar executor de instancia |
-| `MapFragment.java` | 87–93 | `reportStatusCircles` declarado pero nunca populado ni usado — campo muerto | Eliminar el campo |
+| Archivo                 | Línea   | Problema                                                                                                                           | Fix                                                 |
+| ----------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `MapFragment.java`      | 103     | `POLL_INTERVAL_MS = 5_000` — comentario dice "volver a 30_000 luego". Nunca se cambió. 6x más API hits de lo planeado              | Cambiar a `30_000`                                  |
+| `MapFragment.java`      | 115     | `VOTABLE_REPORTS_CHECK_INTERVAL_MS` mismo problema de intervalo de testing                                                         | Restaurar valor de producción                       |
+| `VoteStateManager.java` | 78–81   | Ventana de edición de voto (5min) se calcula desde `now`, no desde cuando el usuario votó — siempre reinicia la ventana            | Calcular desde `getUserVotedAt()` del servidor      |
+| `MapFragment.java`      | 129     | `dbExecutor` nunca se cierra en `onDestroyView()` — thread leak                                                                    | Llamar `dbExecutor.shutdown()` en `onDestroyView()` |
+| `MapFragment.java`      | 394     | `LocationRequest.create()` deprecated — advertencias en Android nuevo                                                              | Migrar a `LocationRequest.Builder`                  |
+| `bitmapCache`           | —       | Sin eviction LRU — crece indefinidamente en sesiones largas                                                                        | Reemplazar `HashMap` por `LruCache`                 |
+| `VoteStateManager.java` | 390–403 | `determineStatus()` duplica lógica server-side (5 votos verified, 70% resolved). Diverge para usuarios Experto (RF-30 usa 3 votos) | Obtener estado siempre del servidor                 |
+| `VoteStateManager.java` | 203     | Crea nuevo executor en cada voto offline, nunca lo cierra                                                                          | Reutilizar executor de instancia                    |
+| `MapFragment.java`      | 87–93   | `reportStatusCircles` declarado pero nunca populado ni usado — campo muerto                                                        | Eliminar el campo                                   |
+|                         |         |                                                                                                                                    |                                                     |
 
 ---
 

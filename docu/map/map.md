@@ -321,3 +321,42 @@ MapFragment ahora extrae `response.getReport()` correctamente.
 ### TODOs / Próximos pasos
 - [ ] Probar en dispositivo real caminando, verificar marcador sigue ubicación sin saltos de cámara
 - [ ] Evaluar consumo de batería con tracking 1s continuo en sesiones largas
+
+---
+
+## [2026-06-18] Viewport-based loading + zoom gating
+
+### Archivos tocados
+- `ui/MapFragment.java` — reemplazado carga masiva por fetch por bounding box con zoom mínimo
+- `network/ApiService.java` — agregado `getReportsByBounds()` con 4 params de bounding box
+
+### Qué cambió
+
+**Antes:** al abrir el mapa se pedían 25 reportes sin filtro geográfico, hasta un máx de 200 en caché.
+
+**Ahora:**
+- La cámara tiene un listener con debounce de **600ms** (`cameraIdleHandler`). Tras dejar de mover, dispara `onViewportChanged()`.
+- Si `zoom < 13.0` (~2km viewport): limpia todos los marcadores del mapa y muestra "Acercate para ver reportes". No hace request.
+- Si `zoom >= 13.0`: llama `GET /reports?lat_min=X&lat_max=X&lng_min=X&lng_max=X&per_page=50`.
+- Tras recibir respuesta: elimina del mapa y del `reportMarkers` HashMap los reportes que ya no están dentro del nuevo bounding box (`removeMarkersOutsideBounds`).
+- Agrega los nuevos que no estaban en caché local.
+
+### Constantes agregadas
+
+| Constante               | Valor   | Descripción                                   |
+|-------------------------|---------|-----------------------------------------------|
+| `MIN_ZOOM_TO_LOAD`      | 13.0    | Zoom mínimo para fetchear (≈2km de ancho)     |
+| `VIEWPORT_PAGE_SIZE`    | 50      | Reportes por request de viewport              |
+| `CAMERA_IDLE_DEBOUNCE_MS` | 600  | ms de espera tras movimiento de cámara        |
+
+### Métodos nuevos
+
+| Método                       | Descripción                                                   |
+|------------------------------|---------------------------------------------------------------|
+| `onViewportChanged()`        | Lógica principal: check zoom → fetch bounds                  |
+| `removeMarkersOutsideBounds()` | Elimina visuals + datos de markers fuera del viewport      |
+| `clearAllMarkerVisuals()`    | Limpia todo el mapa (sin conexión o zoom bajo)               |
+
+### TODOs / Próximos pasos
+- [ ] Agregar índice `(latitude, longitude)` en BD para queries de bounds a escala
+- [ ] Evaluar si `per_page=50` es suficiente para zonas densas (ej: centro ciudad)

@@ -31,3 +31,25 @@ Se implementó un sistema seguro para gestionar el token de Mapbox sin exponerlo
 - `network/ApiService.java` — agregados `forgotPassword(@Body ForgotPasswordRequest)` y `resetPassword(@Body ResetPasswordRequest)`
 - `model/ForgotPasswordRequest.java` — nuevo modelo `{ email }`
 - `model/ResetPasswordRequest.java` — nuevo modelo `{ email, token, password, password_confirmation }`
+
+
+---
+
+## [2026-06-18] ApiService — getReportsByBounds()
+
+### Archivos tocados
+- `network/ApiService.java` — nuevo método `getReportsByBounds()` con 4 query params de bounding box
+
+### Firma
+```java
+@GET("reports")
+Call<ReportResponse> getReportsByBounds(
+    @Query("lat_min") double latMin,
+    @Query("lat_max") double latMax,
+    @Query("lng_min") double lngMin,
+    @Query("lng_max") double lngMax,
+    @Query("per_page") int perPage
+);
+```
+
+Misma URL que `getReports()`, pero con filtro geográfico. La API retorna solo reportes dentro del bounding box.

@@ -57,6 +57,15 @@ public interface ApiService {
             @Query("per_page") int perPage
     );
 
+    @GET("reports")
+    Call<ReportResponse> getReportsByBounds(
+            @Query("lat_min") double latMin,
+            @Query("lat_max") double latMax,
+            @Query("lng_min") double lngMin,
+            @Query("lng_max") double lngMax,
+            @Query("per_page") int perPage
+    );
+
     @GET("reports/stream/changes")
     Call<ReportStreamResponse> getReportsStreamChanges(
             @Query("since") String since,

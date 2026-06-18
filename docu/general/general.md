@@ -1,3 +1,15 @@
+## [2026-06-18] Corrección de bugs críticos — polling, leaks, estado de voto
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — POLL_INTERVAL_MS y VOTABLE_REPORTS_CHECK_INTERVAL_MS restaurados a 30_000 (estaban en 5_000 por testing); eliminado campo muerto `reportStatusCircles`; `bitmapCache` reemplazado de `HashMap` a `LruCache<>(100)` para evitar crecimiento ilimitado; `bitmapFromDrawable` ajustado para usar `get()` en lugar de `containsKey()` (LruCache no tiene containsKey); `dbExecutor.shutdown()` agregado en `onDestroyView()` para cerrar thread al destruirse el Fragment; `LocationRequest.create()` (deprecated) migrado a `LocationRequest.Builder`
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/vote/VoteStateManager.java` — `voteEditableUntil` ahora se calcula desde `getUserVotedAt()` del servidor (antes usaba `System.currentTimeMillis()` reiniciando la ventana cada vez); `determineStatus()` eliminado y reemplazado por `serverStatusToEnum()` que mapea el status string del servidor al enum local (evita divergencia con lógica de usuarios Experto); `offlineExecutor` declarado como campo de instancia y reutilizado en `queueOfflineVote()` (antes creaba un executor nuevo por cada voto offline); `destroy()` agregado para cerrar el executor
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/ReportDetailBottomSheet.java` — `onDestroyView()` llama `voteStateManager.destroy()` para cerrar el executor offline al cerrar el sheet
+
+### TODOs / Próximos pasos
+- [ ] Mostrar Snackbar/badge cuando `reportMarkers.size() >= MAX_REPORTS` (usuario no sabe que el mapa está truncado a 200 reportes)
+- [ ] Verificar que el servidor devuelve `user_voted_at` en formato ISO-8601 con sufijo Z para que `Instant.parse()` funcione correctamente
+- [ ] Revisar `ReportSyncWorker.java:62` — `catch (Exception e)` genérico puede causar retry infinito en errores de parseo JSON
+
 ## [2026-06-07] Cambio de URL base de la API a producción
 
 ### Archivos tocados

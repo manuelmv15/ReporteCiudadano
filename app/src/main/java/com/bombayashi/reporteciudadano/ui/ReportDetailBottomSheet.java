@@ -668,6 +668,9 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (voteStateManager != null) {
+            voteStateManager.destroy();
+        }
         binding = null;
     }
 }

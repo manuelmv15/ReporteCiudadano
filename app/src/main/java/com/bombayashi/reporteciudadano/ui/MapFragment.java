@@ -84,13 +84,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
     private static final int INITIAL_REPORTS_PAGE_SIZE = 25;  // Pagination: cargar 25 iniciales
     private static final int MAX_REPORTS = 200;  // Máximo de reportes en caché local
+    private static final double MIN_ZOOM_TO_LOAD = 13.0;  // Zoom mínimo para fetchear (~2km viewport)
+    private static final int VIEWPORT_PAGE_SIZE = 50;  // Reportes por fetch de viewport
+    private static final long CAMERA_IDLE_DEBOUNCE_MS = 600;  // ms espera tras mover cámara
     private java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
     private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
     private java.util.HashMap<Integer, PointAnnotation> reportIconMarkers = new java.util.HashMap<>();  // ReportID → PointAnnotation
     private java.util.HashMap<Integer, CircleAnnotation> reportStrokeMarkers = new java.util.HashMap<>();  // ReportID → CircleAnnotation (stroke)
-    private java.util.HashMap<Integer, CircleAnnotation> reportStatusCircles = new java.util.HashMap<>();  // ReportID → CircleAnnotation (status)
     private java.util.HashMap<String, Integer> coordOccupancy = new java.util.HashMap<>();  // "lat,lng" → count, para offset de duplicados
-    private java.util.HashMap<String, Bitmap> bitmapCache = new java.util.HashMap<>(); // Cache de iconos
+    private android.util.LruCache<String, Bitmap> bitmapCache = new android.util.LruCache<>(100);
     private double lastZoomLevel = -1; // Para optimizar escala
     private int currentReportsPage = 1;  // Para pagination
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
@@ -100,7 +102,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private String filterStatus = "all";  // all | pending | verified | resolved
     private String filterAge = "all";     // all | 1h | 6h | 24h
 
-    private static final long POLL_INTERVAL_MS = 5_000;  // Polling de cambios cada 5s (TESTING — volver a 30_000 luego)
+    private final android.os.Handler cameraIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable cameraIdleRunnable;
+
+    private static final long POLL_INTERVAL_MS = 30_000;  // Polling de cambios cada 30s
     private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pollRunnable = new Runnable() {
         @Override
@@ -112,7 +117,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private String lastSyncTimestamp;  // ISO8601 UTC del último sync exitoso
 
     // Notificación de reportes votables cercanos
-    private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 5_000;  // Cada 5s (TESTING — volver a 30_000 luego)
+    private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 30_000;  // Cada 30s
     private static final double VOTABLE_RANGE_KM = 0.5;  // 500m
     private final android.os.Handler votableReportsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable votableReportsRunnable = new Runnable() {
@@ -191,14 +196,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             if (circleAnnotationManager != null && pointAnnotationManager != null) {
                 android.util.Log.d("MapFragment", "✓ CircleAnnotationManager y PointAnnotationManager inicializados");
 
-                // Listener de cámara optimizado (Throttled)
                 mapboxMap.subscribeCameraChanged(event -> {
                     double currentZoom = mapboxMap.getCameraState().getZoom();
-                    // Solo actualizar si el zoom cambió significativamente (> 0.1)
                     if (Math.abs(currentZoom - lastZoomLevel) > 0.1) {
                         lastZoomLevel = currentZoom;
                         updateMarkersScale(currentZoom);
                     }
+                    // Debounce: esperar que el usuario pare de mover antes de fetchear
+                    if (cameraIdleRunnable != null) cameraIdleHandler.removeCallbacks(cameraIdleRunnable);
+                    cameraIdleRunnable = this::onViewportChanged;
+                    cameraIdleHandler.postDelayed(cameraIdleRunnable, CAMERA_IDLE_DEBOUNCE_MS);
                 });
 
                 pointAnnotationManager.addClickListener(annotation -> {
@@ -392,10 +399,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
 
         com.google.android.gms.location.LocationRequest locationRequest =
-                com.google.android.gms.location.LocationRequest.create()
-                        .setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY)
-                        .setInterval(1000)
-                        .setFastestInterval(1000);
+                new com.google.android.gms.location.LocationRequest.Builder(
+                        com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 1000)
+                        .setMinUpdateIntervalMillis(1000)
+                        .build();
 
         continuousLocationCallback = new com.google.android.gms.location.LocationCallback() {
             @Override
@@ -454,70 +461,87 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         userLocationMarker = circleAnnotationManager.create(options);
     }
 
+    /** Llamado al inicio (carga inicial) y desde onViewportChanged. */
     private void loadReportsFromAPI() {
-        if (isLoadingReports) {
-            android.util.Log.w("MapFragment", "⏳ Ya está cargando reportes, ignorando solicitud duplicada");
+        if (mapboxMap == null) return;
+        onViewportChanged();
+    }
+
+    /**
+     * Triggered ~600ms after camera stops moving.
+     * If zoom < MIN_ZOOM_TO_LOAD: clear markers and show hint.
+     * Otherwise: fetch reports within current bounding box.
+     */
+    private void onViewportChanged() {
+        if (!isAdded() || getView() == null || mapboxMap == null) return;
+
+        double zoom = mapboxMap.getCameraState().getZoom();
+
+        if (zoom < MIN_ZOOM_TO_LOAD) {
+            clearAllMarkerVisuals();
+            android.util.Log.d("MapFragment", "🔍 Zoom " + String.format(Locale.US, "%.1f", zoom) + " < " + MIN_ZOOM_TO_LOAD + ", no cargando reportes");
+            SnackbarHelper.show(getView(), "Acercate para ver reportes", SnackbarHelper.Variant.INFO);
             return;
         }
 
+        if (isLoadingReports) return;
+
         if (!ConnectivityHelper.isOnline(requireContext())) {
-            android.util.Log.w("MapFragment", "📴 Sin conexión: cargando reportes desde caché local");
             loadReportsFromCache();
             return;
         }
 
-        android.util.Log.d("MapFragment", "📥 Cargando reportes (página " + currentReportsPage + ")...");
+        com.mapbox.maps.CameraState cs = mapboxMap.getCameraState();
+        CameraOptions cameraOptions = new CameraOptions.Builder()
+                .center(cs.getCenter())
+                .zoom(cs.getZoom())
+                .bearing(cs.getBearing())
+                .pitch(cs.getPitch())
+                .padding(cs.getPadding())
+                .build();
+        com.mapbox.maps.CoordinateBounds bounds = mapboxMap.coordinateBoundsForCamera(cameraOptions);
+        double latMin = bounds.getSouthwest().latitude();
+        double latMax = bounds.getNortheast().latitude();
+        double lngMin = bounds.getSouthwest().longitude();
+        double lngMax = bounds.getNortheast().longitude();
+
+        android.util.Log.d("MapFragment", String.format(Locale.US,
+                "📥 Fetch viewport [%.4f,%.4f / %.4f,%.4f] zoom=%.1f",
+                latMin, latMax, lngMin, lngMax, zoom));
+
         isLoadingReports = true;
         if (lastSyncTimestamp == null) {
             lastSyncTimestamp = currentTimestampIso();
         }
 
-        // Cargar con pagination: 25 reportes por página
-        ApiClient.getInstance().getReports("", INITIAL_REPORTS_PAGE_SIZE).enqueue(new Callback<ReportResponse>() {
+        ApiClient.getInstance().getReportsByBounds(latMin, latMax, lngMin, lngMax, VIEWPORT_PAGE_SIZE)
+                .enqueue(new Callback<ReportResponse>() {
             @Override
             public void onResponse(@NonNull Call<ReportResponse> call, @NonNull Response<ReportResponse> response) {
                 isLoadingReports = false;
-
-                if (!isAdded() || getView() == null) {
-                    android.util.Log.w("MapFragment", "Fragment no está adjunto o view es null");
-                    return;
-                }
+                if (!isAdded() || getView() == null) return;
 
                 if (response.isSuccessful() && response.body() != null) {
-                    ReportResponse reportResponse = response.body();
-                    java.util.List<ReportResponse.ReportData> reports = reportResponse.getData();
+                    java.util.List<ReportResponse.ReportData> reports = response.body().getData();
+                    android.util.Log.d("MapFragment", "✓ Viewport reports: " + (reports != null ? reports.size() : 0));
 
-                    android.util.Log.d("MapFragment", "✓ Reportes recibidos: " +
-                            (reports != null ? reports.size() : "0"));
+                    // Remove visuals for markers outside current bounds
+                    removeMarkersOutsideBounds(latMin, latMax, lngMin, lngMax);
 
-                    if (reports != null && !reports.isEmpty()) {
-                        // Limitar caché local a MAX_REPORTS
-                        if (reportMarkers.size() >= MAX_REPORTS) {
-                            android.util.Log.w("MapFragment", "⚠️ Caché de reportes alcanzó máximo (" + MAX_REPORTS + "), ignorando más");
-                            return;
-                        }
-
-                        int fetchedCount = 0;
-                        int visibleCount = 0;
+                    if (reports != null) {
+                        int added = 0;
                         for (ReportResponse.ReportData report : reports) {
-                            if (reportMarkers.size() < MAX_REPORTS) {
-                                boolean wasVisible = passesFilters(report);
+                            String key = String.valueOf(report.getId());
+                            boolean isNew = !reportMarkers.containsKey(key);
+                            if (reportMarkers.size() < MAX_REPORTS || !isNew) {
                                 addReportMarker(report);
                                 cacheReport(report);
-                                fetchedCount++;
-                                if (wasVisible) visibleCount++;
+                                if (isNew) added++;
                             }
                         }
-
-                        android.util.Log.d("MapFragment", "📍 Recibidos " + fetchedCount + ", visibles en mapa " + visibleCount);
-                        currentReportsPage++;
-
-                        if (visibleCount > 0) {
-                            SnackbarHelper.show(getView(), "Cargados " + visibleCount + " reportes",
-                                    SnackbarHelper.Variant.INFO);
+                        if (added > 0) {
+                            android.util.Log.d("MapFragment", "📍 " + added + " nuevos marcadores en viewport");
                         }
-                    } else {
-                        android.util.Log.w("MapFragment", "⚠️ Lista de reportes vacía");
                     }
                 } else {
                     android.util.Log.e("MapFragment", "✗ Error HTTP: " + response.code());
@@ -528,13 +552,39 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             @Override
             public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
                 isLoadingReports = false;
-
                 if (!isAdded() || getView() == null) return;
-
                 android.util.Log.e("MapFragment", "❌ Error de red: " + t.getMessage(), t);
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
             }
         });
+    }
+
+    /** Elimina visuals de marcadores que ya no están en el bounding box visible. */
+    private void removeMarkersOutsideBounds(double latMin, double latMax, double lngMin, double lngMax) {
+        java.util.List<Integer> toRemove = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<String, ReportResponse.ReportData> entry : reportMarkers.entrySet()) {
+            ReportResponse.ReportData r = entry.getValue();
+            if (r.getLatitude() < latMin || r.getLatitude() > latMax ||
+                r.getLongitude() < lngMin || r.getLongitude() > lngMax) {
+                toRemove.add(r.getId());
+            }
+        }
+        for (int id : toRemove) {
+            removeMarkerVisuals(id);
+            reportMarkers.remove(String.valueOf(id));
+        }
+        if (!toRemove.isEmpty()) {
+            android.util.Log.d("MapFragment", "🗑 Removidos " + toRemove.size() + " marcadores fuera de viewport");
+        }
+    }
+
+    /** Limpia todos los marcadores del mapa (sin borrar caché). */
+    private void clearAllMarkerVisuals() {
+        for (int id : new java.util.ArrayList<>(reportIconMarkers.keySet())) {
+            removeMarkerVisuals(id);
+        }
+        reportMarkers.clear();
+        coordOccupancy.clear();
     }
 
     /** RF-05: dispara sync apenas vuelve la conexión, sin esperar el periodic de 15min. */
@@ -908,8 +958,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private Bitmap bitmapFromDrawable(int drawableId, String categoryColorHex, String status, boolean isMine) {
         String cacheKey = drawableId + "_" + categoryColorHex + "_" + status + "_" + isMine;
-        if (bitmapCache.containsKey(cacheKey)) {
-            return bitmapCache.get(cacheKey);
+        Bitmap cached = bitmapCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
         }
 
         try {
@@ -1579,6 +1630,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (cameraIdleRunnable != null) cameraIdleHandler.removeCallbacks(cameraIdleRunnable);
+        dbExecutor.shutdown();
         if (mapView != null) {
             mapView.onDestroy();
         }
