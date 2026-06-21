@@ -165,6 +165,22 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             mapboxMap = mapView.getMapboxMap();
             android.util.Log.d("MapFragment", "1. Estilo cargado");
 
+            // Topografía 3D
+            com.mapbox.maps.extension.style.sources.generated.RasterDemSource demSource =
+                    new com.mapbox.maps.extension.style.sources.generated.RasterDemSource.Builder("mapbox-dem")
+                            .url("mapbox://mapbox.mapbox-terrain-dem-v1")
+                            .tileSize(512)
+                            .maxzoom(14L)
+                            .build();
+            com.mapbox.maps.extension.style.sources.SourceUtils.addSource(style, demSource);
+            com.mapbox.maps.extension.style.terrain.generated.Terrain terrain =
+                    new com.mapbox.maps.extension.style.terrain.generated.Terrain("mapbox-dem")
+                            .exaggeration(1.5);
+            com.mapbox.maps.extension.style.terrain.generated.TerrainUtils.setTerrain(style, terrain);
+
+            // Luz dinámica según hora del día
+            applyDynamicLighting();
+
             android.util.Log.d("MapFragment", "2. Inicializando components...");
             setupAnnotationManager();
             setupMapListeners();
@@ -1631,6 +1647,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
             }
         });
+    }
+
+    private void applyDynamicLighting() {
+        if (mapboxMap == null) return;
+        String preset = "dusk"; // TODO: restaurar lógica dinámica por hora
+        mapboxMap.setStyleImportConfigProperty("basemap", "lightPreset",
+                com.mapbox.bindgen.Value.valueOf(preset));
     }
 
     @Override
