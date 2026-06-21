@@ -1397,6 +1397,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             CameraOptions camera = new CameraOptions.Builder()
                     .center(point)
                     .zoom(DEFAULT_ZOOM)
+                    .pitch(45.0)
                     .build();
             CameraAnimationsUtils.easeTo(mapboxMap, camera, null);
         }
