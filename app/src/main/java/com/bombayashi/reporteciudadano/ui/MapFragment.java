@@ -161,7 +161,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         mapView = binding.mapView;
         viewAnnotationManager = mapView.getViewAnnotationManager();
 
-        mapView.getMapboxMap().loadStyleUri(Style.MAPBOX_STREETS, style -> {
+        mapView.getMapboxMap().loadStyleUri(Style.STANDARD, style -> {
             mapboxMap = mapView.getMapboxMap();
             android.util.Log.d("MapFragment", "1. Estilo cargado");
 
