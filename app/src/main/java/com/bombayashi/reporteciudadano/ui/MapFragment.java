@@ -1651,7 +1651,17 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void applyDynamicLighting() {
         if (mapboxMap == null) return;
-        String preset = "dusk"; // TODO: restaurar lógica dinámica por hora
+        int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        String preset;
+        if (hour >= 6 && hour < 12) {
+            preset = "dawn";
+        } else if (hour >= 12 && hour < 18) {
+            preset = "day";
+        } else if (hour >= 18 && hour < 21) {
+            preset = "dusk";
+        } else {
+            preset = "night";
+        }
         mapboxMap.setStyleImportConfigProperty("basemap", "lightPreset",
                 com.mapbox.bindgen.Value.valueOf(preset));
     }
