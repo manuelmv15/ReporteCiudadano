@@ -73,37 +73,34 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private Point userLocation;
     private com.mapbox.maps.viewannotation.ViewAnnotationManager viewAnnotationManager;
 
+    private MapViewModel vm;
+    private ReportRepository repo;
     private MarkerRenderer markerRenderer;
     private LocationTracker locationTracker;
-    private ReportPoller reportPoller;
     private NearbyReportChecker nearbyChecker;
+
+    // Convenience accessors — delegate to ViewModel
+    private java.util.Map<String, ReportResponse.ReportData> reportMarkers() { return vm.getReportMarkers(); }
 
     private static final double DEFAULT_LATITUDE = -34.6037;
     private static final double DEFAULT_LONGITUDE = -58.3816;
     private static final double DEFAULT_ZOOM = 15.0;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
-    private static final int INITIAL_REPORTS_PAGE_SIZE = 25;  // Pagination: cargar 25 iniciales
-    private static final int MAX_REPORTS = 200;  // Máximo de reportes en caché local
-    private static final double MIN_ZOOM_TO_LOAD = 13.0;  // Zoom mínimo para fetchear (~2km viewport)
-    private static final int VIEWPORT_PAGE_SIZE = 50;  // Reportes por fetch de viewport
-    private static final long CAMERA_IDLE_DEBOUNCE_MS = 600;  // ms espera tras mover cámara
-    private final java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
-    private int currentReportsPage = 1;
-    private boolean isLoadingReports = false;
+    private static final int INITIAL_REPORTS_PAGE_SIZE = 25;
+    private static final int MAX_REPORTS = 200;
+    private static final double MIN_ZOOM_TO_LOAD = 13.0;
+    private static final int VIEWPORT_PAGE_SIZE = 50;
+    private static final long CAMERA_IDLE_DEBOUNCE_MS = 600;
 
-    // RF-19: filtros de mapa (categoría / estado / antigüedad)
+    // RF-19
     private static final String HEATMAP_SOURCE_ID = "reports-heatmap-source";
     private static final String HEATMAP_LAYER_ID = "reports-heatmap-layer";
-    private boolean heatmapEnabled = false;
 
     private static final String PREFS_FILTERS = "map_filters";
     private static final String PREF_FILTER_STATUS = "filter_status";
     private static final String PREF_FILTER_AGE = "filter_age";
     private static final String PREF_FILTER_CATEGORIES = "filter_categories";
     private static final String PREF_HEATMAP = "heatmap_enabled";
-    private final java.util.Set<String> filterCategories = new java.util.HashSet<>();  // vacío = todas
-    private String filterStatus = "all";  // all | pending | verified | resolved
-    private String filterAge = "all";     // all | 1h | 6h | 24h
 
     private final android.os.Handler cameraIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable cameraIdleRunnable;
@@ -115,7 +112,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         public void run() {
             if (nearbyChecker != null && userLocation != null) {
                 int uid = TokenManager.getInstance(requireContext()).getUserId();
-                nearbyChecker.check(reportMarkers.values(), userLocation, uid);
+                nearbyChecker.check(reportMarkers().values(), userLocation, uid);
             }
             votableReportsHandler.postDelayed(this, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
         }
@@ -142,9 +139,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         super.onViewCreated(view, savedInstanceState);
         android.util.Log.d("MapFragment", "=== onViewCreated ===");
 
+        vm = new androidx.lifecycle.ViewModelProvider(this).get(MapViewModel.class);
+        repo = new ReportRepository();
         appDatabase = AppDatabase.getInstance(requireContext());
 
-        markerRenderer = new MarkerRenderer(requireContext(), reportMarkers, this::passesFilters, this::showReportDetails);
+        vm.initPoller();
+
+        markerRenderer = new MarkerRenderer(requireContext(), vm.getReportMarkers(), this::passesFilters, this::showReportDetails);
         locationTracker = new LocationTracker(new LocationTracker.Callback() {
             @Override public void onLocationReady(Point location, float accuracy) {
                 if (!isAdded() || getView() == null) return;
@@ -164,11 +165,21 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         });
         locationTracker.init(this);
 
-        reportPoller = new ReportPoller(new ReportPoller.Callback() {
-            @Override public void onReportUpdated(ReportResponse.ReportData report) { applyReportUpdate(report); }
-            @Override public boolean isActive() { return isAdded() && getView() != null; }
-        });
         nearbyChecker = new NearbyReportChecker(requireContext());
+
+        // Observe report updates from ViewModel (poller runs during rotation)
+        vm.reportUpdated.observe(getViewLifecycleOwner(), report -> {
+            if (report == null || markerRenderer == null) return;
+            int uid = TokenManager.getInstance(requireContext()).getUserId();
+            String key = String.valueOf(report.getId());
+            ReportResponse.ReportData cached = vm.getReportMarkers().get(key);
+            if (cached == null || cached == report) {
+                markerRenderer.addReport(report, uid);
+            } else {
+                markerRenderer.updateReport(report.getId(), report.getStatus(),
+                        report.getVotesConfirm(), report.getVotesResolve(), uid);
+            }
+        });
 
         if (ConnectivityHelper.isOnline(requireContext())) SyncManager.syncNow(requireContext());
         registerConnectivityCallback();
@@ -213,9 +224,22 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
             if (binding != null) binding.pbMapLoading.setVisibility(View.GONE);
 
-            android.util.Log.d("MapFragment", "3. Cargando reportes iniciales...");
-            loadReportsFromAPI();
+            android.util.Log.d("MapFragment", "3. Cargando reportes...");
+            if (!vm.getReportMarkers().isEmpty()) {
+                // Data survived rotation — re-draw from ViewModel, no API call needed
+                repopulateMarkersFromViewModel();
+            } else {
+                loadReportsFromAPI();
+            }
         });
+    }
+
+    private void repopulateMarkersFromViewModel() {
+        int uid = TokenManager.getInstance(requireContext()).getUserId();
+        for (ReportResponse.ReportData report : vm.getReportMarkers().values()) {
+            markerRenderer.addReport(report, uid);
+        }
+        android.util.Log.d("MapFragment", "♻️ " + vm.getReportMarkers().size() + " marcadores re-dibujados tras rotación");
     }
 
     private void setupAnnotationManager() {
@@ -269,13 +293,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         double zoom = mapboxMap.getCameraState().getZoom();
 
         if (zoom < MIN_ZOOM_TO_LOAD) {
-            if (markerRenderer != null) { markerRenderer.clearAll(); reportMarkers.clear(); }
+            if (markerRenderer != null) { markerRenderer.clearAll(); reportMarkers().clear(); }
             android.util.Log.d("MapFragment", "🔍 Zoom " + String.format(Locale.US, "%.1f", zoom) + " < " + MIN_ZOOM_TO_LOAD + ", no cargando reportes");
             SnackbarHelper.show(getView(), "Acercate para ver reportes", SnackbarHelper.Variant.INFO);
             return;
         }
 
-        if (isLoadingReports) return;
+        if (vm.isLoadingReports) return;
 
         if (!ConnectivityHelper.isOnline(requireContext())) {
             loadReportsFromCache();
@@ -300,14 +324,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 "📥 Fetch viewport [%.4f,%.4f / %.4f,%.4f] zoom=%.1f",
                 latMin, latMax, lngMin, lngMax, zoom));
 
-        isLoadingReports = true;
-        if (reportPoller.getTimestamp() == null) reportPoller.setTimestamp(ReportPoller.nowIso());
+        vm.isLoadingReports = true;
+        if (vm.getPoller().getTimestamp() == null) vm.getPoller().setTimestamp(ReportPoller.nowIso());
 
         ApiClient.getInstance().getReportsByBounds(latMin, latMax, lngMin, lngMax, VIEWPORT_PAGE_SIZE)
                 .enqueue(new Callback<ReportResponse>() {
             @Override
             public void onResponse(@NonNull Call<ReportResponse> call, @NonNull Response<ReportResponse> response) {
-                isLoadingReports = false;
+                vm.isLoadingReports = false;
                 if (!isAdded() || getView() == null) return;
 
                 if (response.isSuccessful() && response.body() != null) {
@@ -322,8 +346,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         int uid = TokenManager.getInstance(requireContext()).getUserId();
                         for (ReportResponse.ReportData report : reports) {
                             String key = String.valueOf(report.getId());
-                            boolean isNew = !reportMarkers.containsKey(key);
-                            if (reportMarkers.size() < MAX_REPORTS || !isNew) {
+                            boolean isNew = !reportMarkers().containsKey(key);
+                            if (reportMarkers().size() < MAX_REPORTS || !isNew) {
                                 if (markerRenderer != null) markerRenderer.addReport(report, uid);
                                 cacheReport(report);
                                 if (isNew) added++;
@@ -346,7 +370,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
             @Override
             public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
-                isLoadingReports = false;
+                vm.isLoadingReports = false;
                 if (!isAdded() || getView() == null) return;
                 android.util.Log.e("MapFragment", "❌ Error de red: " + t.getMessage(), t);
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
@@ -428,7 +452,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 if (!isAdded() || getView() == null) return;
                 int addedCount = 0;
                 for (ReportCacheEntity entity : cached) {
-                    if (reportMarkers.size() >= MAX_REPORTS) break;
+                    if (reportMarkers().size() >= MAX_REPORTS) break;
                     try {
                         ReportResponse.ReportData report = gson.fromJson(entity.json, ReportResponse.ReportData.class);
                         addReportMarker(report);
@@ -447,23 +471,23 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void pollForUpdates() {
-        if (reportPoller != null) reportPoller.pollNow();
+        if (vm.getPoller() != null) vm.getPoller().pollNow();
     }
 
     private void applyReportUpdate(ReportResponse.ReportData report) {
         String reportKey = String.valueOf(report.getId());
-        ReportResponse.ReportData cached = reportMarkers.get(reportKey);
+        ReportResponse.ReportData cached = reportMarkers().get(reportKey);
         int uid = TokenManager.getInstance(requireContext()).getUserId();
 
         if (cached == null) {
-            if (reportMarkers.size() < MAX_REPORTS && markerRenderer != null) {
+            if (reportMarkers().size() < MAX_REPORTS && markerRenderer != null) {
                 markerRenderer.addReport(report, uid);
             }
             return;
         }
 
         boolean statusChanged = !cached.getStatus().equals(report.getStatus());
-        reportMarkers.put(reportKey, report);
+        reportMarkers().put(reportKey, report);
 
         if (statusChanged && markerRenderer != null) {
             markerRenderer.updateReport(report.getId(), report.getStatus(),
@@ -480,16 +504,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         String status = report.getStatus();
         if ("archived".equalsIgnoreCase(status)) return false;
 
-        if (!filterStatus.equals("all") && !filterStatus.equalsIgnoreCase(status)) return false;
+        if (!vm.filterStatus.equals("all") && !vm.filterStatus.equalsIgnoreCase(status)) return false;
 
-        if (!filterCategories.isEmpty()) {
+        if (!vm.filterCategories.isEmpty()) {
             String slug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
-            if (!filterCategories.contains(normalizeCategoryGroup(slug))) return false;
+            if (!vm.filterCategories.contains(normalizeCategoryGroup(slug))) return false;
         }
 
-        if (!filterAge.equals("all")) {
+        if (!vm.filterAge.equals("all")) {
             long ageHours = reportAgeHours(report.getCreatedAt());
-            int maxHours = switch (filterAge) {
+            int maxHours = switch (vm.filterAge) {
                 case "1h" -> 1;
                 case "6h" -> 6;
                 case "24h" -> 24;
@@ -521,11 +545,11 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     /** RF-19: re-evalúa filtros sobre los reportes ya conocidos, sin re-fetch. */
     private void toggleHeatmap(boolean enable) {
         if (mapboxMap == null) return;
-        heatmapEnabled = enable;
+        vm.heatmapEnabled = enable;
         mapboxMap.getStyle(style -> {
             if (enable) {
                 java.util.List<com.mapbox.geojson.Feature> features = new java.util.ArrayList<>();
-                for (ReportResponse.ReportData r : reportMarkers.values()) {
+                for (ReportResponse.ReportData r : reportMarkers().values()) {
                     features.add(com.mapbox.geojson.Feature.fromGeometry(
                         com.mapbox.geojson.Point.fromLngLat(r.getLongitude(), r.getLatitude())));
                 }
@@ -553,28 +577,28 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void loadFilterPrefs() {
         android.content.SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_FILTERS, android.content.Context.MODE_PRIVATE);
-        filterStatus = prefs.getString(PREF_FILTER_STATUS, "all");
-        filterAge = prefs.getString(PREF_FILTER_AGE, "all");
-        heatmapEnabled = prefs.getBoolean(PREF_HEATMAP, false);
+        vm.filterStatus = prefs.getString(PREF_FILTER_STATUS, "all");
+        vm.filterAge = prefs.getString(PREF_FILTER_AGE, "all");
+        vm.heatmapEnabled = prefs.getBoolean(PREF_HEATMAP, false);
         java.util.Set<String> saved = prefs.getStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>());
-        filterCategories.clear();
-        filterCategories.addAll(saved);
+        vm.filterCategories.clear();
+        vm.filterCategories.addAll(saved);
     }
 
     private void saveFilterPrefs() {
         android.content.SharedPreferences.Editor editor = requireContext()
             .getSharedPreferences(PREFS_FILTERS, android.content.Context.MODE_PRIVATE).edit();
-        editor.putString(PREF_FILTER_STATUS, filterStatus);
-        editor.putString(PREF_FILTER_AGE, filterAge);
-        editor.putBoolean(PREF_HEATMAP, heatmapEnabled);
-        editor.putStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>(filterCategories));
+        editor.putString(PREF_FILTER_STATUS, vm.filterStatus);
+        editor.putString(PREF_FILTER_AGE, vm.filterAge);
+        editor.putBoolean(PREF_HEATMAP, vm.heatmapEnabled);
+        editor.putStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>(vm.filterCategories));
         editor.apply();
     }
 
     private void applyFilters() {
         if (markerRenderer == null) return;
         int uid = TokenManager.getInstance(requireContext()).getUserId();
-        for (ReportResponse.ReportData report : new java.util.ArrayList<>(reportMarkers.values())) {
+        for (ReportResponse.ReportData report : new java.util.ArrayList<>(reportMarkers().values())) {
             if (passesFilters(report)) {
                 markerRenderer.addReport(report, uid);
             } else {
@@ -598,11 +622,11 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         for (java.util.Map.Entry<String, Integer> entry : categoryCheckboxIds.entrySet()) {
             android.widget.CheckBox cb = dialogView.findViewById(entry.getValue());
-            cb.setChecked(filterCategories.isEmpty() || filterCategories.contains(entry.getKey()));
+            cb.setChecked(vm.filterCategories.isEmpty() || vm.filterCategories.contains(entry.getKey()));
         }
 
         android.widget.RadioGroup rgStatus = dialogView.findViewById(R.id.rg_filter_status);
-        int statusCheckedId = switch (filterStatus) {
+        int statusCheckedId = switch (vm.filterStatus) {
             case "pending" -> R.id.rb_status_pending;
             case "verified" -> R.id.rb_status_verified;
             case "resolved" -> R.id.rb_status_resolved;
@@ -611,10 +635,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         rgStatus.check(statusCheckedId);
 
         android.widget.CheckBox cbHeatmap = dialogView.findViewById(R.id.cb_heatmap);
-        cbHeatmap.setChecked(heatmapEnabled);
+        cbHeatmap.setChecked(vm.heatmapEnabled);
 
         android.widget.RadioGroup rgAge = dialogView.findViewById(R.id.rg_filter_age);
-        int ageCheckedId = switch (filterAge) {
+        int ageCheckedId = switch (vm.filterAge) {
             case "1h" -> R.id.rb_age_1h;
             case "6h" -> R.id.rb_age_6h;
             case "24h" -> R.id.rb_age_24h;
@@ -632,33 +656,33 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         if (cb.isChecked()) selected.add(entry.getKey());
                     }
                     // Si están todas marcadas (o ninguna), equivale a "sin filtro"
-                    filterCategories.clear();
+                    vm.filterCategories.clear();
                     if (!selected.isEmpty() && selected.size() < categoryCheckboxIds.size()) {
-                        filterCategories.addAll(selected);
+                        vm.filterCategories.addAll(selected);
                     }
 
                     int checkedStatus = rgStatus.getCheckedRadioButtonId();
-                    if (checkedStatus == R.id.rb_status_pending) filterStatus = "pending";
-                    else if (checkedStatus == R.id.rb_status_verified) filterStatus = "verified";
-                    else if (checkedStatus == R.id.rb_status_resolved) filterStatus = "resolved";
-                    else filterStatus = "all";
+                    if (checkedStatus == R.id.rb_status_pending) vm.filterStatus = "pending";
+                    else if (checkedStatus == R.id.rb_status_verified) vm.filterStatus = "verified";
+                    else if (checkedStatus == R.id.rb_status_resolved) vm.filterStatus = "resolved";
+                    else vm.filterStatus = "all";
 
                     int checkedAge = rgAge.getCheckedRadioButtonId();
-                    if (checkedAge == R.id.rb_age_1h) filterAge = "1h";
-                    else if (checkedAge == R.id.rb_age_6h) filterAge = "6h";
-                    else if (checkedAge == R.id.rb_age_24h) filterAge = "24h";
-                    else filterAge = "all";
+                    if (checkedAge == R.id.rb_age_1h) vm.filterAge = "1h";
+                    else if (checkedAge == R.id.rb_age_6h) vm.filterAge = "6h";
+                    else if (checkedAge == R.id.rb_age_24h) vm.filterAge = "24h";
+                    else vm.filterAge = "all";
 
                     boolean newHeatmap = cbHeatmap.isChecked();
-                    if (newHeatmap != heatmapEnabled) toggleHeatmap(newHeatmap);
+                    if (newHeatmap != vm.heatmapEnabled) toggleHeatmap(newHeatmap);
                     saveFilterPrefs();
                     applyFilters();
                 })
                 .setNeutralButton("Limpiar filtros", (dialog, which) -> {
-                    filterCategories.clear();
-                    filterStatus = "all";
-                    filterAge = "all";
-                    if (heatmapEnabled) toggleHeatmap(false);
+                    vm.filterCategories.clear();
+                    vm.filterStatus = "all";
+                    vm.filterAge = "all";
+                    if (vm.heatmapEnabled) toggleHeatmap(false);
                     saveFilterPrefs();
                     applyFilters();
                 })
@@ -782,7 +806,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private boolean hasSameCategoryNearby(int categoryId, double lat, double lng, double radiusMeters) {
-        for (ReportResponse.ReportData report : reportMarkers.values()) {
+        for (ReportResponse.ReportData report : reportMarkers().values()) {
             if (report.getCategory() == null) continue;
             if (report.getCategory().getId() != categoryId) continue;
             double distanceKm = NearbyReportChecker.haversineKm(lat, lng, report.getLatitude(), report.getLongitude());
@@ -816,14 +840,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     public void onReportDataUpdated(ReportResponse.ReportData updatedReport) {
         if (updatedReport != null) {
             android.util.Log.d("MapFragment", "💾 Sincronizando caché: Reporte " + updatedReport.getId() + " actualizado.");
-            reportMarkers.put(String.valueOf(updatedReport.getId()), updatedReport);
+            reportMarkers().put(String.valueOf(updatedReport.getId()), updatedReport);
         }
     }
 
     @Override
     public void onReportRetracted(int reportId) {
         android.util.Log.d("MapFragment", "🗑️ Reporte retirado: ID=" + reportId);
-        reportMarkers.remove(String.valueOf(reportId));
+        reportMarkers().remove(String.valueOf(reportId));
         if (markerRenderer != null) markerRenderer.removeReport(reportId);
     }
 
@@ -942,14 +966,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     public void onStart() {
         super.onStart();
         if (mapView != null) mapView.onStart();
-        if (reportPoller != null) reportPoller.start();
+        if (vm.getPoller() != null) vm.getPoller().start();
         votableReportsHandler.postDelayed(votableReportsRunnable, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
         startContinuousLocationTracking();
     }
 
     @Override
     public void onStop() {
-        if (reportPoller != null) reportPoller.stop();
+        if (vm.getPoller() != null) vm.getPoller().stop();
         votableReportsHandler.removeCallbacks(votableReportsRunnable);
         stopContinuousLocationTracking();
         if (mapView != null) mapView.onStop();
@@ -992,7 +1016,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
      * Search for report in local cache by ID
      */
     private ReportResponse.ReportData findReportByIdInCache(int reportId) {
-        return reportMarkers.get(String.valueOf(reportId));
+        return reportMarkers().get(String.valueOf(reportId));
     }
 
     /**
@@ -1021,7 +1045,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     if (report != null) {
                         android.util.Log.d("MapFragment", "✓ Report loaded from API: " + reportId);
                         // Cache the report for future use
-                        reportMarkers.put(String.valueOf(reportId), report);
+                        reportMarkers().put(String.valueOf(reportId), report);
                         cacheReport(report);
                         // Show it if passes filters
                         if (passesFilters(report)) {
