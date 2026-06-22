@@ -118,6 +118,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     };
 
+    private boolean maxReportsWarningShown = false;
+
     private AppDatabase appDatabase;
     private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
     private final Gson gson = new Gson();
@@ -298,6 +300,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (zoom < MIN_ZOOM_TO_LOAD) {
             // Cámara ya quieta a zoom bajo — mostrar heatmap
             if (markerRenderer != null) markerRenderer.clearAll();
+            maxReportsWarningShown = false;
             if (!vm.heatmapEnabled) {
                 if (!reportMarkers().isEmpty()) {
                     toggleHeatmap(true);
@@ -494,6 +497,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (cached == null) {
             if (reportMarkers().size() < MAX_REPORTS && markerRenderer != null) {
                 markerRenderer.addReport(report, uid);
+            } else if (reportMarkers().size() >= MAX_REPORTS && !maxReportsWarningShown && getView() != null) {
+                maxReportsWarningShown = true;
+                SnackbarHelper.show(getView(), "Mostrando " + MAX_REPORTS + " reportes más cercanos", SnackbarHelper.Variant.INFO);
             }
             return;
         }
