@@ -59,18 +59,5 @@
             <RadioButton android:id="@+id/rb_age_24h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Últimas 24 horas" />
         </RadioGroup>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Visualización"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
-
-        <CheckBox
-            android:id="@+id/cb_heatmap"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Mostrar mapa de calor" />
-
     </LinearLayout>
 </ScrollView>

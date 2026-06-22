@@ -131,12 +131,12 @@ public class VoteStateManager {
             return;
         }
 
-        // Si el usuario ya votó este tipo, mostrar diálogo de confirmación
+        // Si el usuario ya votó este tipo exacto → ofrecer RETIRAR el voto (DELETE sin re-submit)
         if (currentState.getCurrentUserVoteType() != null &&
             currentState.getCurrentUserVoteType().equals(voteType)) {
-            Log.d(TAG, "⚠️ Usuario ya votó este tipo, mostrar diálogo de confirmación");
+            Log.d(TAG, "⚠️ Usuario ya votó este tipo → ofrecer retiro de voto");
             voteEventLiveData.setValue(
-                new VoteEvent(VoteEvent.Type.CONFIRM_CHANGE_VOTE, voteType)
+                new VoteEvent(VoteEvent.Type.CONFIRM_RETRACT_VOTE, voteType)
             );
             return;
         }
@@ -384,6 +384,10 @@ public class VoteStateManager {
         }
     }
 
+    public ReportResponse.ReportData getReportData() {
+        return reportData;
+    }
+
     public void destroy() {
         offlineExecutor.shutdown();
     }
@@ -407,6 +411,34 @@ public class VoteStateManager {
 
         voteStateLiveData.setValue(errorState);
         voteEventLiveData.setValue(new VoteEvent(VoteEvent.Type.ERROR, errorMessage));
+    }
+
+    /** Refresca el estado completo desde un ReportData ya actualizado (no hace llamada de red). */
+    public void onReportRefreshed(ReportResponse.ReportData freshReport) {
+        VoteState current = voteStateLiveData.getValue();
+        if (current == null || freshReport == null) return;
+
+        long editableUntil = 0;
+        if (freshReport.getUserVotedAt() != null) {
+            try {
+                editableUntil = java.time.Instant.parse(freshReport.getUserVotedAt()).toEpochMilli() + VOTE_EDIT_WINDOW_MS;
+            } catch (java.time.format.DateTimeParseException ignored) {}
+        }
+
+        int confirm = freshReport.getVotes() != null ? freshReport.getVotes().getConfirm() : 0;
+        int resolve = freshReport.getVotes() != null ? freshReport.getVotes().getResolve() : 0;
+
+        VoteState updated = new VoteState.Builder()
+            .currentUserVoteType(freshReport.getUserVote())
+            .confirmCount(confirm)
+            .resolveCount(resolve)
+            .isLoading(false)
+            .voteEditableUntil(editableUntil)
+            .isWithinRadius(current.isWithinRadius())
+            .userDistance(current.getUserDistance())
+            .build();
+
+        voteStateLiveData.postValue(updated);
     }
 
     public void updateCounts(int confirmCount, int resolveCount) {
@@ -446,10 +478,44 @@ public class VoteStateManager {
     }
 
     // Evento para comunicar cambios a la UI
+    /** Retira el voto del usuario (DELETE sin re-submit). */
+    public void retractVote(String voteType) {
+        VoteState state = voteStateLiveData.getValue();
+        if (state == null) return;
+
+        VoteState loadingState = new VoteState.Builder()
+            .currentUserVoteType(state.getCurrentUserVoteType())
+            .confirmCount(state.getConfirmCount())
+            .resolveCount(state.getResolveCount())
+            .isLoading(true)
+            .isWithinRadius(state.isWithinRadius())
+            .userDistance(state.getUserDistance())
+            .build();
+        voteStateLiveData.setValue(loadingState);
+
+        ApiClient.getInstance()
+            .deleteVote(reportData.getId(), voteType)
+            .enqueue(new Callback<VoteResponse>() {
+                @Override
+                public void onResponse(Call<VoteResponse> call, Response<VoteResponse> response) {
+                    if (response.isSuccessful()) {
+                        refreshReportVotes();
+                    } else {
+                        handleVoteError("Error al retirar voto: " + response.code());
+                    }
+                }
+                @Override
+                public void onFailure(Call<VoteResponse> call, Throwable t) {
+                    handleVoteError("Error de conexión: " + t.getMessage());
+                }
+            });
+    }
+
     public static class VoteEvent {
         public enum Type {
             VOTE_SUCCESS,
             CONFIRM_CHANGE_VOTE,
+            CONFIRM_RETRACT_VOTE,
             ERROR,
             OFFLINE_QUEUED
         }
@@ -482,8 +548,14 @@ public class VoteStateManager {
                             Log.d(TAG, "  - resolve: " + updatedReport.getVotes().getResolve());
                             Log.d(TAG, "  - userVote: " + updatedReport.getUserVote());
 
-                            // Actualizar reportData con nuevos votos
                             reportData = updatedReport;
+
+                            long editableUntil = 0;
+                            if (updatedReport.getUserVotedAt() != null) {
+                                try {
+                                    editableUntil = java.time.Instant.parse(updatedReport.getUserVotedAt()).toEpochMilli() + VOTE_EDIT_WINDOW_MS;
+                                } catch (java.time.format.DateTimeParseException ignored) {}
+                            }
 
                             VoteState currentState = voteStateLiveData.getValue();
                             VoteState newState = new VoteState.Builder()
@@ -491,7 +563,7 @@ public class VoteStateManager {
                                 .confirmCount(updatedReport.getVotes().getConfirm())
                                 .resolveCount(updatedReport.getVotes().getResolve())
                                 .isLoading(false)
-                                .voteEditableUntil(System.currentTimeMillis() + VOTE_EDIT_WINDOW_MS)
+                                .voteEditableUntil(editableUntil)
                                 .isWithinRadius(currentState != null && currentState.isWithinRadius())
                                 .userDistance(currentState != null ? currentState.getUserDistance() : 0)
                                 .build();

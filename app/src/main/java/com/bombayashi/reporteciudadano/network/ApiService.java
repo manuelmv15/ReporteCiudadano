@@ -65,6 +65,9 @@ public interface ApiService {
             @Query("per_page") int perPage
     );
 
+    @GET("reports/heatmap")
+    Call<com.bombayashi.reporteciudadano.model.HeatmapResponse> getHeatmapPoints();
+
     @GET("reports/stream/changes")
     Call<ReportStreamResponse> getReportsStreamChanges(
             @Query("since") String since,

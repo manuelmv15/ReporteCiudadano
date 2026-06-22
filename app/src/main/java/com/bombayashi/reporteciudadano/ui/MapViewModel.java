@@ -33,6 +33,9 @@ public class MapViewModel extends ViewModel {
     int currentReportsPage = 1;
     String lastFetchTimestamp = null;
 
+    // Heatmap points — fetched once at startup
+    java.util.List<com.bombayashi.reporteciudadano.model.HeatmapResponse.Point> heatmapPoints = null;
+
     Map<String, ReportResponse.ReportData> getReportMarkers() {
         return reportMarkers;
     }

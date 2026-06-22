@@ -217,6 +217,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             setupFAB();
             requestUserLocation();
             showLongPressHintIfFirstTime();
+            prefetchHeatmapPoints();
             mapReady = true;
             if (onMapReadyCallback != null) {
                 onMapReadyCallback.run();
@@ -248,6 +249,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         mapboxMap.subscribeCameraChanged(event -> {
             double zoom = mapboxMap.getCameraState().getZoom();
             markerRenderer.updateScale(zoom);
+
+
             if (cameraIdleRunnable != null) cameraIdleHandler.removeCallbacks(cameraIdleRunnable);
             cameraIdleRunnable = this::onViewportChanged;
             cameraIdleHandler.postDelayed(cameraIdleRunnable, CAMERA_IDLE_DEBOUNCE_MS);
@@ -293,11 +296,20 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         double zoom = mapboxMap.getCameraState().getZoom();
 
         if (zoom < MIN_ZOOM_TO_LOAD) {
-            if (markerRenderer != null) { markerRenderer.clearAll(); reportMarkers().clear(); }
-            android.util.Log.d("MapFragment", "🔍 Zoom " + String.format(Locale.US, "%.1f", zoom) + " < " + MIN_ZOOM_TO_LOAD + ", no cargando reportes");
-            SnackbarHelper.show(getView(), "Acercate para ver reportes", SnackbarHelper.Variant.INFO);
+            // Cámara ya quieta a zoom bajo — mostrar heatmap
+            if (markerRenderer != null) markerRenderer.clearAll();
+            if (!vm.heatmapEnabled) {
+                if (!reportMarkers().isEmpty()) {
+                    toggleHeatmap(true);
+                } else {
+                    fetchAndShowHeatmap();
+                }
+            }
             return;
         }
+
+        // Cámara quieta a zoom suficiente — apagar heatmap si estaba activo
+        if (vm.heatmapEnabled) toggleHeatmap(false);
 
         if (vm.isLoadingReports) return;
 
@@ -542,44 +554,115 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     }
 
+    /** Reconstruye el GeoJSON del heatmap con los reportes actuales. */
+    private void refreshHeatmap() {
+        if (vm.heatmapEnabled) toggleHeatmap(true);
+    }
+
+    /** Fetch en background al arrancar — guarda puntos en ViewModel para uso inmediato. */
+    private void prefetchHeatmapPoints() {
+        if (vm.heatmapPoints != null) return; // ya tenemos datos del ciclo anterior (rotación)
+        if (!ConnectivityHelper.isOnline(requireContext())) return;
+
+        com.bombayashi.reporteciudadano.network.ApiClient.getInstance().getHeatmapPoints()
+            .enqueue(new Callback<com.bombayashi.reporteciudadano.model.HeatmapResponse>() {
+                @Override
+                public void onResponse(@NonNull Call<com.bombayashi.reporteciudadano.model.HeatmapResponse> call,
+                                       @NonNull Response<com.bombayashi.reporteciudadano.model.HeatmapResponse> response) {
+                    if (response.isSuccessful() && response.body() != null
+                            && response.body().getPoints() != null) {
+                        vm.heatmapPoints = response.body().getPoints();
+                        android.util.Log.d("MapFragment", "🗺 Heatmap precargado: " + vm.heatmapPoints.size() + " puntos");
+                        // Si el usuario ya estaba a zoom bajo cuando llegó la respuesta, pintar ya
+                        if (isAdded() && mapboxMap != null
+                                && mapboxMap.getCameraState().getZoom() < MIN_ZOOM_TO_LOAD) {
+                            buildHeatmapLayer(vm.heatmapPoints);
+                        }
+                    }
+                }
+                @Override
+                public void onFailure(@NonNull Call<com.bombayashi.reporteciudadano.model.HeatmapResponse> call,
+                                      @NonNull Throwable t) {
+                    android.util.Log.w("MapFragment", "Heatmap prefetch failed: " + t.getMessage());
+                }
+            });
+    }
+
+    /** Usa puntos ya en memoria o lanza fetch si todavía no llegaron. */
+    private void fetchAndShowHeatmap() {
+        vm.heatmapEnabled = true;
+        if (vm.heatmapPoints != null && !vm.heatmapPoints.isEmpty()) {
+            buildHeatmapLayer(vm.heatmapPoints);
+        }
+        // Si heatmapPoints es null, prefetchHeatmapPoints() ya está corriendo en background
+        // y al terminar detectará que estamos a zoom bajo y llamará buildHeatmapLayer()
+    }
+
+    private void buildHeatmapLayer(java.util.List<com.bombayashi.reporteciudadano.model.HeatmapResponse.Point> pts) {
+        if (mapboxMap == null) return;
+        mapboxMap.getStyle(style -> {
+            if (!vm.heatmapEnabled) return;
+            java.util.List<com.mapbox.geojson.Feature> features = new java.util.ArrayList<>();
+            for (com.bombayashi.reporteciudadano.model.HeatmapResponse.Point p : pts) {
+                features.add(com.mapbox.geojson.Feature.fromGeometry(
+                    com.mapbox.geojson.Point.fromLngLat(p.getLongitude(), p.getLatitude())));
+            }
+            buildHeatmapOnStyle(style, com.mapbox.geojson.FeatureCollection.fromFeatures(features));
+        });
+    }
+
     /** RF-19: re-evalúa filtros sobre los reportes ya conocidos, sin re-fetch. */
     private void toggleHeatmap(boolean enable) {
         if (mapboxMap == null) return;
         vm.heatmapEnabled = enable;
-        mapboxMap.getStyle(style -> {
-            if (enable) {
-                java.util.List<com.mapbox.geojson.Feature> features = new java.util.ArrayList<>();
-                for (ReportResponse.ReportData r : reportMarkers().values()) {
-                    features.add(com.mapbox.geojson.Feature.fromGeometry(
-                        com.mapbox.geojson.Point.fromLngLat(r.getLongitude(), r.getLatitude())));
-                }
-                com.mapbox.geojson.FeatureCollection fc = com.mapbox.geojson.FeatureCollection.fromFeatures(features);
-
-                if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
-                if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
-
-                com.mapbox.maps.extension.style.sources.generated.GeoJsonSource src =
-                    new com.mapbox.maps.extension.style.sources.generated.GeoJsonSource.Builder(HEATMAP_SOURCE_ID)
-                        .featureCollection(fc).build();
-                com.mapbox.maps.extension.style.sources.SourceUtils.addSource(style, src);
-
-                com.mapbox.maps.extension.style.layers.generated.HeatmapLayer layer =
-                    new com.mapbox.maps.extension.style.layers.generated.HeatmapLayer(HEATMAP_LAYER_ID, HEATMAP_SOURCE_ID);
-                layer.heatmapOpacity(0.7);
-                layer.heatmapRadius(20.0);
-                com.mapbox.maps.extension.style.layers.LayerUtils.addLayer(style, layer);
+        if (enable) {
+            if (vm.heatmapPoints != null && !vm.heatmapPoints.isEmpty()) {
+                buildHeatmapLayer(vm.heatmapPoints);
             } else {
+                buildHeatmapFromReportMarkers();
+            }
+        } else {
+            mapboxMap.getStyle(style -> {
                 if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
                 if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
+            });
+        }
+    }
+
+    private void buildHeatmapFromReportMarkers() {
+        if (mapboxMap == null) return;
+        mapboxMap.getStyle(style -> {
+            java.util.List<com.mapbox.geojson.Feature> features = new java.util.ArrayList<>();
+            for (ReportResponse.ReportData r : reportMarkers().values()) {
+                if ("archived".equalsIgnoreCase(r.getStatus())) continue;
+                features.add(com.mapbox.geojson.Feature.fromGeometry(
+                    com.mapbox.geojson.Point.fromLngLat(r.getLongitude(), r.getLatitude())));
             }
+            buildHeatmapOnStyle(style, com.mapbox.geojson.FeatureCollection.fromFeatures(features));
         });
+    }
+
+    private void buildHeatmapOnStyle(com.mapbox.maps.Style style,
+                                     com.mapbox.geojson.FeatureCollection fc) {
+        if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
+        if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
+
+        com.mapbox.maps.extension.style.sources.generated.GeoJsonSource src =
+            new com.mapbox.maps.extension.style.sources.generated.GeoJsonSource.Builder(HEATMAP_SOURCE_ID)
+                .featureCollection(fc).build();
+        com.mapbox.maps.extension.style.sources.SourceUtils.addSource(style, src);
+
+        com.mapbox.maps.extension.style.layers.generated.HeatmapLayer layer =
+            new com.mapbox.maps.extension.style.layers.generated.HeatmapLayer(HEATMAP_LAYER_ID, HEATMAP_SOURCE_ID);
+        layer.heatmapOpacity(0.7);
+        layer.heatmapRadius(20.0);
+        com.mapbox.maps.extension.style.layers.LayerUtils.addLayer(style, layer);
     }
 
     private void loadFilterPrefs() {
         android.content.SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_FILTERS, android.content.Context.MODE_PRIVATE);
         vm.filterStatus = prefs.getString(PREF_FILTER_STATUS, "all");
         vm.filterAge = prefs.getString(PREF_FILTER_AGE, "all");
-        vm.heatmapEnabled = prefs.getBoolean(PREF_HEATMAP, false);
         java.util.Set<String> saved = prefs.getStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>());
         vm.filterCategories.clear();
         vm.filterCategories.addAll(saved);
@@ -590,7 +673,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             .getSharedPreferences(PREFS_FILTERS, android.content.Context.MODE_PRIVATE).edit();
         editor.putString(PREF_FILTER_STATUS, vm.filterStatus);
         editor.putString(PREF_FILTER_AGE, vm.filterAge);
-        editor.putBoolean(PREF_HEATMAP, vm.heatmapEnabled);
         editor.putStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>(vm.filterCategories));
         editor.apply();
     }
@@ -634,9 +716,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         };
         rgStatus.check(statusCheckedId);
 
-        android.widget.CheckBox cbHeatmap = dialogView.findViewById(R.id.cb_heatmap);
-        cbHeatmap.setChecked(vm.heatmapEnabled);
-
         android.widget.RadioGroup rgAge = dialogView.findViewById(R.id.rg_filter_age);
         int ageCheckedId = switch (vm.filterAge) {
             case "1h" -> R.id.rb_age_1h;
@@ -673,8 +752,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     else if (checkedAge == R.id.rb_age_24h) vm.filterAge = "24h";
                     else vm.filterAge = "all";
 
-                    boolean newHeatmap = cbHeatmap.isChecked();
-                    if (newHeatmap != vm.heatmapEnabled) toggleHeatmap(newHeatmap);
                     saveFilterPrefs();
                     applyFilters();
                 })
@@ -682,7 +759,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     vm.filterCategories.clear();
                     vm.filterStatus = "all";
                     vm.filterAge = "all";
-                    if (vm.heatmapEnabled) toggleHeatmap(false);
                     saveFilterPrefs();
                     applyFilters();
                 })
@@ -807,6 +883,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private boolean hasSameCategoryNearby(int categoryId, double lat, double lng, double radiusMeters) {
         for (ReportResponse.ReportData report : reportMarkers().values()) {
+            // Archivados y resueltos no bloquean nuevos reportes
+            String status = report.getStatus();
+            if ("archived".equalsIgnoreCase(status) || "resolved".equalsIgnoreCase(status)) continue;
             if (report.getCategory() == null) continue;
             if (report.getCategory().getId() != categoryId) continue;
             double distanceKm = NearbyReportChecker.haversineKm(lat, lng, report.getLatitude(), report.getLongitude());

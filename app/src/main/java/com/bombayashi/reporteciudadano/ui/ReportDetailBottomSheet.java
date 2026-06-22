@@ -55,6 +55,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private TokenManager tokenManager;
     private Uri cameraPhotoUri;
     private android.os.CountDownTimer retractCountdown;
+    private android.os.CountDownTimer editCountdown;
+    private String pendingVoteText; // base text sin el countdown, para actualizarlo
 
     private final ActivityResultLauncher<String> galleryLauncher =
         registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
@@ -138,11 +140,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                             }
 
                             if (voteStateManager != null) {
-                                // Si ya se inicializó, le pasamos los nuevos conteos
-                                voteStateManager.updateCounts(
-                                    updated.getVotes().getConfirm(),
-                                    updated.getVotes().getResolve()
-                                );
+                                // Refresco completo: conteos + userVote + timer de edición
+                                voteStateManager.onReportRefreshed(updated);
                             }
                         }
                     }
@@ -191,16 +190,26 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.tvUser.setText("Reportado por: " + userName);
 
         String reportStatus = report.getStatus();
-        if (!"archived".equals(reportStatus) && !"resolved".equals(reportStatus) && report.getCreatedAt() != null) {
-            try {
-                long createdMs = java.time.Instant.parse(report.getCreatedAt()).toEpochMilli();
-                long archiveAt = createdMs + 24 * 60 * 60 * 1000L;
-                long hoursLeft = (archiveAt - System.currentTimeMillis()) / (60 * 60 * 1000L);
-                if (hoursLeft > 0 && hoursLeft <= 24) {
-                    binding.tvArchiveCountdown.setVisibility(View.VISIBLE);
-                    binding.tvArchiveCountdown.setText("Se archivará en ~" + hoursLeft + "h sin más actividad");
-                }
-            } catch (Exception ignored) {}
+        binding.tvArchiveCountdown.setVisibility(View.GONE);
+        if (!"archived".equals(reportStatus) && !"resolved".equals(reportStatus)) {
+            // Usa updatedAt como base — votar es actividad que resetea el timer en el servidor
+            String baseTs = report.getUpdatedAt() != null ? report.getUpdatedAt() : report.getCreatedAt();
+            if (baseTs != null) {
+                try {
+                    long baseMs = java.time.Instant.parse(baseTs).toEpochMilli();
+                    long archiveAt = baseMs + 24 * 60 * 60 * 1000L;
+                    long msLeft = archiveAt - System.currentTimeMillis();
+                    if (msLeft > 0 && msLeft <= 24 * 60 * 60 * 1000L) {
+                        long hoursLeft = msLeft / (60 * 60 * 1000L);
+                        long minsLeft  = (msLeft % (60 * 60 * 1000L)) / (60 * 1000L);
+                        String text = hoursLeft > 0
+                            ? "Se archivará en ~" + hoursLeft + "h " + minsLeft + "m sin más actividad"
+                            : "Se archivará en ~" + minsLeft + "m sin más actividad";
+                        binding.tvArchiveCountdown.setVisibility(View.VISIBLE);
+                        binding.tvArchiveCountdown.setText(text);
+                    }
+                } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -436,12 +445,23 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
             switch (event.getType()) {
                 case VOTE_SUCCESS:
-                    android.util.Log.d("ReportDetailBS", "✓ Voto enviado correctamente");
-                    // El UI se actualiza automáticamente a través del observer de VoteState
+                    // Sincronizar report con datos frescos del servidor (tiene updatedAt nuevo)
+                    if (voteStateManager != null) {
+                        ReportResponse.ReportData fresh = voteStateManager.getReportData();
+                        if (fresh != null) {
+                            report = fresh;
+                            displayReportInfo();
+                            if (statusChangeListener != null) statusChangeListener.onReportDataUpdated(fresh);
+                        }
+                    }
                     break;
 
                 case CONFIRM_CHANGE_VOTE:
                     showChangeVoteDialog(event.getData());
+                    break;
+
+                case CONFIRM_RETRACT_VOTE:
+                    showRetractVoteDialog(event.getData());
                     break;
 
                 case OFFLINE_QUEUED:
@@ -518,19 +538,39 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         if (state.hasUserVoted()) {
             binding.tvUserVoteStatus.setVisibility(View.VISIBLE);
-            String voteText = state.getCurrentUserVoteType().equals("confirm")
+            pendingVoteText = state.getCurrentUserVoteType().equals("confirm")
                 ? "Tu voto: Sigue ahí"
                 : "Tu voto: Ya se resolvió";
 
-            if (state.canEditVote()) {
-                long secondsRemaining = state.getTimeRemainingToEdit() / 1000;
-                voteText += " (Editable por " + secondsRemaining + "s)";
-            } else if (state.getVoteEditableUntil() > 0) {
-                voteText += " (No editable)";
+            if (editCountdown != null) {
+                editCountdown.cancel();
+                editCountdown = null;
             }
 
-            binding.tvUserVoteStatus.setText(voteText);
+            if (state.canEditVote()) {
+                long msRemaining = state.getTimeRemainingToEdit();
+                editCountdown = new android.os.CountDownTimer(msRemaining, 1000) {
+                    @Override
+                    public void onTick(long ms) {
+                        if (binding == null) return;
+                        long secs = ms / 1000;
+                        binding.tvUserVoteStatus.setText(
+                            pendingVoteText + String.format(java.util.Locale.getDefault(),
+                                " (Editable por %d:%02d)", secs / 60, secs % 60));
+                    }
+                    @Override
+                    public void onFinish() {
+                        if (binding == null) return;
+                        binding.tvUserVoteStatus.setText(pendingVoteText + " (No editable)");
+                    }
+                }.start();
+            } else if (state.getVoteEditableUntil() > 0) {
+                binding.tvUserVoteStatus.setText(pendingVoteText + " (No editable)");
+            } else {
+                binding.tvUserVoteStatus.setText(pendingVoteText);
+            }
         } else {
+            if (editCountdown != null) { editCountdown.cancel(); editCountdown = null; }
             binding.tvUserVoteStatus.setVisibility(View.GONE);
         }
 
@@ -607,18 +647,37 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         }
     }
 
+    private File compressImage(Uri uri) throws Exception {
+        InputStream is = getContext().getContentResolver().openInputStream(uri);
+        if (is == null) throw new Exception("No se pudo abrir imagen");
+
+        android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(is);
+        is.close();
+
+        if (bitmap == null) throw new Exception("No se pudo decodificar imagen");
+
+        // Escalar si mayor a 1280px en el lado mayor
+        final int MAX_DIM = 1280;
+        int w = bitmap.getWidth(), h = bitmap.getHeight();
+        if (w > MAX_DIM || h > MAX_DIM) {
+            float scale = Math.min((float) MAX_DIM / w, (float) MAX_DIM / h);
+            bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap,
+                    Math.round(w * scale), Math.round(h * scale), true);
+        }
+
+        // Comprimir a JPEG calidad 80 — típicamente < 300KB
+        File out = File.createTempFile("report_photo_compressed", ".jpg", getContext().getCacheDir());
+        try (FileOutputStream fos = new FileOutputStream(out)) {
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, fos);
+        }
+        bitmap.recycle();
+        return out;
+    }
+
     private void uploadPhoto(Uri uri) {
         if (getContext() == null || tokenManager == null) return;
         try {
-            InputStream is = getContext().getContentResolver().openInputStream(uri);
-            if (is == null) return;
-            File tmpFile = File.createTempFile("report_photo", ".jpg", getContext().getCacheDir());
-            try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
-                byte[] buf = new byte[4096];
-                int len;
-                while ((len = is.read(buf)) > 0) fos.write(buf, 0, len);
-            }
-            is.close();
+            File tmpFile = compressImage(uri);
 
             RequestBody reqBody = RequestBody.create(tmpFile, MediaType.parse("image/jpeg"));
             MultipartBody.Part photoPart = MultipartBody.Part.createFormData("photo", tmpFile.getName(), reqBody);
@@ -668,6 +727,18 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         }
     }
 
+    private void showRetractVoteDialog(String voteType) {
+        String voteText = "confirm".equals(voteType) ? "Sigue ahí" : "Ya se resolvió";
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Retirar voto")
+            .setMessage("Ya votaste \"" + voteText + "\". ¿Querés retirar tu voto?")
+            .setPositiveButton("Retirar", (dialog, which) -> {
+                if (voteStateManager != null) voteStateManager.retractVote(voteType);
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
     private void showChangeVoteDialog(String newVoteType) {
         VoteState currentState = voteStateManager.getVoteState().getValue();
         if (currentState == null) return;
@@ -701,6 +772,9 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         }
         if (retractCountdown != null) {
             retractCountdown.cancel();
+        }
+        if (editCountdown != null) {
+            editCountdown.cancel();
         }
         binding = null;
     }
