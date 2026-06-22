@@ -21,7 +21,7 @@
 - `app/src/main/java/com/bombayashi/reporteciudadano/work/ReportSyncWorker.java` — separado `catch (org.json.JSONException e)` antes del `catch (Exception e)` genérico. Antes, un payload corrupto en Room era tratado como error de red: el Worker reintentaba 5 veces, consumía batería/red innecesariamente, y marcaba la acción como FAILED sin que el usuario entendiera por qué su voto/reporte nunca llegó.
 
 ### TODOs / Próximos pasos
-- [ ] Refactorizar `MapFragment.java`: extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker`
+- [x] Refactorizar `MapFragment.java` — resuelto 2026-06-22
 - [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones sin relanzar llamadas API
 - [ ] Notificar al usuario cuando `ReportSyncWorker` marca acciones como `STATUS_FAILED` por payload corrupto
 
@@ -54,7 +54,7 @@
 - `app/src/main/res/layout/dialog_map_filters.xml` — sección "Visualización" con checkbox heatmap
 
 ### TODOs / Próximos pasos
-- [ ] Refactorizar `MapFragment.java`: extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker`
+- [x] Refactorizar `MapFragment.java` — resuelto 2026-06-22
 - [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones sin relanzar llamadas API
 - [ ] Backend: `GET/POST /reports/{id}/comments`, `POST /reports/{id}/watch`, `GET /leaderboard` (features pendientes que requieren endpoints nuevos)
 
@@ -77,7 +77,7 @@
 - `app/src/main/java/com/bombayashi/reporteciudadano/LoginActivity.java` — elimina token en `updateFcmToken()`
 
 ### TODOs / Próximos pasos
-- [ ] Refactorizar `MapFragment.java`: extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker`
+- [x] Refactorizar `MapFragment.java` — resuelto 2026-06-22
 - [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones sin relanzar llamadas API
 - [ ] Backend: `GET/POST /reports/{id}/comments`, `POST /reports/{id}/watch`, `GET /leaderboard`
 - [ ] Revisar `ReportSyncWorker.java:62` — `catch (Exception e)` genérico puede causar retry infinito en errores de parseo JSON
@@ -504,3 +504,4 @@ Hay 5 reportes cerca donde puedes votar
 - [ ] Test: archived reports, verificar que no se incluyen
 - [ ] Test: múltiples notificaciones (cuando conteo cambia), verificar UI
 - [ ] Test: toque notificación, verifica que abre MainActivity con mapa
+	

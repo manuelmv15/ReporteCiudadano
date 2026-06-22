@@ -70,15 +70,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private MapboxMap mapboxMap;
     private boolean mapReady = false;
     private Runnable onMapReadyCallback;
-    private Point userLocation; // Posición real del usuario
-    private FusedLocationProviderClient fusedLocationClient;
-    private CircleAnnotationManager circleAnnotationManager;
-    private PointAnnotationManager pointAnnotationManager;
-    private CircleAnnotation userLocationMarker;
+    private Point userLocation;
     private com.mapbox.maps.viewannotation.ViewAnnotationManager viewAnnotationManager;
-    private com.google.android.gms.location.LocationCallback continuousLocationCallback;
-    private android.location.Location lastTrackedLocation;
-    private static final float MOVEMENT_THRESHOLD_METERS = 2f;
+
+    private MarkerRenderer markerRenderer;
+    private LocationTracker locationTracker;
+    private ReportPoller reportPoller;
+    private NearbyReportChecker nearbyChecker;
 
     private static final double DEFAULT_LATITUDE = -34.6037;
     private static final double DEFAULT_LONGITUDE = -58.3816;
@@ -89,15 +87,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final double MIN_ZOOM_TO_LOAD = 13.0;  // Zoom mínimo para fetchear (~2km viewport)
     private static final int VIEWPORT_PAGE_SIZE = 50;  // Reportes por fetch de viewport
     private static final long CAMERA_IDLE_DEBOUNCE_MS = 600;  // ms espera tras mover cámara
-    private java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
-    private java.util.HashMap<String, Integer> annotationToReportId = new java.util.HashMap<>();  // UUID → ReportID
-    private java.util.HashMap<Integer, PointAnnotation> reportIconMarkers = new java.util.HashMap<>();  // ReportID → PointAnnotation
-    private java.util.HashMap<Integer, CircleAnnotation> reportStrokeMarkers = new java.util.HashMap<>();  // ReportID → CircleAnnotation (stroke)
-    private java.util.HashMap<String, Integer> coordOccupancy = new java.util.HashMap<>();  // "lat,lng" → count, para offset de duplicados
-    private android.util.LruCache<String, Bitmap> bitmapCache = new android.util.LruCache<>(100);
-    private double lastZoomLevel = -1; // Para optimizar escala
-    private int currentReportsPage = 1;  // Para pagination
-    private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
+    private final java.util.HashMap<String, ReportResponse.ReportData> reportMarkers = new java.util.HashMap<>();
+    private int currentReportsPage = 1;
+    private boolean isLoadingReports = false;
 
     // RF-19: filtros de mapa (categoría / estado / antigüedad)
     private static final String HEATMAP_SOURCE_ID = "reports-heatmap-source";
@@ -116,29 +108,18 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private final android.os.Handler cameraIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable cameraIdleRunnable;
 
-    private static final long POLL_INTERVAL_MS = 30_000;  // Polling de cambios cada 30s
-    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private final Runnable pollRunnable = new Runnable() {
-        @Override
-        public void run() {
-            pollForUpdates();
-            pollHandler.postDelayed(this, POLL_INTERVAL_MS);
-        }
-    };
-    private String lastSyncTimestamp;  // ISO8601 UTC del último sync exitoso
-
-    // Notificación de reportes votables cercanos
-    private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 30_000;  // Cada 30s
-    private static final double VOTABLE_RANGE_KM = 0.5;  // 500m
+    private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 30_000;
     private final android.os.Handler votableReportsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable votableReportsRunnable = new Runnable() {
         @Override
         public void run() {
-            checkAndNotifyNearbyVotableReports();
+            if (nearbyChecker != null && userLocation != null) {
+                int uid = TokenManager.getInstance(requireContext()).getUserId();
+                nearbyChecker.check(reportMarkers.values(), userLocation, uid);
+            }
             votableReportsHandler.postDelayed(this, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
         }
     };
-    private int lastNotifiedVotableCount = -1;  // Para evitar notificar repetidamente el mismo número
 
     private AppDatabase appDatabase;
     private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -153,7 +134,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             MapboxOptions.setAccessToken(token);
         }
         binding = FragmentMapBinding.inflate(inflater, container, false);
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity());
         return binding.getRoot();
     }
 
@@ -163,9 +143,34 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         android.util.Log.d("MapFragment", "=== onViewCreated ===");
 
         appDatabase = AppDatabase.getInstance(requireContext());
-        if (ConnectivityHelper.isOnline(requireContext())) {
-            SyncManager.syncNow(requireContext());
-        }
+
+        markerRenderer = new MarkerRenderer(requireContext(), reportMarkers, this::passesFilters, this::showReportDetails);
+        locationTracker = new LocationTracker(new LocationTracker.Callback() {
+            @Override public void onLocationReady(Point location, float accuracy) {
+                if (!isAdded() || getView() == null) return;
+                userLocation = location;
+                markerRenderer.addUserLocation(location);
+                animateCameraTo(location);
+                SnackbarHelper.show(getView(),
+                        String.format(java.util.Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", accuracy),
+                        SnackbarHelper.Variant.SUCCESS);
+            }
+            @Override public void onLocationUpdate(Point location) {
+                if (!isAdded() || getView() == null) return;
+                userLocation = location;
+                markerRenderer.addUserLocation(location);
+            }
+            @Override public void onPermissionDenied() { centerOnDefaultLocation(); }
+        });
+        locationTracker.init(this);
+
+        reportPoller = new ReportPoller(new ReportPoller.Callback() {
+            @Override public void onReportUpdated(ReportResponse.ReportData report) { applyReportUpdate(report); }
+            @Override public boolean isActive() { return isAdded() && getView() != null; }
+        });
+        nearbyChecker = new NearbyReportChecker(requireContext());
+
+        if (ConnectivityHelper.isOnline(requireContext())) SyncManager.syncNow(requireContext());
         registerConnectivityCallback();
         observeSyncWork();
         loadFilterPrefs();
@@ -214,283 +219,37 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void setupAnnotationManager() {
-        android.util.Log.d("MapFragment", "Inicializando AnnotationManager...");
+        markerRenderer.init(mapView);
 
-        AnnotationPlugin annotationPlugin = AnnotationsUtils.getAnnotations(mapView);
-        if (annotationPlugin != null) {
-            // CircleAnnotationManager para marcador de ubicación del usuario
-            circleAnnotationManager = CircleAnnotationManagerKt.createCircleAnnotationManager(
-                    annotationPlugin,
-                    new AnnotationConfig()
-            );
-
-            // PointAnnotationManager para iconos de reportes
-            pointAnnotationManager = PointAnnotationManagerKt.createPointAnnotationManager(
-                    annotationPlugin,
-                    new AnnotationConfig()
-            );
-
-            if (circleAnnotationManager != null && pointAnnotationManager != null) {
-                android.util.Log.d("MapFragment", "✓ CircleAnnotationManager y PointAnnotationManager inicializados");
-
-                mapboxMap.subscribeCameraChanged(event -> {
-                    double currentZoom = mapboxMap.getCameraState().getZoom();
-                    if (Math.abs(currentZoom - lastZoomLevel) > 0.1) {
-                        lastZoomLevel = currentZoom;
-                        updateMarkersScale(currentZoom);
-                    }
-                    // Debounce: esperar que el usuario pare de mover antes de fetchear
-                    if (cameraIdleRunnable != null) cameraIdleHandler.removeCallbacks(cameraIdleRunnable);
-                    cameraIdleRunnable = this::onViewportChanged;
-                    cameraIdleHandler.postDelayed(cameraIdleRunnable, CAMERA_IDLE_DEBOUNCE_MS);
-                });
-
-                pointAnnotationManager.addClickListener(annotation -> {
-                    String annotationUUID = annotation.getId();
-                    Integer reportId = annotationToReportId.get(annotationUUID);
-
-                    if (reportId != null) {
-                        // 1. Efecto Bounce (Feedback visual)
-                        animateBounce(annotation);
-
-                        String reportKey = String.valueOf(reportId);
-                        ReportResponse.ReportData report = reportMarkers.get(reportKey);
-
-                        if (report != null) {
-                            android.util.Log.d("MapFragment", "✓ Abriendo reporte ID:" + reportId);
-                            showReportDetails(report);
-                            return true;
-                        } else {
-                            android.util.Log.w("MapFragment", "✗ Reporte ID:" + reportId + " no existe en cache");
-                        }
-                    } else {
-                        android.util.Log.w("MapFragment", "✗ Anotación UUID no mapeada a reporte");
-                    }
-                    return false;
-                });
-            } else {
-                android.util.Log.e("MapFragment", "✗ Error inicializando managers");
-            }
-        } else {
-            android.util.Log.e("MapFragment", "✗ AnnotationPlugin es null");
-        }
+        mapboxMap.subscribeCameraChanged(event -> {
+            double zoom = mapboxMap.getCameraState().getZoom();
+            markerRenderer.updateScale(zoom);
+            if (cameraIdleRunnable != null) cameraIdleHandler.removeCallbacks(cameraIdleRunnable);
+            cameraIdleRunnable = this::onViewportChanged;
+            cameraIdleHandler.postDelayed(cameraIdleRunnable, CAMERA_IDLE_DEBOUNCE_MS);
+        });
     }
 
     private void requestUserLocation() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED) {
-            getCurrentUserLocation();
-        } else {
-            ActivityCompat.requestPermissions(
-                    requireActivity(),
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
-                    LOCATION_PERMISSION_REQUEST_CODE
-            );
-        }
+        locationTracker.requestLocation(this);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                getCurrentUserLocation();
-                startContinuousLocationTracking();
-            } else {
-                centerOnDefaultLocation();
-            }
-        }
-    }
-
-    private void getCurrentUserLocation() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            centerOnDefaultLocation();
-            return;
-        }
-
-        android.util.Log.d("MapFragment", "🔍 Obteniendo ubicación actual (FINE)...");
-
-        // Primero, intenta obtener la última ubicación conocida
-        fusedLocationClient.getLastLocation().addOnSuccessListener(lastLocation -> {
-            if (!isAdded() || getView() == null) return;
-
-            if (lastLocation != null) {
-                android.util.Log.d("MapFragment", "📍 Última ubicación obtenida (±" +
-                    String.format("%.0f", lastLocation.getAccuracy()) + "m)");
-
-                // Si la ubicación es reciente y precisa, usarla
-                long ageMs = System.currentTimeMillis() - lastLocation.getTime();
-                if (ageMs < 60000 && lastLocation.getAccuracy() < 50) {  // < 1min y < 50m
-                    useLocation(lastLocation);
-                } else {
-                    // Si es vieja o imprecisa, solicitar actualización
-                    android.util.Log.d("MapFragment", "📍 Ubicación vieja/imprecisa, solicitando actualización...");
-                    requestLocationUpdates();
-                }
-            } else {
-                // Sin última ubicación, solicitar actualización
-                android.util.Log.d("MapFragment", "📍 Sin ubicación previa, solicitando actualización...");
-                requestLocationUpdates();
-            }
-        }).addOnFailureListener(e -> {
-            android.util.Log.e("MapFragment", "✗ Error en getLastLocation: " + e.getMessage());
-            centerOnDefaultLocation();
-        });
-    }
-
-    private void requestLocationUpdates() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            centerOnDefaultLocation();
-            return;
-        }
-
-        com.google.android.gms.location.LocationRequest locationRequest =
-            new com.google.android.gms.location.LocationRequest.Builder(
-                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 500)
-                    .setMinUpdateIntervalMillis(250)
-                    .build();
-
-        final boolean[] locationUpdated = {false};  // Flag para rastrear si ya obtuvimos una actualización
-
-        com.google.android.gms.location.LocationCallback locationCallback =
-            new com.google.android.gms.location.LocationCallback() {
-                @Override
-                public void onLocationResult(com.google.android.gms.location.LocationResult locationResult) {
-                    if (locationResult == null || locationResult.getLocations().isEmpty()) return;
-
-                    // Obtener la ubicación más precisa de la lista
-                    android.location.Location bestLocation = locationResult.getLocations().get(0);
-                    for (android.location.Location loc : locationResult.getLocations()) {
-                        if (loc.getAccuracy() < bestLocation.getAccuracy()) {
-                            bestLocation = loc;
-                        }
-                    }
-
-                    locationUpdated[0] = true;
-                    useLocation(bestLocation);
-
-                    // Detener actualizaciones después de obtener una ubicación precisa
-                    if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                            == PackageManager.PERMISSION_GRANTED) {
-                        fusedLocationClient.removeLocationUpdates(this);
-                    }
-                }
-            };
-
-        // Solicitar una única actualización (timeout 5 segundos - más corto ahora)
-        java.util.Timer timer = new java.util.Timer();
-        timer.schedule(new java.util.TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                            == PackageManager.PERMISSION_GRANTED) {
-                        fusedLocationClient.removeLocationUpdates(locationCallback);
-                    }
-
-                    // Si NO obtuvimos actualización, mantener la ubicación anterior (no ir a Buenos Aires)
-                    if (!locationUpdated[0]) {
-                        android.util.Log.w("MapFragment", "⏱ Timeout en locationUpdates, manteniendo última ubicación conocida");
-                    }
-                } catch (Exception e) {
-                    android.util.Log.e("MapFragment", "Error en timeout: " + e.getMessage());
-                }
-            }
-        }, 5000);  // 5 segundos timeout (más corto)
-
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null);
-    }
-
-    private void useLocation(android.location.Location location) {
-        if (!isAdded() || getView() == null) return;
-
-        userLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
-        lastTrackedLocation = location;
-        addUserLocationMarker(userLocation);
-        animateCameraTo(userLocation);
-
-        android.util.Log.i("MapFragment", "✓ Ubicación utilizada (Precisión: " +
-            String.format("%.1f", location.getAccuracy()) + "m)");
-
-        SnackbarHelper.show(
-                getView(),
-                String.format(Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", location.getAccuracy()),
-                SnackbarHelper.Variant.SUCCESS
-        );
+        locationTracker.onPermissionResult(this, requestCode, grantResults);
     }
 
     private void startContinuousLocationTracking() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        if (continuousLocationCallback != null) {
-            return; // ya activo
-        }
-
-        com.google.android.gms.location.LocationRequest locationRequest =
-                new com.google.android.gms.location.LocationRequest.Builder(
-                        com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 1000)
-                        .setMinUpdateIntervalMillis(1000)
-                        .build();
-
-        continuousLocationCallback = new com.google.android.gms.location.LocationCallback() {
-            @Override
-            public void onLocationResult(com.google.android.gms.location.LocationResult locationResult) {
-                if (locationResult == null) return;
-                android.location.Location location = locationResult.getLastLocation();
-                if (location == null) return;
-                updateUserLocationIfMoved(location);
-            }
-        };
-
-        fusedLocationClient.requestLocationUpdates(locationRequest, continuousLocationCallback, null);
+        locationTracker.startContinuous(this);
     }
 
     private void stopContinuousLocationTracking() {
-        if (continuousLocationCallback == null) {
-            return;
-        }
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.removeLocationUpdates(continuousLocationCallback);
-        }
-        continuousLocationCallback = null;
-    }
-
-    /** Actualiza solo el marcador de ubicación si el usuario se movió, sin mover la cámara. */
-    private void updateUserLocationIfMoved(android.location.Location location) {
-        if (!isAdded() || getView() == null) return;
-
-        if (lastTrackedLocation != null && lastTrackedLocation.distanceTo(location) < MOVEMENT_THRESHOLD_METERS) {
-            return; // no se movió lo suficiente
-        }
-        lastTrackedLocation = location;
-
-        userLocation = Point.fromLngLat(location.getLongitude(), location.getLatitude());
-        addUserLocationMarker(userLocation);
+        locationTracker.stopContinuous(this);
     }
 
     private void addUserLocationMarker(Point point) {
-        if (circleAnnotationManager == null) {
-            return;
-        }
-
-        if (userLocationMarker != null) {
-            circleAnnotationManager.delete(userLocationMarker);
-        }
-
-        CircleAnnotationOptions options = new CircleAnnotationOptions()
-                .withPoint(point)
-                .withCircleRadius(10.0)
-                .withCircleColor("#2196F3")
-                .withCircleOpacity(0.7)
-                .withCircleStrokeWidth(3.0)
-                .withCircleStrokeColor("#FFFFFF");
-
-        userLocationMarker = circleAnnotationManager.create(options);
+        if (markerRenderer != null) markerRenderer.addUserLocation(point);
     }
 
     /** Llamado al inicio (carga inicial) y desde onViewportChanged. */
@@ -510,7 +269,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         double zoom = mapboxMap.getCameraState().getZoom();
 
         if (zoom < MIN_ZOOM_TO_LOAD) {
-            clearAllMarkerVisuals();
+            if (markerRenderer != null) { markerRenderer.clearAll(); reportMarkers.clear(); }
             android.util.Log.d("MapFragment", "🔍 Zoom " + String.format(Locale.US, "%.1f", zoom) + " < " + MIN_ZOOM_TO_LOAD + ", no cargando reportes");
             SnackbarHelper.show(getView(), "Acercate para ver reportes", SnackbarHelper.Variant.INFO);
             return;
@@ -542,9 +301,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 latMin, latMax, lngMin, lngMax, zoom));
 
         isLoadingReports = true;
-        if (lastSyncTimestamp == null) {
-            lastSyncTimestamp = currentTimestampIso();
-        }
+        if (reportPoller.getTimestamp() == null) reportPoller.setTimestamp(ReportPoller.nowIso());
 
         ApiClient.getInstance().getReportsByBounds(latMin, latMax, lngMin, lngMax, VIEWPORT_PAGE_SIZE)
                 .enqueue(new Callback<ReportResponse>() {
@@ -557,17 +314,17 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     java.util.List<ReportResponse.ReportData> reports = response.body().getData();
                     android.util.Log.d("MapFragment", "✓ Viewport reports: " + (reports != null ? reports.size() : 0));
 
-                    // Remove visuals for markers outside current bounds
-                    removeMarkersOutsideBounds(latMin, latMax, lngMin, lngMax);
+                    if (markerRenderer != null) markerRenderer.removeOutsideBounds(latMin, latMax, lngMin, lngMax);
 
                     if (reports != null) {
                         int added = 0;
                         boolean limitReached = false;
+                        int uid = TokenManager.getInstance(requireContext()).getUserId();
                         for (ReportResponse.ReportData report : reports) {
                             String key = String.valueOf(report.getId());
                             boolean isNew = !reportMarkers.containsKey(key);
                             if (reportMarkers.size() < MAX_REPORTS || !isNew) {
-                                addReportMarker(report);
+                                if (markerRenderer != null) markerRenderer.addReport(report, uid);
                                 cacheReport(report);
                                 if (isNew) added++;
                             } else {
@@ -597,33 +354,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         });
     }
 
-    /** Elimina visuals de marcadores que ya no están en el bounding box visible. */
-    private void removeMarkersOutsideBounds(double latMin, double latMax, double lngMin, double lngMax) {
-        java.util.List<Integer> toRemove = new java.util.ArrayList<>();
-        for (java.util.Map.Entry<String, ReportResponse.ReportData> entry : reportMarkers.entrySet()) {
-            ReportResponse.ReportData r = entry.getValue();
-            if (r.getLatitude() < latMin || r.getLatitude() > latMax ||
-                r.getLongitude() < lngMin || r.getLongitude() > lngMax) {
-                toRemove.add(r.getId());
-            }
-        }
-        for (int id : toRemove) {
-            removeMarkerVisuals(id);
-            reportMarkers.remove(String.valueOf(id));
-        }
-        if (!toRemove.isEmpty()) {
-            android.util.Log.d("MapFragment", "🗑 Removidos " + toRemove.size() + " marcadores fuera de viewport");
-        }
-    }
-
-    /** Limpia todos los marcadores del mapa (sin borrar caché). */
-    private void clearAllMarkerVisuals() {
-        for (int id : new java.util.ArrayList<>(reportIconMarkers.keySet())) {
-            removeMarkerVisuals(id);
-        }
-        reportMarkers.clear();
-        coordOccupancy.clear();
-    }
 
     /** RF-05: dispara sync apenas vuelve la conexión, sin esperar el periodic de 15min. */
     private void registerConnectivityCallback() {
@@ -716,65 +446,18 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         });
     }
 
-    private String currentTimestampIso() {
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
-        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-        return sdf.format(new java.util.Date());
-    }
-
-    /**
-     * Polling: pide reportes nuevos o modificados desde la última sincronización
-     * (creaciones, cambios de estado, votos de otros usuarios) y actualiza el mapa.
-     */
     private void pollForUpdates() {
-        if (!isAdded() || getView() == null || lastSyncTimestamp == null) return;
-
-        android.util.Log.d("MapFragment", "🔁 Polling stream/changes — since=" + lastSyncTimestamp);
-
-        ApiClient.getInstance().getReportsStreamChanges(lastSyncTimestamp, MAX_REPORTS).enqueue(new Callback<ReportStreamResponse>() {
-            @Override
-            public void onResponse(@NonNull Call<ReportStreamResponse> call, @NonNull Response<ReportStreamResponse> response) {
-                if (!isAdded() || getView() == null) return;
-
-                if (response.isSuccessful() && response.body() != null) {
-                    ReportStreamResponse streamResponse = response.body();
-                    java.util.List<ReportResponse.ReportData> reports = streamResponse.getReports();
-
-                    android.util.Log.d("MapFragment", "✓ stream/changes → count=" + streamResponse.getCount()
-                            + " timestamp=" + streamResponse.getTimestamp());
-
-                    if (reports != null) {
-                        for (ReportResponse.ReportData report : reports) {
-                            android.util.Log.d("MapFragment", "  ↳ reporte ID=" + report.getId()
-                                    + " status=" + report.getStatus()
-                                    + " updated_at=" + report.getUpdatedAt());
-                            applyReportUpdate(report);
-                        }
-                    }
-
-                    if (streamResponse.getTimestamp() != null) {
-                        lastSyncTimestamp = streamResponse.getTimestamp();
-                    }
-                } else {
-                    android.util.Log.e("MapFragment", "✗ Error en polling: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull Call<ReportStreamResponse> call, @NonNull Throwable t) {
-                android.util.Log.e("MapFragment", "❌ Error de red en polling: " + t.getMessage());
-            }
-        });
+        if (reportPoller != null) reportPoller.pollNow();
     }
 
     private void applyReportUpdate(ReportResponse.ReportData report) {
         String reportKey = String.valueOf(report.getId());
         ReportResponse.ReportData cached = reportMarkers.get(reportKey);
+        int uid = TokenManager.getInstance(requireContext()).getUserId();
 
         if (cached == null) {
-            if (reportMarkers.size() < MAX_REPORTS) {
-                addReportMarker(report);
-                android.util.Log.d("MapFragment", "🆕 Reporte nuevo via polling: ID=" + report.getId());
+            if (reportMarkers.size() < MAX_REPORTS && markerRenderer != null) {
+                markerRenderer.addReport(report, uid);
             }
             return;
         }
@@ -782,19 +465,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         boolean statusChanged = !cached.getStatus().equals(report.getStatus());
         reportMarkers.put(reportKey, report);
 
-        if (statusChanged) {
-            android.util.Log.d("MapFragment", "🔄 Estado actualizado via polling: ID=" + report.getId()
-                    + " " + cached.getStatus() + " → " + report.getStatus());
-            updateReportMarker(report.getId(), report.getStatus(), report.getVotesConfirm(), report.getVotesResolve());
+        if (statusChanged && markerRenderer != null) {
+            markerRenderer.updateReport(report.getId(), report.getStatus(),
+                    report.getVotesConfirm(), report.getVotesResolve(), uid);
         }
     }
 
-    /** RF-18/RF-19: elimina los visuales del marcador sin perder el dato cacheado en reportMarkers. */
     private void removeMarkerVisuals(int reportId) {
-        PointAnnotation existingIcon = reportIconMarkers.remove(reportId);
-        if (existingIcon != null && pointAnnotationManager != null) pointAnnotationManager.delete(existingIcon);
-        CircleAnnotation existingStroke = reportStrokeMarkers.remove(reportId);
-        if (existingStroke != null && circleAnnotationManager != null) circleAnnotationManager.delete(existingStroke);
+        if (markerRenderer != null) markerRenderer.removeReport(reportId);
     }
 
     /** RF-18: reportes archivados nunca se pintan en el mapa. RF-19: filtros de categoría/estado/antigüedad. */
@@ -894,13 +572,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void applyFilters() {
+        if (markerRenderer == null) return;
+        int uid = TokenManager.getInstance(requireContext()).getUserId();
         for (ReportResponse.ReportData report : new java.util.ArrayList<>(reportMarkers.values())) {
             if (passesFilters(report)) {
-                if (!reportIconMarkers.containsKey(report.getId())) {
-                    addReportMarker(report);
-                }
+                markerRenderer.addReport(report, uid);
             } else {
-                removeMarkerVisuals(report.getId());
+                markerRenderer.removeReport(report.getId());
             }
         }
     }
@@ -989,204 +667,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void addReportMarker(ReportResponse.ReportData report) {
-        if (pointAnnotationManager == null || circleAnnotationManager == null) {
-            android.util.Log.e("MapFragment", "No se puede añadir marcador: managers son nulos");
-            return;
+        if (markerRenderer != null) {
+            int uid = TokenManager.getInstance(requireContext()).getUserId();
+            markerRenderer.addReport(report, uid);
         }
-
-        // Eliminar visuales previos para evitar duplicados en UI
-        removeMarkerVisuals(report.getId());
-
-        // RF-18/RF-19: no pintar marcador si no pasa filtros (archivado, categoría, estado, antigüedad)
-        if (!passesFilters(report)) {
-            reportMarkers.put(String.valueOf(report.getId()), report);
-            return;
-        }
-
-        // IMPORTANTE: Point.fromLngLat requiere LONGITUD primero, luego LATITUD
-        double lat = report.getLatitude();
-        double lng = report.getLongitude();
-
-        // Offset para marcadores con coords idénticas (~11m por slot)
-        String coordKey = String.format(Locale.US, "%.6f,%.6f", lat, lng);
-        int slotIndex = coordOccupancy.getOrDefault(coordKey, 0);
-        coordOccupancy.put(coordKey, slotIndex + 1);
-        if (slotIndex > 0) {
-            double angle = (slotIndex - 1) * (2 * Math.PI / 6);  // máx 6 alrededor
-            double offsetDeg = 0.00003;  // ~3 metros
-            lat += offsetDeg * Math.cos(angle);
-            lng += offsetDeg * Math.sin(angle);
-        }
-
-        String categorySlug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
-
-        Point point = Point.fromLngLat(lng, lat);
-        String reportKey = String.valueOf(report.getId());
-        reportMarkers.put(reportKey, report);
-        int drawableId = getCategoryDrawableId(categorySlug);
-        String categoryColor = getCategoryColor(categorySlug);
-        int currentUserId = TokenManager.getInstance(requireContext()).getUserId();
-        boolean isMine = (currentUserId != -1 && currentUserId == report.getUserId());
-
-        android.util.Log.d("MapFragment", "Añadiendo marcador: ID=" + report.getId() +
-                " | isMine=" + isMine + " color: " + categoryColor);
-
-        // 1. Icono del reporte (Todo-en-uno: Icono + Borde Estado + Halo Mi Reporte)
-        try {
-            Bitmap iconBitmap = bitmapFromDrawable(drawableId, categoryColor, report.getStatus(), isMine);
-
-            if (iconBitmap == null) {
-                android.util.Log.w("MapFragment", "  ✗ Bitmap es null, saltando PointAnnotation");
-                return;
-            }
-
-            // RF-28: marcador base más grande para usuarios con score/level alto
-            double sizeMultiplier = getUserSizeMultiplier(report);
-
-            // Crear PointAnnotation con bitmap directamente
-            PointAnnotationOptions pointOptions = new PointAnnotationOptions()
-                    .withPoint(point)
-                    .withIconImage(iconBitmap)
-                    .withIconSize(1.1 * sizeMultiplier);
-
-            PointAnnotation pointAnnotation = pointAnnotationManager.create(pointOptions);
-            pointAnnotation.setDraggable(false);
-            annotationToReportId.put(pointAnnotation.getId(), report.getId());
-            reportIconMarkers.put(report.getId(), pointAnnotation);
-
-            android.util.Log.d("MapFragment", "  ✓ Marcador completado (Capa única)");
-
-        } catch (Exception e) {
-            android.util.Log.e("MapFragment", "✗ Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private Bitmap bitmapFromDrawable(int drawableId, String categoryColorHex, String status, boolean isMine) {
-        String cacheKey = drawableId + "_" + categoryColorHex + "_" + status + "_" + isMine;
-        Bitmap cached = bitmapCache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        try {
-            android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(requireContext(), drawableId);
-            if (drawable == null) return null;
-
-            final int SIZE = 130; // Un poco más grande para el halo
-            Bitmap bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            float center = SIZE / 2f;
-            float radius = SIZE / 2.8f;
-
-            // 1. Halo de "Mi Reporte" (Sutil resplandor)
-            if (isMine) {
-                android.graphics.Paint haloPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                haloPaint.setColor(android.graphics.Color.parseColor("#FFD700")); // Oro
-                haloPaint.setAlpha(80);
-                canvas.drawCircle(center, center, radius + 12, haloPaint);
-            }
-
-            // 2. Sombra base
-            android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            shadowPaint.setColor(android.graphics.Color.BLACK);
-            shadowPaint.setAlpha(40);
-            canvas.drawCircle(center, center + 4, radius, shadowPaint);
-
-            // 3. Círculo principal (Categoría)
-            android.graphics.Paint circlePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            circlePaint.setColor(android.graphics.Color.parseColor(categoryColorHex));
-            canvas.drawCircle(center, center, radius, circlePaint);
-
-            // 4. Borde de Estado (Reemplaza al anillo ruidoso)
-            android.graphics.Paint statusBorderPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            statusBorderPaint.setStyle(android.graphics.Paint.Style.STROKE);
-            statusBorderPaint.setStrokeWidth(isMine ? 8f : 6f);
-            statusBorderPaint.setColor(android.graphics.Color.parseColor(getStatusStrokeColor(status)));
-            canvas.drawCircle(center, center, radius, statusBorderPaint);
-
-            // 5. Icono central
-            try {
-                drawable.setTint(android.graphics.Color.WHITE);
-            } catch (Exception ignored) {}
-
-            int iconSize = (int) (radius * 1.1f);
-            int iconOffset = (int) (center - iconSize / 2f);
-            drawable.setBounds(iconOffset, iconOffset, iconOffset + iconSize, iconOffset + iconSize);
-            drawable.draw(canvas);
-
-            bitmapCache.put(cacheKey, bitmap);
-            return bitmap;
-        } catch (Exception e) {
-            android.util.Log.e("MapFragment", "✗ Error creando bitmap: " + e.getMessage());
-            return null;
-        }
-    }
-
-    private String getStatusStrokeColor(String status) {
-        return switch (status) {
-            case "pending" -> "#FF9800";      // Naranja - pendiente
-            case "verified" -> "#4CAF50";     // Verde - verificado
-            case "resolved" -> "#2196F3";     // Azul - resuelto
-            case "archived" -> "#9E9E9E";     // Gris - archivado
-            default -> "#757575";              // Gris oscuro - desconocido
-        };
-    }
-
-    private int getCategoryDrawableId(String categorySlug) {
-        // Retorna el ID del drawable para cada categoría
-        return switch (categorySlug) {
-            case "bache", "vialidad" -> R.drawable.remove_road_24px;
-            case "alumbrado-publico", "alumbrado" -> R.drawable.backlight_high_off_24px;
-            case "fuga-de-agua", "agua" -> R.drawable.agua;
-            case "semaforo-danado", "trafico" -> R.drawable.traffic_jam_24px;
-            case "inseguridad", "seguridad" -> R.drawable.warning_24px;
-            case "basura-acumulada", "parques", "basura" -> R.drawable.trash;
-            default -> R.drawable.ic_category_otros;
-        };
-    }
-
-    private String getCategoryColor(String categorySlug) {
-        // Mapear slugs del UI (cuando se crea reporte) Y slugs de API (cuando se carga)
-        return switch (categorySlug) {
-            // UI slugs
-            case "vialidad" -> "#FF6B6B";      // Rojo
-            case "alumbrado" -> "#FFD93D";     // Amarillo
-            case "agua" -> "#6BCB77";          // Verde
-            case "trafico" -> "#4D96FF";       // Azul
-            case "seguridad" -> "#9D4EDD";     // Púrpura
-            case "parques" -> "#06D6A0";       // Turquesa
-            case "basura" -> "#8B5A3C";        // Marrón
-
-            // API slugs
-            case "bache" -> "#FF6B6B";                    // Rojo (vialidad)
-            case "alumbrado-publico" -> "#FFD93D";       // Amarillo (alumbrado)
-            case "fuga-de-agua" -> "#6BCB77";             // Verde (agua)
-            case "semaforo-danado" -> "#4D96FF";          // Azul (tráfico)
-            case "inseguridad" -> "#9D4EDD";              // Púrpura (seguridad)
-            case "basura-acumulada" -> "#8B5A3C";         // Marrón (basura)
-
-            default -> "#808080";  // Gris (fallback)
-        };
-    }
-
-    private double getRadiusByStatus(String status) {
-        if (status == null) return 5.0;
-        return switch (status) {
-            case "verified" -> 8.0;
-            case "resolved" -> 6.0;
-            default -> 5.0;
-        };
-    }
-
-    private double getOpacityByStatus(String status) {
-        if (status == null) return 0.7;
-        return switch (status) {
-            case "pending" -> 0.8;
-            case "verified" -> 0.9;
-            case "resolved" -> 0.5;
-            default -> 0.7;
-        };
     }
 
     private void setupMapListeners() {
@@ -1301,7 +785,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         for (ReportResponse.ReportData report : reportMarkers.values()) {
             if (report.getCategory() == null) continue;
             if (report.getCategory().getId() != categoryId) continue;
-            double distanceKm = calculateDistance(lat, lng, report.getLatitude(), report.getLongitude());
+            double distanceKm = NearbyReportChecker.haversineKm(lat, lng, report.getLatitude(), report.getLongitude());
             if (distanceKm * 1000 <= radiusMeters) return true;
         }
         return false;
@@ -1340,74 +824,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     public void onReportRetracted(int reportId) {
         android.util.Log.d("MapFragment", "🗑️ Reporte retirado: ID=" + reportId);
         reportMarkers.remove(String.valueOf(reportId));
-
-        PointAnnotation icon = reportIconMarkers.remove(reportId);
-        if (icon != null && pointAnnotationManager != null) pointAnnotationManager.delete(icon);
-
-        CircleAnnotation stroke = reportStrokeMarkers.remove(reportId);
-        if (stroke != null && circleAnnotationManager != null) circleAnnotationManager.delete(stroke);
+        if (markerRenderer != null) markerRenderer.removeReport(reportId);
     }
 
     private void updateReportMarker(int reportId, String newStatus, int confirmCount, int resolveCount) {
-        ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
-        if (report == null) return;
-
-        // Actualizar datos del reporte
-        report.setStatus(newStatus.toLowerCase());
-        if (report.getVotes() != null) {
-            report.getVotes().setConfirm(confirmCount);
-            report.getVotes().setResolve(resolveCount);
-        }
-
-        // Simplemente volvemos a llamar a addReportMarker, que ya tiene lógica de limpieza
-        addReportMarker(report);
-        android.util.Log.d("MapFragment", "✓ Marcador regenerado con nuevo estado: " + newStatus);
-    }
-
-    private void animateBounce(PointAnnotation annotation) {
-        float baseSize = 1.6f;
-        android.animation.ValueAnimator animator = android.animation.ValueAnimator.ofFloat(baseSize, baseSize * 1.4f, baseSize);
-        animator.setDuration(400);
-        animator.setInterpolator(new android.view.animation.OvershootInterpolator());
-        animator.addUpdateListener(animation1 -> {
-            annotation.setIconSize(((Float) animation1.getAnimatedValue()).doubleValue());
-            pointAnnotationManager.update(annotation);
-        });
-        animator.start();
-    }
-
-    private void updateMarkersScale(double zoom) {
-        // Factor de escala optimizado para que no se vea gigante con mucho zoom
-        // Referencia: Zoom 15 = 1.0. Crecimiento muy sutil (base 1.06)
-        float scaleFactor = (float) Math.max(0.6, Math.min(1.4, Math.pow(1.06, zoom - 15)));
-
-        // Tamaño base más pequeño (1.1f en lugar de 1.6f)
-        double baseIconSize = 1.1 * scaleFactor;
-
-        for (java.util.Map.Entry<Integer, PointAnnotation> entry : reportIconMarkers.entrySet()) {
-            ReportResponse.ReportData report = reportMarkers.get(String.valueOf(entry.getKey()));
-            double sizeMultiplier = (report != null) ? getUserSizeMultiplier(report) : 1.0;
-            entry.getValue().setIconSize(baseIconSize * sizeMultiplier);
-        }
-
-        if (!reportIconMarkers.isEmpty()) {
-            pointAnnotationManager.update(pointAnnotationManager.getAnnotations());
-        }
-    }
-
-    // RF-28: usuarios con score/level alto obtienen marcadores con tamaño base mayor
-    private double getUserSizeMultiplier(ReportResponse.ReportData report) {
-        ReportResponse.UserInfo user = report.getUser();
-        if (user == null || user.getLevel() == null) return 1.0;
-        switch (user.getLevel()) {
-            case "experto":
-                return 1.3;
-            case "guardian":
-                return 1.2;
-            case "colaborador":
-                return 1.1;
-            default:
-                return 1.0;
+        if (markerRenderer != null) {
+            int uid = TokenManager.getInstance(requireContext()).getUserId();
+            markerRenderer.updateReport(reportId, newStatus, confirmCount, resolveCount, uid);
         }
     }
 
@@ -1432,7 +855,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             if (userLocation != null) {
                 animateCameraTo(userLocation);
             } else {
-                getCurrentUserLocation();
+                locationTracker.requestLocation(this);
             }
         });
 
@@ -1442,7 +865,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 showRadialMenu(userLocation);
             } else {
                 SnackbarHelper.show(getView(), "Obteniendo ubicación...", SnackbarHelper.Variant.INFO);
-                getCurrentUserLocation();
+                locationTracker.requestLocation(this);
             }
         });
 
@@ -1518,22 +941,18 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     @Override
     public void onStart() {
         super.onStart();
-        if (mapView != null) {
-            mapView.onStart();
-        }
-        pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+        if (mapView != null) mapView.onStart();
+        if (reportPoller != null) reportPoller.start();
         votableReportsHandler.postDelayed(votableReportsRunnable, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
         startContinuousLocationTracking();
     }
 
     @Override
     public void onStop() {
-        pollHandler.removeCallbacks(pollRunnable);
+        if (reportPoller != null) reportPoller.stop();
         votableReportsHandler.removeCallbacks(votableReportsRunnable);
         stopContinuousLocationTracking();
-        if (mapView != null) {
-            mapView.onStop();
-        }
+        if (mapView != null) mapView.onStop();
         super.onStop();
     }
 
@@ -1541,118 +960,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
      * Check for nearby votable reports and notify user (Option B - periodic local notifications)
      * Called every 30 seconds while map is visible
      */
-    private void checkAndNotifyNearbyVotableReports() {
-        if (userLocation == null || reportMarkers.isEmpty()) {
-            return;
-        }
-
-        try {
-            int currentUserId = TokenManager.getInstance(requireContext()).getUserId();
-            java.util.List<ReportResponse.ReportData> votableReports = new java.util.ArrayList<>();
-
-            // Calculate distance to each report
-            for (ReportResponse.ReportData report : reportMarkers.values()) {
-                // Skip archived reports
-                if (report.getStatus() != null && report.getStatus().equals("archived")) {
-                    continue;
-                }
-
-                // Skip own reports (can't vote on them)
-                if (report.getUser() != null && report.getUser().getId() == currentUserId) {
-                    continue;
-                }
-
-                // Calculate Haversine distance
-                double distance = calculateDistance(
-                        userLocation.latitude(),
-                        userLocation.longitude(),
-                        report.getLatitude(),
-                        report.getLongitude()
-                );
-
-                // If within votable range, add to list
-                if (distance <= VOTABLE_RANGE_KM) {
-                    votableReports.add(report);
-                }
-            }
-
-            int votableCount = votableReports.size();
-
-            // Only notify if count changed (avoid spamming same notification)
-            if (votableCount > 0 && votableCount != lastNotifiedVotableCount) {
-                lastNotifiedVotableCount = votableCount;
-                notifyVotableReportsNearby(votableCount);
-                android.util.Log.d("MapFragment", "🗳️ Found " + votableCount + " votable reports nearby");
-            } else if (votableCount == 0 && lastNotifiedVotableCount > 0) {
-                lastNotifiedVotableCount = 0;
-                // Optionally clear notification when no more reports nearby
-            }
-
-        } catch (Exception e) {
-            android.util.Log.e("MapFragment", "Error checking votable reports", e);
-        }
-    }
-
-    /**
-     * Show local notification about votable reports nearby
-     */
-    private void notifyVotableReportsNearby(int count) {
-        try {
-            String title = "¡Puedes votar!";
-            String message = count == 1 ?
-                    "Hay 1 reporte cerca donde puedes votar" :
-                    "Hay " + count + " reportes cerca donde puedes votar";
-
-            // Create intent to open map (focus on votable reports)
-            Intent intent = new Intent(requireContext(), com.bombayashi.reporteciudadano.MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-
-            android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
-                    requireContext(),
-                    999,  // Unique ID for votable reports notification
-                    intent,
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE
-            );
-
-            // Use the votable reports notification channel
-            String channelId = NotificationChannelHelper.CHANNEL_ID_REPORTS;
-
-            androidx.core.app.NotificationCompat.Builder notificationBuilder =
-                    new androidx.core.app.NotificationCompat.Builder(requireContext(), channelId)
-                            .setSmallIcon(R.drawable.warning_24px)
-                            .setContentTitle(title)
-                            .setContentText(message)
-                            .setAutoCancel(true)
-                            .setContentIntent(pendingIntent)
-                            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH);
-
-            android.app.NotificationManager notificationManager =
-                    (android.app.NotificationManager) requireContext()
-                            .getSystemService(android.content.Context.NOTIFICATION_SERVICE);
-
-            if (notificationManager != null) {
-                notificationManager.notify(999, notificationBuilder.build());
-                android.util.Log.d("MapFragment", "✓ Notified: " + message);
-            }
-
-        } catch (Exception e) {
-            android.util.Log.e("MapFragment", "Error showing votable reports notification", e);
-        }
-    }
-
-    /**
-     * Calculate distance between two coordinates using Haversine formula (in km)
-     */
-    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-        final int EARTH_RADIUS_KM = 6371;
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return EARTH_RADIUS_KM * c;
-    }
 
     public boolean isMapReady() { return mapReady; }
 
