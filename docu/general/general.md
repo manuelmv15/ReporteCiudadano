@@ -21,9 +21,65 @@
 - `app/src/main/java/com/bombayashi/reporteciudadano/work/ReportSyncWorker.java` — separado `catch (org.json.JSONException e)` antes del `catch (Exception e)` genérico. Antes, un payload corrupto en Room era tratado como error de red: el Worker reintentaba 5 veces, consumía batería/red innecesariamente, y marcaba la acción como FAILED sin que el usuario entendiera por qué su voto/reporte nunca llegó.
 
 ### TODOs / Próximos pasos
-- [ ] Refactorizar `MapFragment.java` (1682 líneas): extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker` a clases separadas
-- [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones de pantalla sin relanzar llamadas API
+- [ ] Refactorizar `MapFragment.java`: extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker`
+- [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones sin relanzar llamadas API
 - [ ] Notificar al usuario cuando `ReportSyncWorker` marca acciones como `STATUS_FAILED` por payload corrupto
+
+---
+
+## [2026-06-22] UX gaps, features sin backend, deuda técnica y riesgos de producción
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — múltiples cambios:
+  - Coordenadas raw removidas del Snackbar de ubicación (ahora: "Ubicación obtenida (precisión ±Xm)")
+  - Filtros persisten en SharedPreferences (`map_filters`): status, age, categories, heatmap — se cargan en `onViewCreated` y se guardan al aplicar
+  - Hint de long press (primera vez): `tvLongPressHint` visible 4s con fade out, guardado en prefs `map_onboarding`
+  - Spinner `pbMapLoading` visible al iniciar, se oculta cuando el estilo carga
+  - FCM → reporte específico: `isMapReady()` + `setOnMapReadyCallback()` para el caso donde la app abre desde notificación con mapa no listo aún
+  - Feedback de sync offline: `observeSyncWork()` ahora muestra Snackbar "X acciones sincronizadas" cuando el worker completa
+  - Heatmap overlay: `toggleHeatmap()` con GeoJSON source + HeatmapLayer de Mapbox; toggle en dialog de filtros con checkbox
+  - `hasSameCategoryNearby()`: migrado de grados a metros usando Haversine existente (50m de radio)
+  - `getCategoryIdBySlug()` y `normalizeCategoryGroup()` delegados a `CategoryMapper`
+  - `showLongPressHintIfFirstTime()` + `mapReady` + `onMapReadyCallback` agregados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/ReportDetailBottomSheet.java` — múltiples cambios:
+  - Countdown de retracción: `CountDownTimer` con `tvRetractCountdown` mostrando "M:SS restantes", se oculta al expirar
+  - `canRetract()` eliminado (lógica consolidada en `setupRetractButton()`)
+  - Distancia proactiva: `tvDistanceInfo` siempre visible con distancia + color (verde=dentro, naranja=fuera); `llDistanceWarning` removido de uso activo; botones arrrancan `enabled=false` y se habilitan al cargar estado
+  - Countdown de archivo: `tvArchiveCountdown` muestra "Se archivará en ~Xh sin más actividad" para reportes pending/verified con <24h de vida
+- `app/src/main/java/com/bombayashi/reporteciudadano/MainActivity.java` — FCM deep link con mapa no listo: guarda `pendingNotificationReportId`, usa `setOnMapReadyCallback()` si mapa no está listo
+- `app/src/main/java/com/bombayashi/reporteciudadano/util/CategoryMapper.java` — NUEVO: clase utilitaria con `toApiId(slug)` y `toFilterGroup(apiSlug)` como única fuente de verdad para mappings de categorías
+- `app/src/main/java/com/bombayashi/reporteciudadano/RegisterActivity.java` — fix preexistente: `class dRegisterActivity` → `class RegisterActivity`
+- `app/src/main/res/layout/fragment_map.xml` — agregados `pbMapLoading` (spinner inicial) y `tvLongPressHint`
+- `app/src/main/res/layout/bottom_sheet_report_detail.xml` — agregados `tvDistanceInfo`, `tvArchiveCountdown`, `tvRetractCountdown`; botones de voto arrrancan `enabled=false`
+- `app/src/main/res/layout/dialog_map_filters.xml` — sección "Visualización" con checkbox heatmap
+
+### TODOs / Próximos pasos
+- [ ] Refactorizar `MapFragment.java`: extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker`
+- [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones sin relanzar llamadas API
+- [ ] Backend: `GET/POST /reports/{id}/comments`, `POST /reports/{id}/watch`, `GET /leaderboard` (features pendientes que requieren endpoints nuevos)
+
+---
+
+## [2026-06-22] AuthInterceptor — centralización de auth en OkHttp
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/network/AuthInterceptor.java` — NUEVO: interceptor OkHttp que añade `Authorization: Bearer <token>` a todas las requests automáticamente; expone `setOnUnauthorized(Runnable)` para manejar 401 globalmente
+- `app/src/main/java/com/bombayashi/reporteciudadano/network/ApiClient.java` — refactorizado: ahora requiere `init(Context)` en Application; usa `AuthInterceptor`; expone `setOnUnauthorized()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/network/ApiService.java` — eliminados todos los `@Header("Authorization") String token` params de: `logout`, `createReport`, `submitVote`, `updateReport`, `deleteReport`, `deleteVote`, `getMe`, `updateProfile`, `uploadAvatar`, `getMyReports`, `getMyVotes`, `updateFcmToken`
+- `app/src/main/java/com/bombayashi/reporteciudadano/ReporteCiudadanoApp.java` — agrega `ApiClient.init(this)` en `onCreate()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — elimina token manual en `createReport()`; registra `setOnUnauthorized()` → `handleExpiredSession()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/ReportDetailBottomSheet.java` — elimina token en `deleteReport()`, `updateReport()` x2
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/UserProfileBottomSheet.java` — elimina token en `getMyReports()`, `getMe()`, `updateProfile()`, `uploadAvatar()`, `getMyVotes()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/vote/VoteStateManager.java` — elimina token en `submitVote()`, `deleteVote()`; simplifica `submitVoteInternal(token)` → `submitVoteInternal()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/work/ReportSyncWorker.java` — elimina token en `syncCreateReport()`, `syncVote()`, `syncRetractReport()`; elimina import `TokenManager`
+- `app/src/main/java/com/bombayashi/reporteciudadano/service/VoteActionReceiver.java` — elimina token en `submitVote()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/service/MyFirebaseMessagingService.java` — elimina token en `updateFcmToken()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/LoginActivity.java` — elimina token en `updateFcmToken()`
+
+### TODOs / Próximos pasos
+- [ ] Refactorizar `MapFragment.java`: extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker`
+- [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones sin relanzar llamadas API
+- [ ] Backend: `GET/POST /reports/{id}/comments`, `POST /reports/{id}/watch`, `GET /leaderboard`
 - [ ] Revisar `ReportSyncWorker.java:62` — `catch (Exception e)` genérico puede causar retry infinito en errores de parseo JSON
 
 ## [2026-06-07] Cambio de URL base de la API a producción

@@ -54,6 +54,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private boolean isOwner = false;
     private TokenManager tokenManager;
     private Uri cameraPhotoUri;
+    private android.os.CountDownTimer retractCountdown;
 
     private final ActivityResultLauncher<String> galleryLauncher =
         registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
@@ -188,6 +189,19 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.tvStatus.setTextColor(statusColor);
         binding.tvDescription.setText(description);
         binding.tvUser.setText("Reportado por: " + userName);
+
+        String reportStatus = report.getStatus();
+        if (!"archived".equals(reportStatus) && !"resolved".equals(reportStatus) && report.getCreatedAt() != null) {
+            try {
+                long createdMs = java.time.Instant.parse(report.getCreatedAt()).toEpochMilli();
+                long archiveAt = createdMs + 24 * 60 * 60 * 1000L;
+                long hoursLeft = (archiveAt - System.currentTimeMillis()) / (60 * 60 * 1000L);
+                if (hoursLeft > 0 && hoursLeft <= 24) {
+                    binding.tvArchiveCountdown.setVisibility(View.VISIBLE);
+                    binding.tvArchiveCountdown.setText("Se archivará en ~" + hoursLeft + "h sin más actividad");
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     private void setupOwnerControls() {
@@ -224,8 +238,20 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void setupRetractButton() {
-        if (!canRetract()) return;
+        String createdAt = report.getCreatedAt();
+        if (createdAt == null) return;
+        long msRemaining;
+        try {
+            java.time.Instant created = java.time.Instant.parse(createdAt);
+            long windowEnd = created.toEpochMilli() + 5 * 60 * 1000L;
+            msRemaining = windowEnd - System.currentTimeMillis();
+        } catch (Exception e) {
+            return;
+        }
+        if (msRemaining <= 0 || report.getVotesConfirm() + report.getVotesResolve() >= 3) return;
+
         binding.btnRetractReport.setVisibility(View.VISIBLE);
+        binding.tvRetractCountdown.setVisibility(View.VISIBLE);
         binding.btnRetractReport.setOnClickListener(v ->
             new AlertDialog.Builder(requireContext())
                 .setTitle("Retirar reporte")
@@ -234,20 +260,21 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 .setNegativeButton("Cancelar", null)
                 .show()
         );
-    }
 
-    private boolean canRetract() {
-        if (report.getVotesConfirm() + report.getVotesResolve() >= 3) return false;
-
-        String createdAt = report.getCreatedAt();
-        if (createdAt == null) return false;
-        try {
-            java.time.Instant createdInstant = java.time.Instant.parse(createdAt);
-            java.time.Duration age = java.time.Duration.between(createdInstant, java.time.Instant.now());
-            return age.toMinutes() < 5;
-        } catch (Exception e) {
-            return false;
-        }
+        retractCountdown = new android.os.CountDownTimer(msRemaining, 1000) {
+            @Override
+            public void onTick(long ms) {
+                if (binding == null) return;
+                long secs = ms / 1000;
+                binding.tvRetractCountdown.setText(String.format(java.util.Locale.getDefault(), "%d:%02d restantes", secs / 60, secs % 60));
+            }
+            @Override
+            public void onFinish() {
+                if (binding == null) return;
+                binding.btnRetractReport.setVisibility(View.GONE);
+                binding.tvRetractCountdown.setVisibility(View.GONE);
+            }
+        }.start();
     }
 
     private void retractReport() {
@@ -258,9 +285,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             return;
         }
 
-        String token = "Bearer " + tokenManager.getToken();
         binding.pbVoteLoading.setVisibility(View.VISIBLE);
-        ApiClient.getInstance().deleteReport(report.getId(), token)
+        ApiClient.getInstance().deleteReport(report.getId())
             .enqueue(new Callback<com.bombayashi.reporteciudadano.model.SimpleResponse>() {
                 @Override
                 public void onResponse(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Response<com.bombayashi.reporteciudadano.model.SimpleResponse> response) {
@@ -363,9 +389,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void saveDescription(String newDesc) {
-        String token = "Bearer " + tokenManager.getToken();
         RequestBody descBody = RequestBody.create(newDesc, MediaType.parse("text/plain"));
-        ApiClient.getInstance().updateReport(report.getId(), token, descBody, null)
+        ApiClient.getInstance().updateReport(report.getId(), descBody, null)
             .enqueue(new Callback<CreateReportResponse>() {
                 @Override
                 public void onResponse(Call<CreateReportResponse> call, Response<CreateReportResponse> response) {
@@ -474,17 +499,21 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         binding.tvVoteCount.setText(state.getFormattedVoteCount());
 
-        if (state.isWithinRadius()) {
-            binding.llDistanceWarning.setVisibility(View.GONE);
-            binding.btnConfirm.setEnabled(true);
-            binding.btnResolve.setEnabled(true);
-        } else {
-            binding.llDistanceWarning.setVisibility(View.VISIBLE);
-            binding.tvDistance.setText(
-                String.format("Debes estar a 500m del reporte (Estás a %.0fm)", state.getUserDistance())
-            );
-            binding.btnConfirm.setEnabled(false);
-            binding.btnResolve.setEnabled(false);
+        if (state.getUserDistance() > 0) {
+            binding.tvDistanceInfo.setVisibility(View.VISIBLE);
+            if (state.isWithinRadius()) {
+                binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0fm del reporte ✓", state.getUserDistance()));
+                binding.tvDistanceInfo.setTextColor(android.graphics.Color.parseColor("#4CAF50"));
+                binding.llDistanceWarning.setVisibility(View.GONE);
+                binding.btnConfirm.setEnabled(true);
+                binding.btnResolve.setEnabled(true);
+            } else {
+                binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0fm del reporte (máx. 500m para votar)", state.getUserDistance()));
+                binding.tvDistanceInfo.setTextColor(android.graphics.Color.parseColor("#FF9800"));
+                binding.llDistanceWarning.setVisibility(View.GONE);
+                binding.btnConfirm.setEnabled(false);
+                binding.btnResolve.setEnabled(false);
+            }
         }
 
         if (state.hasUserVoted()) {
@@ -593,13 +622,12 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
             RequestBody reqBody = RequestBody.create(tmpFile, MediaType.parse("image/jpeg"));
             MultipartBody.Part photoPart = MultipartBody.Part.createFormData("photo", tmpFile.getName(), reqBody);
-            String token = "Bearer " + tokenManager.getToken();
 
             String currentDesc = report.getDescription() != null ? report.getDescription() : "";
             RequestBody descBody = RequestBody.create(currentDesc, MediaType.parse("text/plain"));
 
             binding.pbVoteLoading.setVisibility(View.VISIBLE);
-            ApiClient.getInstance().updateReport(report.getId(), token, descBody, photoPart)
+            ApiClient.getInstance().updateReport(report.getId(), descBody, photoPart)
                 .enqueue(new Callback<CreateReportResponse>() {
                     @Override
                     public void onResponse(Call<CreateReportResponse> call, Response<CreateReportResponse> response) {
@@ -670,6 +698,9 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         super.onDestroyView();
         if (voteStateManager != null) {
             voteStateManager.destroy();
+        }
+        if (retractCountdown != null) {
+            retractCountdown.cancel();
         }
         binding = null;
     }

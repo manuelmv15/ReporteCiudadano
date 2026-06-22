@@ -17,7 +17,7 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class dRegisterActivity extends AppCompatActivity {
+public class RegisterActivity extends AppCompatActivity {
 
     private ActivityRegisterBinding binding;
 

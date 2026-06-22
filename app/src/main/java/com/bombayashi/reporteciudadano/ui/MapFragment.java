@@ -68,6 +68,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private FragmentMapBinding binding;
     private MapView mapView;
     private MapboxMap mapboxMap;
+    private boolean mapReady = false;
+    private Runnable onMapReadyCallback;
     private Point userLocation; // Posición real del usuario
     private FusedLocationProviderClient fusedLocationClient;
     private CircleAnnotationManager circleAnnotationManager;
@@ -98,6 +100,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private boolean isLoadingReports = false;  // Flag para evitar duplicar requests
 
     // RF-19: filtros de mapa (categoría / estado / antigüedad)
+    private static final String HEATMAP_SOURCE_ID = "reports-heatmap-source";
+    private static final String HEATMAP_LAYER_ID = "reports-heatmap-layer";
+    private boolean heatmapEnabled = false;
+
+    private static final String PREFS_FILTERS = "map_filters";
+    private static final String PREF_FILTER_STATUS = "filter_status";
+    private static final String PREF_FILTER_AGE = "filter_age";
+    private static final String PREF_FILTER_CATEGORIES = "filter_categories";
+    private static final String PREF_HEATMAP = "heatmap_enabled";
     private final java.util.Set<String> filterCategories = new java.util.HashSet<>();  // vacío = todas
     private String filterStatus = "all";  // all | pending | verified | resolved
     private String filterAge = "all";     // all | 1h | 6h | 24h
@@ -157,6 +168,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
         registerConnectivityCallback();
         observeSyncWork();
+        loadFilterPrefs();
+        com.bombayashi.reporteciudadano.network.ApiClient.setOnUnauthorized(() ->
+            requireActivity().runOnUiThread(this::handleExpiredSession));
 
         mapView = binding.mapView;
         viewAnnotationManager = mapView.getViewAnnotationManager();
@@ -186,6 +200,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             setupMapListeners();
             setupFAB();
             requestUserLocation();
+            showLongPressHintIfFirstTime();
+            mapReady = true;
+            if (onMapReadyCallback != null) {
+                onMapReadyCallback.run();
+                onMapReadyCallback = null;
+            }
+            if (binding != null) binding.pbMapLoading.setVisibility(View.GONE);
 
             android.util.Log.d("MapFragment", "3. Cargando reportes iniciales...");
             loadReportsFromAPI();
@@ -395,11 +416,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         SnackbarHelper.show(
                 getView(),
-                String.format(Locale.getDefault(),
-                    "Tu ubicación (±%.0fm): %.4f, %.4f",
-                    location.getAccuracy(),
-                    location.getLatitude(),
-                    location.getLongitude()),
+                String.format(Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", location.getAccuracy()),
                 SnackbarHelper.Variant.SUCCESS
         );
     }
@@ -624,8 +641,14 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         connectivityManager.registerDefaultNetworkCallback(networkCallback);
     }
 
-    /** RF-05: cuando el worker termina, refresca el mapa para mostrar lo recién sincronizado. */
+    /** RF-05: cuando el worker termina, refresca el mapa y notifica al usuario. */
     private void observeSyncWork() {
+        final int[] pendingCountBefore = {0};
+
+        dbExecutor.execute(() -> {
+            pendingCountBefore[0] = appDatabase.pendingActionDao().getPending().size();
+        });
+
         androidx.work.WorkManager.getInstance(requireContext())
                 .getWorkInfosForUniqueWorkLiveData("report_sync")
                 .observe(getViewLifecycleOwner(), workInfos -> {
@@ -634,6 +657,20 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         if (info.getState() == androidx.work.WorkInfo.State.SUCCEEDED) {
                             android.util.Log.d("MapFragment", "✓ Sync de pendientes completado, refrescando mapa");
                             pollForUpdates();
+
+                            dbExecutor.execute(() -> {
+                                int remaining = appDatabase.pendingActionDao().getPending().size();
+                                int synced = pendingCountBefore[0] - remaining;
+                                if (synced > 0 && isAdded() && getView() != null) {
+                                    requireActivity().runOnUiThread(() -> {
+                                        String msg = synced == 1
+                                            ? "1 acción sincronizada"
+                                            : synced + " acciones sincronizadas";
+                                        SnackbarHelper.show(getView(), msg, SnackbarHelper.Variant.SUCCESS);
+                                    });
+                                }
+                                pendingCountBefore[0] = remaining;
+                            });
                         }
                     }
                 });
@@ -788,15 +825,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     /** Agrupa los distintos slugs de categoría en los 7 grupos usados por el filtro. */
     private String normalizeCategoryGroup(String categorySlug) {
-        return switch (categorySlug) {
-            case "bache", "vialidad" -> "vialidad";
-            case "alumbrado-publico", "alumbrado" -> "alumbrado";
-            case "fuga-de-agua", "agua" -> "agua";
-            case "semaforo-danado", "trafico" -> "trafico";
-            case "inseguridad", "seguridad" -> "seguridad";
-            case "basura-acumulada", "parques", "basura" -> "basura";
-            default -> "otros";
-        };
+        return com.bombayashi.reporteciudadano.util.CategoryMapper.toFilterGroup(categorySlug);
     }
 
     /** Horas transcurridas desde created_at (ISO-8601). Devuelve 0 si no se puede parsear. */
@@ -812,6 +841,58 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     /** RF-19: re-evalúa filtros sobre los reportes ya conocidos, sin re-fetch. */
+    private void toggleHeatmap(boolean enable) {
+        if (mapboxMap == null) return;
+        heatmapEnabled = enable;
+        mapboxMap.getStyle(style -> {
+            if (enable) {
+                java.util.List<com.mapbox.geojson.Feature> features = new java.util.ArrayList<>();
+                for (ReportResponse.ReportData r : reportMarkers.values()) {
+                    features.add(com.mapbox.geojson.Feature.fromGeometry(
+                        com.mapbox.geojson.Point.fromLngLat(r.getLongitude(), r.getLatitude())));
+                }
+                com.mapbox.geojson.FeatureCollection fc = com.mapbox.geojson.FeatureCollection.fromFeatures(features);
+
+                if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
+                if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
+
+                com.mapbox.maps.extension.style.sources.generated.GeoJsonSource src =
+                    new com.mapbox.maps.extension.style.sources.generated.GeoJsonSource.Builder(HEATMAP_SOURCE_ID)
+                        .featureCollection(fc).build();
+                com.mapbox.maps.extension.style.sources.SourceUtils.addSource(style, src);
+
+                com.mapbox.maps.extension.style.layers.generated.HeatmapLayer layer =
+                    new com.mapbox.maps.extension.style.layers.generated.HeatmapLayer(HEATMAP_LAYER_ID, HEATMAP_SOURCE_ID);
+                layer.heatmapOpacity(0.7);
+                layer.heatmapRadius(20.0);
+                com.mapbox.maps.extension.style.layers.LayerUtils.addLayer(style, layer);
+            } else {
+                if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
+                if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
+            }
+        });
+    }
+
+    private void loadFilterPrefs() {
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_FILTERS, android.content.Context.MODE_PRIVATE);
+        filterStatus = prefs.getString(PREF_FILTER_STATUS, "all");
+        filterAge = prefs.getString(PREF_FILTER_AGE, "all");
+        heatmapEnabled = prefs.getBoolean(PREF_HEATMAP, false);
+        java.util.Set<String> saved = prefs.getStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>());
+        filterCategories.clear();
+        filterCategories.addAll(saved);
+    }
+
+    private void saveFilterPrefs() {
+        android.content.SharedPreferences.Editor editor = requireContext()
+            .getSharedPreferences(PREFS_FILTERS, android.content.Context.MODE_PRIVATE).edit();
+        editor.putString(PREF_FILTER_STATUS, filterStatus);
+        editor.putString(PREF_FILTER_AGE, filterAge);
+        editor.putBoolean(PREF_HEATMAP, heatmapEnabled);
+        editor.putStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>(filterCategories));
+        editor.apply();
+    }
+
     private void applyFilters() {
         for (ReportResponse.ReportData report : new java.util.ArrayList<>(reportMarkers.values())) {
             if (passesFilters(report)) {
@@ -851,6 +932,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         };
         rgStatus.check(statusCheckedId);
 
+        android.widget.CheckBox cbHeatmap = dialogView.findViewById(R.id.cb_heatmap);
+        cbHeatmap.setChecked(heatmapEnabled);
+
         android.widget.RadioGroup rgAge = dialogView.findViewById(R.id.rg_filter_age);
         int ageCheckedId = switch (filterAge) {
             case "1h" -> R.id.rb_age_1h;
@@ -887,12 +971,17 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     else if (checkedAge == R.id.rb_age_24h) filterAge = "24h";
                     else filterAge = "all";
 
+                    boolean newHeatmap = cbHeatmap.isChecked();
+                    if (newHeatmap != heatmapEnabled) toggleHeatmap(newHeatmap);
+                    saveFilterPrefs();
                     applyFilters();
                 })
                 .setNeutralButton("Limpiar filtros", (dialog, which) -> {
                     filterCategories.clear();
                     filterStatus = "all";
                     filterAge = "all";
+                    if (heatmapEnabled) toggleHeatmap(false);
+                    saveFilterPrefs();
                     applyFilters();
                 })
                 .setNegativeButton("Cancelar", null)
@@ -1126,22 +1215,17 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         // Bloquear si ya existe reporte de misma categoría a menos de ~50m
         int categoryId = getCategoryIdBySlug(category);
-        if (hasSameCategoryNearby(categoryId, latitude, longitude, 0.00045)) {
+        if (hasSameCategoryNearby(categoryId, latitude, longitude, 50)) {
             SnackbarHelper.show(getView(), "Ya existe un reporte de esta categoría cerca", SnackbarHelper.Variant.WARNING);
             android.util.Log.w("MapFragment", "Reporte duplicado bloqueado: cat=" + category + " en " + latitude + "," + longitude);
             return;
         }
 
-        String token = TokenManager.getInstance(requireContext()).getToken();
-
-        if (token.isEmpty()) {
-            android.util.Log.w("MapFragment", "Token de autenticación no encontrado");
+        if (!TokenManager.getInstance(requireContext()).isLoggedIn()) {
             SnackbarHelper.show(getView(), "Iniciá sesión para reportar", SnackbarHelper.Variant.WARNING);
             return;
         }
 
-        // Mapbox usa (longitude, latitude) pero nuestra API y UI usualmente (latitude, longitude)
-        // Aseguramos que el request lleve los valores en los campos correctos
         ReportRequest request = new ReportRequest(categoryId, latitude, longitude, "Reporte desde app");
 
         if (!ConnectivityHelper.isOnline(requireContext())) {
@@ -1149,7 +1233,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
-        ApiClient.getInstance().createReport("Bearer " + token, request).enqueue(new Callback<CreateReportResponse>() {
+        ApiClient.getInstance().createReport(request).enqueue(new Callback<CreateReportResponse>() {
             @Override
             public void onResponse(@NonNull Call<CreateReportResponse> call, @NonNull Response<CreateReportResponse> response) {
                 if (!isAdded() || getView() == null) return;
@@ -1213,28 +1297,18 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 SnackbarHelper.Variant.INFO);
     }
 
-    private boolean hasSameCategoryNearby(int categoryId, double lat, double lng, double radiusDeg) {
+    private boolean hasSameCategoryNearby(int categoryId, double lat, double lng, double radiusMeters) {
         for (ReportResponse.ReportData report : reportMarkers.values()) {
             if (report.getCategory() == null) continue;
             if (report.getCategory().getId() != categoryId) continue;
-            double dLat = report.getLatitude() - lat;
-            double dLng = report.getLongitude() - lng;
-            if (Math.sqrt(dLat * dLat + dLng * dLng) <= radiusDeg) return true;
+            double distanceKm = calculateDistance(lat, lng, report.getLatitude(), report.getLongitude());
+            if (distanceKm * 1000 <= radiusMeters) return true;
         }
         return false;
     }
 
     private int getCategoryIdBySlug(String slug) {
-        return switch (slug) {
-            case "vialidad" -> 1;   // bache
-            case "alumbrado" -> 2;  // alumbrado-publico
-            case "agua" -> 4;       // fuga-de-agua
-            case "trafico" -> 5;    // semaforo-danado
-            case "seguridad" -> 6;  // inseguridad
-            case "parques" -> 3;    // basura-acumulada (temp)
-            case "basura" -> 3;     // basura-acumulada
-            default -> 3;
-        };
+        return com.bombayashi.reporteciudadano.util.CategoryMapper.toApiId(slug);
     }
 
     private void showReportDetails(ReportResponse.ReportData report) {
@@ -1335,6 +1409,21 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             default:
                 return 1.0;
         }
+    }
+
+    private void showLongPressHintIfFirstTime() {
+        android.content.SharedPreferences prefs = requireContext()
+            .getSharedPreferences("map_onboarding", android.content.Context.MODE_PRIVATE);
+        if (prefs.getBoolean("hint_shown", false)) return;
+        prefs.edit().putBoolean("hint_shown", true).apply();
+
+        binding.tvLongPressHint.setVisibility(View.VISIBLE);
+        binding.tvLongPressHint.postDelayed(() -> {
+            if (binding == null) return;
+            binding.tvLongPressHint.animate().alpha(0f).setDuration(600).withEndAction(() -> {
+                if (binding != null) binding.tvLongPressHint.setVisibility(View.GONE);
+            }).start();
+        }, 4000);
     }
 
     private void setupFAB() {
@@ -1564,6 +1653,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return EARTH_RADIUS_KM * c;
     }
+
+    public boolean isMapReady() { return mapReady; }
+
+    public void setOnMapReadyCallback(Runnable callback) { onMapReadyCallback = callback; }
 
     /**
      * Called from MainActivity when user taps notification (Phase 2 - FCM integration)

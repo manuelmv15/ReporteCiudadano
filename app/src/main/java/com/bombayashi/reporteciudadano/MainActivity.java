@@ -18,6 +18,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private ActivityMainBinding binding;
+    private int pendingNotificationReportId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,37 +52,38 @@ public class MainActivity extends AppCompatActivity {
      * Format: reporteciudadano://show_report?id=<reportId>
      */
     private void handleNotificationIntent(Intent intent) {
-        if (intent == null) {
-            return;
-        }
+        if (intent == null) return;
 
         Uri data = intent.getData();
-        if (data != null && data.getScheme() != null && data.getScheme().equals("reporteciudadano")) {
-            if (data.getHost() != null && data.getHost().equals("show_report")) {
-                String reportId = data.getQueryParameter("id");
-                if (reportId != null && !reportId.isEmpty()) {
-                    try {
-                        int id = Integer.parseInt(reportId);
-                        Log.d(TAG, "📍 Opening report from notification: " + id);
+        if (data == null || !"reporteciudadano".equals(data.getScheme())) return;
+        if (!"show_report".equals(data.getHost())) return;
 
-                        // Get MapFragment directly from fragment_container
-                        androidx.fragment.app.Fragment fragment = getSupportFragmentManager()
-                                .findFragmentById(R.id.fragment_container);
+        String reportIdStr = data.getQueryParameter("id");
+        if (reportIdStr == null || reportIdStr.isEmpty()) return;
 
-                        if (fragment instanceof com.bombayashi.reporteciudadano.ui.MapFragment) {
-                            com.bombayashi.reporteciudadano.ui.MapFragment mapFragment =
-                                    (com.bombayashi.reporteciudadano.ui.MapFragment) fragment;
-                            mapFragment.showReportFromNotification(id);
-                            Log.d(TAG, "✓ Navigated to report " + id);
-                        } else {
-                            Log.w(TAG, "⚠️ Fragment is not MapFragment: " +
-                                    (fragment != null ? fragment.getClass().getSimpleName() : "null"));
-                        }
-                    } catch (NumberFormatException e) {
-                        Log.e(TAG, "Invalid report ID from notification", e);
-                    }
+        try {
+            int id = Integer.parseInt(reportIdStr);
+            Log.d(TAG, "📍 Opening report from notification: " + id);
+
+            androidx.fragment.app.Fragment fragment = getSupportFragmentManager()
+                    .findFragmentById(R.id.fragment_container);
+
+            if (fragment instanceof com.bombayashi.reporteciudadano.ui.MapFragment) {
+                com.bombayashi.reporteciudadano.ui.MapFragment mapFragment =
+                        (com.bombayashi.reporteciudadano.ui.MapFragment) fragment;
+                if (mapFragment.isMapReady()) {
+                    mapFragment.showReportFromNotification(id);
+                    Log.d(TAG, "✓ Navigated to report " + id);
+                } else {
+                    pendingNotificationReportId = id;
+                    mapFragment.setOnMapReadyCallback(() -> {
+                        mapFragment.showReportFromNotification(pendingNotificationReportId);
+                        pendingNotificationReportId = -1;
+                    });
                 }
             }
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Invalid report ID from notification", e);
         }
     }
 }

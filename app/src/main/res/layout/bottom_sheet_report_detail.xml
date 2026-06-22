@@ -61,17 +61,45 @@
         android:visibility="gone"
         app:icon="@drawable/ic_edit" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnRetractReport"
-        style="@style/Widget.Material3.Button.TextButton"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="Retirar reporte"
-        android:textColor="?attr/colorError"
-        android:visibility="gone"
-        app:icon="@drawable/trash"
-        app:iconTint="?attr/colorError" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRetractReport"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Retirar reporte"
+            android:textColor="?attr/colorError"
+            android:visibility="gone"
+            app:icon="@drawable/trash"
+            app:iconTint="?attr/colorError" />
+
+        <TextView
+            android:id="@+id/tvRetractCountdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- Countdown de archivo (24h sin actividad) -->
+    <TextView
+        android:id="@+id/tvArchiveCountdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textAlignment="center"
+        android:visibility="gone" />
 
     <!-- Conteo de Votos -->
     <TextView
@@ -95,12 +123,22 @@
         android:visibility="gone"
         app:icon="@drawable/ic_snackbar_info" />
 
-    <!-- Distancia / Aviso de Ubicación -->
+    <!-- Distancia al reporte (siempre visible para usuarios autenticados) -->
+    <TextView
+        android:id="@+id/tvDistanceInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textAppearance="?attr/textAppearanceLabelMedium"
+        android:textAlignment="center"
+        android:visibility="gone" />
+
+    <!-- Aviso de Ubicación (solo cuando fuera de rango) -->
     <LinearLayout
         android:id="@+id/llDistanceWarning"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="4dp"
         android:orientation="horizontal"
         android:gravity="center"
         android:visibility="gone"
@@ -203,6 +241,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
+            android:enabled="false"
             android:text="Sigue ahí"
             app:icon="@drawable/ic_thumb_up" />
 
@@ -213,6 +252,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
+            android:enabled="false"
             android:text="Ya se resolvió"
             app:icon="@drawable/ic_check" />
     </LinearLayout>

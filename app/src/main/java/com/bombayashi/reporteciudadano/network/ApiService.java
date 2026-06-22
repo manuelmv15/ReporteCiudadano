@@ -24,7 +24,6 @@ import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.GET;
-import retrofit2.http.Header;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
 import retrofit2.http.Part;
@@ -49,7 +48,7 @@ public interface ApiService {
     Call<SimpleResponse> resetPassword(@Body ResetPasswordRequest request);
 
     @POST("logout")
-    Call<AuthResponse> logout(@Header("Authorization") String bearerToken);
+    Call<AuthResponse> logout();
 
     @GET("reports")
     Call<ReportResponse> getReports(
@@ -78,15 +77,11 @@ public interface ApiService {
     );
 
     @POST("reports")
-    Call<CreateReportResponse> createReport(
-            @Header("Authorization") String token,
-            @Body ReportRequest request
-    );
+    Call<CreateReportResponse> createReport(@Body ReportRequest request);
 
     @POST("reports/{id}/votes")
     Call<VoteResponse> submitVote(
             @Path("id") int reportId,
-            @Header("Authorization") String token,
             @Body VoteRequest request
     );
 
@@ -94,58 +89,38 @@ public interface ApiService {
     @PUT("reports/{id}")
     Call<CreateReportResponse> updateReport(
             @Path("id") int reportId,
-            @Header("Authorization") String token,
             @Part("description") RequestBody description,
             @Part MultipartBody.Part photo
     );
 
     @DELETE("reports/{id}")
-    Call<SimpleResponse> deleteReport(
-            @Path("id") int reportId,
-            @Header("Authorization") String token
-    );
+    Call<SimpleResponse> deleteReport(@Path("id") int reportId);
 
     @DELETE("reports/{id}/votes/{type}")
     Call<VoteResponse> deleteVote(
             @Path("id") int reportId,
-            @Path("type") String voteType,
-            @Header("Authorization") String token
+            @Path("type") String voteType
     );
 
     @GET("me")
-    Call<AuthResponse> getMe(
-            @Header("Authorization") String token
-    );
+    Call<AuthResponse> getMe();
 
     @PUT("me")
-    Call<AuthResponse> updateProfile(
-            @Header("Authorization") String token,
-            @Body UpdateProfileRequest request
-    );
+    Call<AuthResponse> updateProfile(@Body UpdateProfileRequest request);
 
     @Multipart
     @POST("me/avatar")
-    Call<AvatarUploadResponse> uploadAvatar(
-            @Header("Authorization") String token,
-            @Part MultipartBody.Part avatar
-    );
+    Call<AvatarUploadResponse> uploadAvatar(@Part MultipartBody.Part avatar);
 
     @GET("me/reports")
     Call<ReportResponse> getMyReports(
-            @Header("Authorization") String token,
             @Query("status") String status,
             @Query("per_page") int perPage
     );
 
     @GET("me/votes")
-    Call<MyVotesResponse> getMyVotes(
-            @Header("Authorization") String token,
-            @Query("per_page") int perPage
-    );
+    Call<MyVotesResponse> getMyVotes(@Query("per_page") int perPage);
 
     @POST("me/fcm-token")
-    Call<Void> updateFcmToken(
-            @Header("Authorization") String token,
-            @Query("fcm_token") String fcmToken
-    );
+    Call<Void> updateFcmToken(@Query("fcm_token") String fcmToken);
 }

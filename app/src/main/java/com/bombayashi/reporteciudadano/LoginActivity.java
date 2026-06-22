@@ -161,8 +161,7 @@ public class LoginActivity extends AppCompatActivity {
                 if (task.isSuccessful() && task.getResult() != null) {
                     String fcmToken = task.getResult();
                     android.util.Log.i("FCM_TOKEN_DEBUG", "TOKEN_ACTUAL: " + fcmToken);
-                    String bearerToken = "Bearer " + auth.getToken();
-                    ApiClient.getInstance().updateFcmToken(bearerToken, fcmToken).enqueue(new Callback<Void>() {
+                    ApiClient.getInstance().updateFcmToken(fcmToken).enqueue(new Callback<Void>() {
                         @Override
                         public void onResponse(Call<Void> call, Response<Void> response) {
                             android.util.Log.i("Login", "✓ FCM Token sincronizado con éxito.");

@@ -12,7 +12,6 @@ import com.bombayashi.reporteciudadano.db.PendingActionEntity;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
 import com.bombayashi.reporteciudadano.model.VoteRequest;
 import com.bombayashi.reporteciudadano.network.ApiClient;
-import com.bombayashi.reporteciudadano.util.TokenManager;
 
 import org.json.JSONObject;
 
@@ -34,7 +33,6 @@ public class ReportSyncWorker extends Worker {
     @Override
     public Result doWork() {
         Context context = getApplicationContext();
-        String token = "Bearer " + TokenManager.getInstance(context).getToken();
         AppDatabase db = AppDatabase.getInstance(context);
         PendingActionDao dao = db.pendingActionDao();
 
@@ -43,9 +41,9 @@ public class ReportSyncWorker extends Worker {
         for (PendingActionEntity action : dao.getPending()) {
             try {
                 boolean handled = switch (action.type) {
-                    case PendingActionEntity.TYPE_CREATE_REPORT -> syncCreateReport(token, action);
-                    case PendingActionEntity.TYPE_VOTE -> syncVote(token, action);
-                    case PendingActionEntity.TYPE_RETRACT_REPORT -> syncRetractReport(token, action);
+                    case PendingActionEntity.TYPE_CREATE_REPORT -> syncCreateReport(action);
+                    case PendingActionEntity.TYPE_VOTE -> syncVote(action);
+                    case PendingActionEntity.TYPE_RETRACT_REPORT -> syncRetractReport(action);
                     default -> true; // tipo desconocido: descartar
                 };
 
@@ -72,7 +70,7 @@ public class ReportSyncWorker extends Worker {
     }
 
     /** @return true si la acción fue procesada (exito o rechazo definitivo del server) */
-    private boolean syncCreateReport(String token, PendingActionEntity action) throws Exception {
+    private boolean syncCreateReport(PendingActionEntity action) throws Exception {
         JSONObject payload = new JSONObject(action.payload);
         ReportRequest request = new ReportRequest(
                 payload.getInt("category_id"),
@@ -80,12 +78,11 @@ public class ReportSyncWorker extends Worker {
                 payload.getDouble("longitude"),
                 payload.getString("description")
         );
-
-        Response<?> response = ApiClient.getInstance().createReport(token, request).execute();
+        Response<?> response = ApiClient.getInstance().createReport(request).execute();
         return response.isSuccessful() || isDefinitiveRejection(response.code());
     }
 
-    private boolean syncVote(String token, PendingActionEntity action) throws Exception {
+    private boolean syncVote(PendingActionEntity action) throws Exception {
         JSONObject payload = new JSONObject(action.payload);
         int reportId = payload.getInt("report_id");
         VoteRequest request = new VoteRequest(
@@ -93,18 +90,14 @@ public class ReportSyncWorker extends Worker {
                 payload.getDouble("latitude"),
                 payload.getDouble("longitude")
         );
-
-        Response<?> response = ApiClient.getInstance().submitVote(reportId, token, request).execute();
-        // 409 = voto duplicado, no reintentar
+        Response<?> response = ApiClient.getInstance().submitVote(reportId, request).execute();
         return response.isSuccessful() || isDefinitiveRejection(response.code());
     }
 
-    private boolean syncRetractReport(String token, PendingActionEntity action) throws Exception {
+    private boolean syncRetractReport(PendingActionEntity action) throws Exception {
         JSONObject payload = new JSONObject(action.payload);
         int reportId = payload.getInt("report_id");
-
-        Response<?> response = ApiClient.getInstance().deleteReport(reportId, token).execute();
-        // 403 = ventana de 5min/votos expirada, no reintentar
+        Response<?> response = ApiClient.getInstance().deleteReport(reportId).execute();
         return response.isSuccessful() || isDefinitiveRejection(response.code());
     }
 

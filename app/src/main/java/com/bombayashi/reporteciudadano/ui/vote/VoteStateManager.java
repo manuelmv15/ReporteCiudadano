@@ -123,18 +123,13 @@ public class VoteStateManager {
             return;
         }
 
-        String token = tokenManager.getToken();
-        Log.d(TAG, "🔑 Token obtenido: " + (token.isEmpty() ? "VACÍO" : "✓ " + token.substring(0, Math.min(20, token.length())) + "..."));
-
-        if (token.isEmpty()) {
+        if (!tokenManager.isLoggedIn()) {
             Log.e(TAG, "❌ Token no encontrado");
             voteEventLiveData.setValue(
                 new VoteEvent(VoteEvent.Type.ERROR, "Debes iniciar sesión para votar")
             );
             return;
         }
-
-        Log.d(TAG, "✓ Token encontrado, procediendo con voto");
 
         // Si el usuario ya votó este tipo, mostrar diálogo de confirmación
         if (currentState.getCurrentUserVoteType() != null &&
@@ -149,14 +144,14 @@ public class VoteStateManager {
         // Si votó algo diferente, deletear el voto anterior primero
         if (currentState.getCurrentUserVoteType() != null) {
             Log.d(TAG, "🔄 Usuario votó diferente, cambiar de " + currentState.getCurrentUserVoteType() + " a " + voteType);
-            deleteVoteThenSubmit(currentState.getCurrentUserVoteType(), voteType, token);
+            deleteVoteThenSubmit(currentState.getCurrentUserVoteType(), voteType);
         } else {
             Log.d(TAG, "➕ Nuevo voto");
-            submitVoteInternal(voteType, token);
+            submitVoteInternal(voteType);
         }
     }
 
-    private void deleteVoteThenSubmit(String oldVoteType, String newVoteType, String token) {
+    private void deleteVoteThenSubmit(String oldVoteType, String newVoteType) {
         VoteState state = voteStateLiveData.getValue();
         if (state == null) return;
 
@@ -171,13 +166,12 @@ public class VoteStateManager {
         voteStateLiveData.setValue(loadingState);
 
         ApiClient.getInstance()
-            .deleteVote(reportData.getId(), oldVoteType, "Bearer " + token)
+            .deleteVote(reportData.getId(), oldVoteType)
             .enqueue(new Callback<VoteResponse>() {
                 @Override
                 public void onResponse(Call<VoteResponse> call, Response<VoteResponse> response) {
                     if (response.isSuccessful()) {
-                        // Proceder a votar el nuevo tipo
-                        submitVoteInternal(newVoteType, token);
+                        submitVoteInternal(newVoteType);
                     } else {
                         handleVoteError("Error al cambiar voto: " + response.code());
                     }
@@ -232,15 +226,9 @@ public class VoteStateManager {
         voteEventLiveData.setValue(new VoteEvent(VoteEvent.Type.OFFLINE_QUEUED, "Sin conexión: voto guardado, se enviará cuando vuelva la conexión"));
     }
 
-    private void submitVoteInternal(String voteType, String token) {
-        Log.d(TAG, "═══════════════════════════════════════════");
-        Log.d(TAG, "📤 submitVoteInternal()");
-
+    private void submitVoteInternal(String voteType) {
         VoteState state = voteStateLiveData.getValue();
-        if (state == null) {
-            Log.e(TAG, "❌ state es null");
-            return;
-        }
+        if (state == null) return;
 
         VoteState loadingState = new VoteState.Builder()
             .currentUserVoteType(state.getCurrentUserVoteType())
@@ -251,30 +239,16 @@ public class VoteStateManager {
             .userDistance(state.getUserDistance())
             .build();
         voteStateLiveData.setValue(loadingState);
-        Log.d(TAG, "✓ Loading state activado");
 
         if (!com.bombayashi.reporteciudadano.util.ConnectivityHelper.isOnline(context)) {
             queueOfflineVote(voteType, state, loadingState);
             return;
         }
 
-        VoteRequest request = new VoteRequest(
-            voteType,
-            userLocation.latitude(),
-            userLocation.longitude()
-        );
-
-        Log.d(TAG, "📝 VoteRequest creado:");
-        Log.d(TAG, "  - type: " + voteType);
-        Log.d(TAG, "  - lat: " + userLocation.latitude());
-        Log.d(TAG, "  - lng: " + userLocation.longitude());
-        Log.d(TAG, "  - reportId: " + reportData.getId());
-        Log.d(TAG, "  - token (primeros 20 chars): Bearer " + token.substring(0, Math.min(20, token.length())) + "...");
-
-        Log.d(TAG, "🌐 Llamando a API.submitVote()...");
+        VoteRequest request = new VoteRequest(voteType, userLocation.latitude(), userLocation.longitude());
 
         ApiClient.getInstance()
-            .submitVote(reportData.getId(), "Bearer " + token, request)
+            .submitVote(reportData.getId(), request)
             .enqueue(new Callback<VoteResponse>() {
                 @Override
                 public void onResponse(Call<VoteResponse> call, Response<VoteResponse> response) {

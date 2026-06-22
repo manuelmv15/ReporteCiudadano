@@ -175,7 +175,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     private void loadProfileStats() {
         TokenManager tm = TokenManager.getInstance(requireContext());
 
-        ApiClient.getInstance().getMyReports("Bearer " + tm.getToken(), "", 100)
+        ApiClient.getInstance().getMyReports("", 100)
                 .enqueue(new Callback<ReportResponse>() {
                     @Override
                     public void onResponse(Call<ReportResponse> call, Response<ReportResponse> response) {
@@ -205,7 +205,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
     private void refreshProfile() {
         TokenManager tm = TokenManager.getInstance(requireContext());
-        ApiClient.getInstance().getMe("Bearer " + tm.getToken())
+        ApiClient.getInstance().getMe()
                 .enqueue(new Callback<AuthResponse>() {
                     @Override
                     public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
@@ -254,7 +254,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
     private void updateProfileName(String newName) {
         TokenManager tm = TokenManager.getInstance(requireContext());
-        ApiClient.getInstance().updateProfile("Bearer " + tm.getToken(), new UpdateProfileRequest(newName))
+        ApiClient.getInstance().updateProfile(new UpdateProfileRequest(newName))
                 .enqueue(new Callback<AuthResponse>() {
                     @Override
                     public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
@@ -339,7 +339,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         RequestBody requestFile = RequestBody.create(avatarFile, MediaType.parse("image/jpeg"));
         MultipartBody.Part avatarPart = MultipartBody.Part.createFormData("avatar", avatarFile.getName(), requestFile);
 
-        ApiClient.getInstance().uploadAvatar("Bearer " + tm.getToken(), avatarPart)
+        ApiClient.getInstance().uploadAvatar(avatarPart)
                 .enqueue(new Callback<AvatarUploadResponse>() {
                     @Override
                     public void onResponse(Call<AvatarUploadResponse> call, Response<AvatarUploadResponse> response) {
@@ -378,7 +378,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
         TokenManager tm = TokenManager.getInstance(requireContext());
 
-        ApiClient.getInstance().getMyReports("Bearer " + tm.getToken(), "", 100)
+        ApiClient.getInstance().getMyReports("", 100)
                 .enqueue(new Callback<ReportResponse>() {
                     @Override
                     public void onResponse(Call<ReportResponse> call, Response<ReportResponse> response) {
@@ -421,7 +421,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
         TokenManager tm = TokenManager.getInstance(requireContext());
 
-        ApiClient.getInstance().getMyVotes("Bearer " + tm.getToken(), 100)
+        ApiClient.getInstance().getMyVotes(100)
                 .enqueue(new Callback<MyVotesResponse>() {
                     @Override
                     public void onResponse(Call<MyVotesResponse> call, Response<MyVotesResponse> response) {

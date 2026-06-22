@@ -75,7 +75,7 @@ public class VoteActionReceiver extends BroadcastReceiver {
     private void submitVote(Context context, int reportId, String voteType,
                             double lat, double lng, String token) {
         VoteRequest request = new VoteRequest(voteType, lat, lng);
-        ApiClient.getInstance().submitVote(reportId, "Bearer " + token, request)
+        ApiClient.getInstance().submitVote(reportId, request)
                 .enqueue(new Callback<VoteResponse>() {
                     @Override
                     public void onResponse(@NonNull Call<VoteResponse> call,

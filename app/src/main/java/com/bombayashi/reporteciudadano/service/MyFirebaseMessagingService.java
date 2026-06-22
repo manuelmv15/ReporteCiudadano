@@ -88,8 +88,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             return;
         }
 
-        String bearerToken = "Bearer " + authToken;
-        ApiClient.getInstance().updateFcmToken(bearerToken, fcmToken).enqueue(new Callback<Void>() {
+        ApiClient.getInstance().updateFcmToken(fcmToken).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
                 if (response.isSuccessful()) {
