@@ -325,12 +325,11 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
-        // Crear LocationRequest compatible con versiones antiguas
         com.google.android.gms.location.LocationRequest locationRequest =
-            com.google.android.gms.location.LocationRequest.create()
-                .setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(500)
-                .setFastestInterval(250);
+            new com.google.android.gms.location.LocationRequest.Builder(
+                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 500)
+                    .setMinUpdateIntervalMillis(250)
+                    .build();
 
         final boolean[] locationUpdated = {false};  // Flag para rastrear si ya obtuvimos una actualización
 
@@ -546,6 +545,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
                     if (reports != null) {
                         int added = 0;
+                        boolean limitReached = false;
                         for (ReportResponse.ReportData report : reports) {
                             String key = String.valueOf(report.getId());
                             boolean isNew = !reportMarkers.containsKey(key);
@@ -553,10 +553,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                                 addReportMarker(report);
                                 cacheReport(report);
                                 if (isNew) added++;
+                            } else {
+                                limitReached = true;
                             }
                         }
                         if (added > 0) {
                             android.util.Log.d("MapFragment", "📍 " + added + " nuevos marcadores en viewport");
+                        }
+                        if (limitReached) {
+                            SnackbarHelper.show(getView(), "Mostrando " + MAX_REPORTS + " reportes más cercanos", SnackbarHelper.Variant.INFO);
                         }
                     }
                 } else {
@@ -798,11 +803,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private long reportAgeHours(String createdAtIso) {
         if (createdAtIso == null) return 0;
         try {
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
-            sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-            String cleaned = createdAtIso.replace("Z", "");
-            if (cleaned.contains(".")) cleaned = cleaned.substring(0, cleaned.indexOf('.'));
-            long createdAtMs = sdf.parse(cleaned).getTime();
+            long createdAtMs = java.time.Instant.parse(createdAtIso).toEpochMilli();
             return Math.max(0, (System.currentTimeMillis() - createdAtMs) / (60 * 60 * 1000));
         } catch (Exception e) {
             android.util.Log.w("MapFragment", "No se pudo parsear created_at: " + createdAtIso);

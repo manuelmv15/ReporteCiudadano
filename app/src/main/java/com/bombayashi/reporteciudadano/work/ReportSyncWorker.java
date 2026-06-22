@@ -58,6 +58,10 @@ public class ReportSyncWorker extends Worker {
                     }
                     dao.update(action);
                 }
+            } catch (org.json.JSONException e) {
+                // Payload corrupto — no tiene sentido reintentar
+                action.status = PendingActionEntity.STATUS_FAILED;
+                dao.update(action);
             } catch (Exception e) {
                 // Error de red: reintentar más tarde, mantener PENDING
                 anyFailedDueToNetwork = true;

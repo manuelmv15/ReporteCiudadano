@@ -6,8 +6,24 @@
 - `app/src/main/java/com/bombayashi/reporteciudadano/ui/ReportDetailBottomSheet.java` — `onDestroyView()` llama `voteStateManager.destroy()` para cerrar el executor offline al cerrar el sheet
 
 ### TODOs / Próximos pasos
-- [ ] Mostrar Snackbar/badge cuando `reportMarkers.size() >= MAX_REPORTS` (usuario no sabe que el mapa está truncado a 200 reportes)
-- [ ] Verificar que el servidor devuelve `user_voted_at` en formato ISO-8601 con sufijo Z para que `Instant.parse()` funcione correctamente
+- [x] Mostrar Snackbar cuando `reportMarkers.size() >= MAX_REPORTS` — resuelto 2026-06-22
+- [x] Migrar `reportAgeHours` a `Instant.parse()` — resuelto 2026-06-22
+
+---
+
+## [2026-06-22] Fix bugs técnicos pendientes: LocationRequest deprecated, MAX_REPORTS silencioso, reportAgeHours frágil, ReportSyncWorker catch genérico
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — tres cambios:
+  1. `requestLocationUpdates()` (:329): migrado `LocationRequest.create()` (deprecated desde Play Services 21) a `LocationRequest.Builder`. El archivo ya usaba Builder en otro método (:417); era inconsistencia pura con riesgo de warnings/roturas en Android 12+.
+  2. Viewport loader (:552): agregado flag `limitReached` + `SnackbarHelper.show(...INFO)` cuando se alcanza `MAX_REPORTS=200`. Antes el mapa se truncaba silenciosamente — el usuario veía datos incompletos sin saberlo.
+  3. `reportAgeHours()` (:798): reemplazado `SimpleDateFormat` + `.replace("Z","")` manual por `Instant.parse(createdAtIso)`. El método anterior asumía UTC y strips el sufijo Z a mano — si el servidor cambiara timezone o formato, los filtros de antigüedad devolvían horas incorrectas sin tirar error.
+- `app/src/main/java/com/bombayashi/reporteciudadano/work/ReportSyncWorker.java` — separado `catch (org.json.JSONException e)` antes del `catch (Exception e)` genérico. Antes, un payload corrupto en Room era tratado como error de red: el Worker reintentaba 5 veces, consumía batería/red innecesariamente, y marcaba la acción como FAILED sin que el usuario entendiera por qué su voto/reporte nunca llegó.
+
+### TODOs / Próximos pasos
+- [ ] Refactorizar `MapFragment.java` (1682 líneas): extraer `MarkerRenderer`, `LocationTracker`, `ReportPoller`, `NearbyReportChecker` a clases separadas
+- [ ] Introducir `MapViewModel` + `ReportRepository` para sobrevivir rotaciones de pantalla sin relanzar llamadas API
+- [ ] Notificar al usuario cuando `ReportSyncWorker` marca acciones como `STATUS_FAILED` por payload corrupto
 - [ ] Revisar `ReportSyncWorker.java:62` — `catch (Exception e)` genérico puede causar retry infinito en errores de parseo JSON
 
 ## [2026-06-07] Cambio de URL base de la API a producción
