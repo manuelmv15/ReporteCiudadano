@@ -37,54 +37,88 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center"
-        android:layout_margin="24dp"
-        style="?attr/floatingToolbarVibrantStyle">
+        android:layout_marginBottom="32dp"
+        android:elevation="8dp"
+        android:background="@drawable/bg_floating_toolbar"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp">
 
         <com.google.android.material.overflow.OverflowLinearLayout
             android:id="@+id/floating_toolbar_child"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:divider="@android:color/transparent"
+            android:showDividers="middle"
+            android:dividerPadding="8dp">
 
             <!-- Botón: Mi Ubicación -->
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fab_my_location"
-                style="@style/Widget.Material3.FloatingToolbar.IconButton.Vibrant"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                app:iconSize="22dp"
+                app:iconGravity="textStart"
                 android:contentDescription="@string/my_location"
                 app:icon="@drawable/my_location_24px"
+                app:iconTint="?attr/colorOnSurface"
                 app:layout_overflowText="@string/my_location" />
 
             <!-- Botón: Agregar Reporte -->
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fab_add_report"
-                style="@style/Widget.Material3.FloatingToolbar.IconButton.Vibrant"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                app:iconSize="22dp"
+                app:iconGravity="textStart"
                 android:contentDescription="@string/add_report"
                 app:icon="@drawable/add_report"
+                app:iconTint="?attr/colorOnSurface"
                 app:layout_overflowText="@string/add_report" />
 
             <!-- Botón: Filtros (RF-19) -->
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fab_filter"
-                style="@style/Widget.Material3.FloatingToolbar.IconButton.Vibrant"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                app:iconSize="22dp"
+                app:iconGravity="textStart"
                 android:contentDescription="Filtros"
                 app:icon="@drawable/tune_24px"
+                app:iconTint="?attr/colorOnSurface"
                 app:layout_overflowText="Filtros" />
 
             <!-- Botón: Mi Cuenta -->
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fab_profile"
-                style="@style/Widget.Material3.FloatingToolbar.IconButton.Vibrant"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                app:iconSize="22dp"
+                app:iconGravity="textStart"
                 android:contentDescription="Mi Cuenta"
                 app:icon="@drawable/density_medium_24px"
+                app:iconTint="?attr/colorOnSurface"
                 app:layout_overflowText="Mi Cuenta" />
 
         </com.google.android.material.overflow.OverflowLinearLayout>

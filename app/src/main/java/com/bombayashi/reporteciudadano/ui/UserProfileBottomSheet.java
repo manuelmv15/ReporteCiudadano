@@ -8,7 +8,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -558,7 +557,9 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
         android.util.Log.d("UserProfileBS", "✓ Token eliminado");
 
-        Toast.makeText(getContext(), "Sesión cerrada", Toast.LENGTH_SHORT).show();
+        if (getView() != null) {
+            SnackbarHelper.show(getView(), "Sesión cerrada", SnackbarHelper.Variant.SUCCESS);
+        }
 
         dismiss();
 
