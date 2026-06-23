@@ -259,30 +259,43 @@ class MarkerRenderer {
             float center = SIZE / 2f;
             float radius = SIZE / 2.8f;
 
-            android.graphics.Paint shadow = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            shadow.setColor(android.graphics.Color.BLACK);
-            shadow.setAlpha(40);
-            canvas.drawCircle(center, center + 4, radius, shadow);
-
-            // Anillo dorado exterior para reportes propios
-            if (isMine) {
-                android.graphics.Paint goldRing = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                goldRing.setStyle(android.graphics.Paint.Style.STROKE);
-                goldRing.setStrokeWidth(7f);
-                goldRing.setColor(android.graphics.Color.parseColor("#FFD700"));
-                canvas.drawCircle(center, center, radius + 9f, goldRing);
-            }
-
             android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             fill.setColor(android.graphics.Color.parseColor(colorHex));
             if (userVote != null && !isMine) fill.setAlpha(160);
-            canvas.drawCircle(center, center, radius, fill);
 
             android.graphics.Paint border = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             border.setStyle(android.graphics.Paint.Style.STROKE);
             border.setStrokeWidth(6f);
             border.setColor(android.graphics.Color.parseColor(statusStrokeColor(status)));
-            canvas.drawCircle(center, center, radius, border);
+
+            android.graphics.Paint shadow = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            shadow.setColor(android.graphics.Color.BLACK);
+            shadow.setAlpha(40);
+
+            if (isMine) {
+                // Forma diamante para reportes propios
+                android.graphics.Path diamond = new android.graphics.Path();
+                diamond.moveTo(center, center - radius);         // top
+                diamond.lineTo(center + radius, center);         // right
+                diamond.lineTo(center, center + radius);         // bottom
+                diamond.lineTo(center - radius, center);         // left
+                diamond.close();
+
+                android.graphics.Path shadowDiamond = new android.graphics.Path();
+                shadowDiamond.moveTo(center, center - radius + 4);
+                shadowDiamond.lineTo(center + radius, center + 4);
+                shadowDiamond.lineTo(center, center + radius + 4);
+                shadowDiamond.lineTo(center - radius, center + 4);
+                shadowDiamond.close();
+                canvas.drawPath(shadowDiamond, shadow);
+                canvas.drawPath(diamond, fill);
+                canvas.drawPath(diamond, border);
+            } else {
+                // Forma círculo para reportes de otros
+                canvas.drawCircle(center, center + 4, radius, shadow);
+                canvas.drawCircle(center, center, radius, fill);
+                canvas.drawCircle(center, center, radius, border);
+            }
 
             try { d.setTint(android.graphics.Color.WHITE); } catch (Exception ignored) {}
             int iconSize = (int) (radius * 1.1f);
