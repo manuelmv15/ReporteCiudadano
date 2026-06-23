@@ -1028,6 +1028,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void showUserProfile() {
         UserProfileBottomSheet profileSheet = new UserProfileBottomSheet();
         profileSheet.setLogoutListener(this::handleLogout);
+        profileSheet.setOnSettingsDismissListener(this::applyDynamicLighting);
         profileSheet.show(getChildFragmentManager(), "user_profile");
     }
 
@@ -1301,16 +1302,21 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void applyDynamicLighting() {
         if (mapboxMap == null) return;
-        int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        String saved = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).getMapPreset();
         String preset;
-        if (hour >= 6 && hour < 12) {
-            preset = "dawn";
-        } else if (hour >= 12 && hour < 18) {
-            preset = "day";
-        } else if (hour >= 18 && hour < 21) {
-            preset = "dusk";
+        if ("auto".equals(saved)) {
+            int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            if (hour >= 6 && hour < 12) {
+                preset = "dawn";
+            } else if (hour >= 12 && hour < 18) {
+                preset = "day";
+            } else if (hour >= 18 && hour < 21) {
+                preset = "dusk";
+            } else {
+                preset = "night";
+            }
         } else {
-            preset = "night";
+            preset = saved;
         }
         mapboxMap.setStyleImportConfigProperty("basemap", "lightPreset",
                 com.mapbox.bindgen.Value.valueOf(preset));

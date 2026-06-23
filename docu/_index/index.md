@@ -2,6 +2,7 @@
 
 <!-- El agente agrega entradas aquí: -->
 <!-- - [YYYY-MM-DD] [modulo] — descripción -->
+- [2026-06-23] [components][map] — Preset del mapa configurable en Settings: Auto/Mañana/Día/Tarde/Noche (Mapbox lightPreset)
 - [2026-06-06] [api] — AuthController: register, login, logout, users, Google OAuth (/auth/google), /me — Sanctum + google/apiclient
 - [2026-06-06] [login] — Google Sign-In Android: LoginActivity + Retrofit → POST /api/auth/google → SharedPreferences token
 - [2026-06-07] [components] — SnackbarHelper MD3: reutilizable con variantes ERROR/SUCCESS/INFO/WARNING, íconos vectoriales, colores centralizados en colors.xml y dimens.xml
