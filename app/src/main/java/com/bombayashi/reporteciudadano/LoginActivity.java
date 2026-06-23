@@ -150,6 +150,9 @@ public class LoginActivity extends AppCompatActivity {
         String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
         TokenManager.getInstance(this).saveAuth(auth.getToken(), userId, userName, userEmail);
 
+        // Resetear estado de onboarding local para que el MapFragment muestre el tutorial visual
+        com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(this).setOnboardingCompleted(false);
+
         // Request notification permission on Android 13+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);

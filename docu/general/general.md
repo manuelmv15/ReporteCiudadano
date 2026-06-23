@@ -1,3 +1,23 @@
+## [2026-06-22] Marcador de usuario tipo flecha (Waze-style) — Sensor fusion con heading
+
+### Archivos tocados
+- `app/src/main/res/drawable/ic_user_arrow.xml` — NEW: SVG de flecha blanca apuntando norte (será rotada por heading del magnetómetro)
+- `app/src/main/java/com/bombayashi/reporteciudadano/util/HeadingManager.java` — NEW: Singleton que fusiona Magnetometer + Accelerometer via SensorManager para calcular heading en tiempo real; low-pass filter (ALPHA=0.15) para suavizar; actualiza callback cada 100ms (throttle); startListening()/stopListening() para controlar ciclo de vida; getCurrentHeading() retorna ángulo 0-360° (0=Norte)
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MarkerRenderer.java` — Reemplazó `CircleAnnotation userLocationMarker` por `PointAnnotation userLocationMarker`; `addUserLocation()` ahora dibuja flecha (ic_user_arrow) con bitmapFromDrawable en lugar de círculo azul; agregado `updateUserHeading(float heading)` para rotar el ícono en tiempo real
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — Instancia HeadingManager con callback que llama `markerRenderer.updateUserHeading(heading)`; startListening()/stopListening() en onStart()/onStop() respectivamente
+
+### Cambios visuales
+- Usuario ahora representado por **flecha blanca rotativa** dentro de círculo azul (en lugar de círculo estático)
+- Flecha rota continuamente según orientación del dispositivo (brújula)
+- Se siente más **inmerso en el mapa 3D** tipo Waze
+
+### TODOs / Próximos pasos
+- [ ] Testear si magnetómetro está disponible en device (HeadingManager.isAvailable() retorna false en emulador)
+- [ ] Si no disponible, fallback a GPS bearing (cuando usuario se mueve)
+- [ ] Opcionalmente: agregar glow/pulsing effect en Fase 2
+
+---
+
 ## [2026-06-18] Corrección de bugs críticos — polling, leaks, estado de voto
 
 ### Archivos tocados

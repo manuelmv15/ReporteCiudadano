@@ -21,8 +21,8 @@ import java.util.TimerTask;
 class LocationTracker {
 
     interface Callback {
-        void onLocationReady(Point location, float accuracy);
-        void onLocationUpdate(Point location);
+        void onLocationReady(Point location, float accuracy, float bearing);
+        void onLocationUpdate(Point location, float bearing);
         void onPermissionDenied();
     }
 
@@ -144,17 +144,22 @@ class LocationTracker {
 
     private void updateIfMoved(Location location) {
         if (lastTrackedLocation != null
-                && lastTrackedLocation.distanceTo(location) < MOVEMENT_THRESHOLD_METERS) return;
+                && lastTrackedLocation.distanceTo(location) < MOVEMENT_THRESHOLD_METERS
+                && Math.abs(lastTrackedLocation.getBearing() - location.getBearing()) < 1) return;
 
         lastTrackedLocation = location;
-        callback.onLocationUpdate(Point.fromLngLat(location.getLongitude(), location.getLatitude()));
+        callback.onLocationUpdate(
+                Point.fromLngLat(location.getLongitude(), location.getLatitude()),
+                location.getBearing()
+        );
     }
 
     private void fireReady(Location location) {
         lastTrackedLocation = location;
         callback.onLocationReady(
                 Point.fromLngLat(location.getLongitude(), location.getLatitude()),
-                location.getAccuracy()
+                location.getAccuracy(),
+                location.getBearing()
         );
     }
 

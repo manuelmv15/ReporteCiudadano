@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Outer circle base (shadow effect) -->
+    <path
+        android:pathData="M 24,24 m -20,0 a 20,20 0 1,0 40,0 a 20,20 0 1,0 -40,0"
+        android:fillColor="#20000000" />
+
+    <!-- Main circle (3D effect) -->
+    <path
+        android:pathData="M 24,24 m -18,0 a 18,18 0 1,0 36,0 a 18,18 0 1,0 -36,0"
+        android:fillColor="#2196F3"
+        android:strokeColor="#1565C0"
+        android:strokeWidth="1.5" />
+
+    <!-- Highlight circle (top-left for 3D) -->
+    <path
+        android:pathData="M 20,20 m -16,0 a 16,16 0 1,0 32,0 a 16,16 0 1,0 -32,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1"
+        android:alpha="0.4" />
+
+    <!-- Arrow shadow (offset down-right for 3D depth) -->
+    <path
+        android:pathData="M 24.5,6.5 L 32.5,20.5 L 28.5,20.5 L 28.5,38.5 L 20.5,38.5 L 20.5,20.5 L 16.5,20.5 Z"
+        android:fillColor="#30000000"
+        android:alpha="0.3" />
+
+    <!-- Arrow pointing UP (north) - thick and bold for 3D feel -->
+    <path
+        android:pathData="M 24,6 L 32,20 L 28,20 L 28,38 L 20,38 L 20,20 L 16,20 Z"
+        android:fillColor="#FFFFFF" />
+
+</vector>

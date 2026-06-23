@@ -39,7 +39,7 @@ class MarkerRenderer {
 
     private PointAnnotationManager pointManager;
     private CircleAnnotationManager circleManager;
-    private CircleAnnotation userLocationMarker;
+    private PointAnnotation userLocationMarker;
 
     private final Map<Integer, PointAnnotation> reportIconMarkers = new HashMap<>();
     private final Map<Integer, CircleAnnotation> reportStrokeMarkers = new HashMap<>();
@@ -150,18 +150,45 @@ class MarkerRenderer {
     }
 
     void addUserLocation(Point point) {
-        if (circleManager == null) return;
-        if (userLocationMarker != null) circleManager.delete(userLocationMarker);
+        if (pointManager == null) return;
+        
+        if (userLocationMarker != null) {
+            userLocationMarker.setPoint(point);
+            pointManager.update(userLocationMarker);
+            return;
+        }
 
-        CircleAnnotationOptions opts = new CircleAnnotationOptions()
+        Bitmap arrowBitmap = bitmapCache.get("user_arrow");
+        if (arrowBitmap == null) {
+            arrowBitmap = drawableToBitmap(context, R.drawable.ic_user_arrow);
+            if (arrowBitmap != null) bitmapCache.put("user_arrow", arrowBitmap);
+        }
+            
+        if (arrowBitmap == null) return;
+
+        PointAnnotationOptions opts = new PointAnnotationOptions()
                 .withPoint(point)
-                .withCircleRadius(8.0)
-                .withCircleColor("#2196F3")
-                .withCircleStrokeColor("#FFFFFF")
-                .withCircleStrokeWidth(2.0)
-                .withCircleOpacity(0.9);
+                .withIconImage(arrowBitmap)
+                .withIconSize(1.0)
+                .withIconRotate(0f);
 
-        userLocationMarker = circleManager.create(opts);
+        userLocationMarker = pointManager.create(opts);
+    }
+
+    private Bitmap drawableToBitmap(Context context, @DrawableRes int drawableId) {
+        android.graphics.drawable.Drawable d = androidx.core.content.ContextCompat.getDrawable(context, drawableId);
+        if (d == null) return null;
+        Bitmap bitmap = Bitmap.createBitmap(d.getIntrinsicWidth(), d.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        d.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        d.draw(canvas);
+        return bitmap;
+    }
+
+    void updateUserHeading(float heading) {
+        if (userLocationMarker != null) {
+            userLocationMarker.setIconRotate((double) heading);
+        }
     }
 
     void removeOutsideBounds(double latMin, double latMax, double lngMin, double lngMax) {

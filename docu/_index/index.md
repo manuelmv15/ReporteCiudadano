@@ -89,3 +89,4 @@
 - [2026-06-22] [network] — AuthInterceptor: Bearer token centralizado en OkHttp; eliminado de 11 archivos; 401 global → handleExpiredSession()
 - [2026-06-22] [map] — Refactor MapFragment 1682→1083 líneas: extraídos MarkerRenderer (314l), LocationTracker (165l), ReportPoller (106l), NearbyReportChecker (97l)
 - [2026-06-22] [map] — MapViewModel + ReportRepository: reportMarkers, filtros, isLoadingReports y ReportPoller sobreviven rotación; repopulateMarkersFromViewModel() re-dibuja sin llamadas API
+- [2026-06-22] [map] — Marcador de usuario tipo flecha (Waze-style): HeadingManager con sensor fusion Magnetometer+Accelerometer, PointAnnotation rotativa según heading en tiempo real, se siente inmerso en mapa 3D ✅

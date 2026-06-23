@@ -1,8 +1,5 @@
 package com.bombayashi.reporteciudadano.ui;
 
-import android.Manifest;
-import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -57,7 +54,15 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
+
+import com.mapbox.maps.extension.style.layers.LayerUtils;
+import com.mapbox.maps.extension.style.layers.generated.CircleLayer;
+import com.mapbox.maps.extension.style.layers.generated.ModelLayer;
+import com.mapbox.maps.extension.style.sources.SourceUtils;
+import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource;
 import com.mapbox.maps.plugin.gestures.GesturesUtils;
+
+import java.util.Arrays;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -71,13 +76,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private boolean mapReady = false;
     private Runnable onMapReadyCallback;
     private Point userLocation;
-    private com.mapbox.maps.viewannotation.ViewAnnotationManager viewAnnotationManager;
 
     private MapViewModel vm;
-    private ReportRepository repo;
     private MarkerRenderer markerRenderer;
     private LocationTracker locationTracker;
     private NearbyReportChecker nearbyChecker;
+    
+    private GeoJsonSource user3DSource;
+    private ModelLayer user3DLayer;
+    private com.bombayashi.reporteciudadano.util.HeadingManager headingManager;
 
     // Convenience accessors — delegate to ViewModel
     private java.util.Map<String, ReportResponse.ReportData> reportMarkers() { return vm.getReportMarkers(); }
@@ -85,8 +92,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final double DEFAULT_LATITUDE = -34.6037;
     private static final double DEFAULT_LONGITUDE = -58.3816;
     private static final double DEFAULT_ZOOM = 15.0;
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
-    private static final int INITIAL_REPORTS_PAGE_SIZE = 25;
     private static final int MAX_REPORTS = 200;
     private static final double MIN_ZOOM_TO_LOAD = 13.0;
     private static final int VIEWPORT_PAGE_SIZE = 50;
@@ -100,7 +105,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final String PREF_FILTER_STATUS = "filter_status";
     private static final String PREF_FILTER_AGE = "filter_age";
     private static final String PREF_FILTER_CATEGORIES = "filter_categories";
-    private static final String PREF_HEATMAP = "heatmap_enabled";
+
 
     private final android.os.Handler cameraIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable cameraIdleRunnable;
@@ -118,8 +123,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     };
 
-    private boolean maxReportsWarningShown = false;
-
     private AppDatabase appDatabase;
     private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
     private final Gson gson = new Gson();
@@ -136,38 +139,50 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         return binding.getRoot();
     }
 
+    @com.mapbox.maps.MapboxExperimental
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         android.util.Log.d("MapFragment", "=== onViewCreated ===");
 
         vm = new androidx.lifecycle.ViewModelProvider(this).get(MapViewModel.class);
-        repo = new ReportRepository();
         appDatabase = AppDatabase.getInstance(requireContext());
 
         vm.initPoller();
 
         markerRenderer = new MarkerRenderer(requireContext(), vm.getReportMarkers(), this::passesFilters, this::showReportDetails);
         locationTracker = new LocationTracker(new LocationTracker.Callback() {
-            @Override public void onLocationReady(Point location, float accuracy) {
+            @Override public void onLocationReady(Point location, float accuracy, float bearing) {
                 if (!isAdded() || getView() == null) return;
                 userLocation = location;
-                markerRenderer.addUserLocation(location);
+                // addUserLocationMarker(location); // Removido para dejar solo 3D
+                updateUser3DMarker(location, bearing);
                 animateCameraTo(location);
                 SnackbarHelper.show(getView(),
                         String.format(java.util.Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", accuracy),
                         SnackbarHelper.Variant.SUCCESS);
+                
+                // Onboarding contextual tras obtener ubicación
+                checkContextualOnboarding();
             }
-            @Override public void onLocationUpdate(Point location) {
+            @Override public void onLocationUpdate(Point location, float bearing) {
                 if (!isAdded() || getView() == null) return;
                 userLocation = location;
-                markerRenderer.addUserLocation(location);
+                // addUserLocationMarker(location); // Removido para dejar solo 3D
+                updateUser3DMarker(location, bearing);
             }
             @Override public void onPermissionDenied() { centerOnDefaultLocation(); }
         });
         locationTracker.init(this);
 
         nearbyChecker = new NearbyReportChecker(requireContext());
+
+        headingManager = new com.bombayashi.reporteciudadano.util.HeadingManager(requireContext(),
+            heading -> {
+                if (markerRenderer != null) {
+                    markerRenderer.updateUserHeading(heading);
+                }
+            });
 
         // Observe report updates from ViewModel (poller runs during rotation)
         vm.reportUpdated.observe(getViewLifecycleOwner(), report -> {
@@ -191,7 +206,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             requireActivity().runOnUiThread(this::handleExpiredSession));
 
         mapView = binding.mapView;
-        viewAnnotationManager = mapView.getViewAnnotationManager();
 
         mapView.getMapboxMap().loadStyleUri(Style.STANDARD, style -> {
             mapboxMap = mapView.getMapboxMap();
@@ -204,17 +218,23 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                             .tileSize(512)
                             .maxzoom(14L)
                             .build();
-            com.mapbox.maps.extension.style.sources.SourceUtils.addSource(style, demSource);
+            demSource.bindTo(style);
+
             com.mapbox.maps.extension.style.terrain.generated.Terrain terrain =
                     new com.mapbox.maps.extension.style.terrain.generated.Terrain("mapbox-dem")
                             .exaggeration(1.5);
             com.mapbox.maps.extension.style.terrain.generated.TerrainUtils.setTerrain(style, terrain);
 
+
             // Luz dinámica según hora del día
             applyDynamicLighting();
 
+            // Tarea 1 & 2: Configuración del Marcador 3D del Usuario
+            setupUser3DLayer(style);
+
             android.util.Log.d("MapFragment", "2. Inicializando components...");
             setupAnnotationManager();
+            // if (userLocation != null) addUserLocationMarker(userLocation); // Removido para dejar solo 3D
             setupMapListeners();
             setupFAB();
             requestUserLocation();
@@ -292,6 +312,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
      * If zoom < MIN_ZOOM_TO_LOAD: clear markers and show hint.
      * Otherwise: fetch reports within current bounding box.
      */
+    @com.mapbox.maps.MapboxExperimental
     private void onViewportChanged() {
         if (!isAdded() || getView() == null || mapboxMap == null) return;
 
@@ -300,7 +321,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (zoom < MIN_ZOOM_TO_LOAD) {
             // Cámara ya quieta a zoom bajo — mostrar heatmap
             if (markerRenderer != null) markerRenderer.clearAll();
-            maxReportsWarningShown = false;
             if (!vm.heatmapEnabled) {
                 if (!reportMarkers().isEmpty()) {
                     toggleHeatmap(true);
@@ -356,7 +376,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     if (markerRenderer != null) markerRenderer.removeOutsideBounds(latMin, latMax, lngMin, lngMax);
 
                     if (reports != null) {
-                        int added = 0;
+                        int addedCount = 0;
                         boolean limitReached = false;
                         int uid = TokenManager.getInstance(requireContext()).getUserId();
                         for (ReportResponse.ReportData report : reports) {
@@ -365,13 +385,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                             if (reportMarkers().size() < MAX_REPORTS || !isNew) {
                                 if (markerRenderer != null) markerRenderer.addReport(report, uid);
                                 cacheReport(report);
-                                if (isNew) added++;
+                                if (isNew) addedCount++;
                             } else {
                                 limitReached = true;
                             }
                         }
-                        if (added > 0) {
-                            android.util.Log.d("MapFragment", "📍 " + added + " nuevos marcadores en viewport");
+                        if (addedCount > 0) {
+                            android.util.Log.d("MapFragment", "📍 " + addedCount + " nuevos marcadores en viewport");
                         }
                         if (limitReached) {
                             SnackbarHelper.show(getView(), "Mostrando " + MAX_REPORTS + " reportes más cercanos", SnackbarHelper.Variant.INFO);
@@ -489,34 +509,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (vm.getPoller() != null) vm.getPoller().pollNow();
     }
 
-    private void applyReportUpdate(ReportResponse.ReportData report) {
-        String reportKey = String.valueOf(report.getId());
-        ReportResponse.ReportData cached = reportMarkers().get(reportKey);
-        int uid = TokenManager.getInstance(requireContext()).getUserId();
-
-        if (cached == null) {
-            if (reportMarkers().size() < MAX_REPORTS && markerRenderer != null) {
-                markerRenderer.addReport(report, uid);
-            } else if (reportMarkers().size() >= MAX_REPORTS && !maxReportsWarningShown && getView() != null) {
-                maxReportsWarningShown = true;
-                SnackbarHelper.show(getView(), "Mostrando " + MAX_REPORTS + " reportes más cercanos", SnackbarHelper.Variant.INFO);
-            }
-            return;
-        }
-
-        boolean statusChanged = !cached.getStatus().equals(report.getStatus());
-        reportMarkers().put(reportKey, report);
-
-        if (statusChanged && markerRenderer != null) {
-            markerRenderer.updateReport(report.getId(), report.getStatus(),
-                    report.getVotesConfirm(), report.getVotesResolve(), uid);
-        }
-    }
-
-    private void removeMarkerVisuals(int reportId) {
-        if (markerRenderer != null) markerRenderer.removeReport(reportId);
-    }
-
     /** RF-18: reportes archivados nunca se pintan en el mapa. RF-19: filtros de categoría/estado/antigüedad. */
     private boolean passesFilters(ReportResponse.ReportData report) {
         String status = report.getStatus();
@@ -552,17 +544,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private long reportAgeHours(String createdAtIso) {
         if (createdAtIso == null) return 0;
         try {
-            long createdAtMs = java.time.Instant.parse(createdAtIso).toEpochMilli();
-            return Math.max(0, (System.currentTimeMillis() - createdAtMs) / (60 * 60 * 1000));
+            // Reemplazo de java.time.Instant para compatibilidad con API 24
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            java.util.Date date = sdf.parse(createdAtIso);
+            if (date == null) return 0;
+            return Math.max(0, (System.currentTimeMillis() - date.getTime()) / (60 * 60 * 1000));
         } catch (Exception e) {
             android.util.Log.w("MapFragment", "No se pudo parsear created_at: " + createdAtIso);
             return 0;
         }
-    }
-
-    /** Reconstruye el GeoJSON del heatmap con los reportes actuales. */
-    private void refreshHeatmap() {
-        if (vm.heatmapEnabled) toggleHeatmap(true);
     }
 
     /** Fetch en background al arrancar — guarda puntos en ViewModel para uso inmediato. */
@@ -656,13 +647,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         com.mapbox.maps.extension.style.sources.generated.GeoJsonSource src =
             new com.mapbox.maps.extension.style.sources.generated.GeoJsonSource.Builder(HEATMAP_SOURCE_ID)
                 .featureCollection(fc).build();
-        com.mapbox.maps.extension.style.sources.SourceUtils.addSource(style, src);
+        src.bindTo(style);
 
         com.mapbox.maps.extension.style.layers.generated.HeatmapLayer layer =
             new com.mapbox.maps.extension.style.layers.generated.HeatmapLayer(HEATMAP_LAYER_ID, HEATMAP_SOURCE_ID);
         layer.heatmapOpacity(0.7);
         layer.heatmapRadius(20.0);
-        com.mapbox.maps.extension.style.layers.LayerUtils.addLayer(style, layer);
+        layer.bindTo(style);
     }
 
     private void loadFilterPrefs() {
@@ -781,8 +772,27 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void setupMapListeners() {
         GesturesUtils.getGestures(mapView).addOnMapLongClickListener(point -> {
-            // Ya NO sobreescribimos userLocation. 
-            // La ubicación del usuario es sagrada para el botón FAB.
+            if (userLocation == null) {
+                SnackbarHelper.show(getView(), "Obteniendo tu ubicación...", SnackbarHelper.Variant.INFO);
+                return true;
+            }
+
+            // RF-07+: Validar geovalla para creación de reportes (500m)
+            double distanceMeters = com.bombayashi.reporteciudadano.util.LocationUtil.calculateDistance(
+                    userLocation.latitude(), userLocation.longitude(),
+                    point.latitude(), point.longitude()
+            );
+
+            if (distanceMeters > com.bombayashi.reporteciudadano.util.LocationUtil.VOTE_RADIUS_METERS) {
+                SnackbarHelper.show(getView(), 
+                    String.format(java.util.Locale.getDefault(), 
+                        "Estás muy lejos (%.0fm). Acércate a menos de 500m para reportar.", distanceMeters), 
+                    SnackbarHelper.Variant.WARNING);
+                android.util.Log.w("MapFragment", "Intento de reporte fuera de rango: " + distanceMeters + "m");
+                return true;
+            }
+
+            // Si está en rango, abrir menú
             showRadialMenu(point);
             return true;
         });
@@ -913,6 +923,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         bottomSheet.show(getChildFragmentManager(), "report_detail");
     }
 
+    @com.mapbox.maps.MapboxExperimental
     @Override
     public void onReportStatusChanged(int reportId, String newStatus, int confirmCount, int resolveCount) {
         android.util.Log.d("MapFragment", "═══════════════════════════════════════════");
@@ -921,6 +932,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         updateReportMarker(reportId, newStatus, confirmCount, resolveCount);
     }
 
+    @com.mapbox.maps.MapboxExperimental
     @Override
     public void onReportDataUpdated(ReportResponse.ReportData updatedReport) {
         if (updatedReport != null) {
@@ -929,6 +941,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     }
 
+    @com.mapbox.maps.MapboxExperimental
     @Override
     public void onReportRetracted(int reportId) {
         android.util.Log.d("MapFragment", "🗑️ Reporte retirado: ID=" + reportId);
@@ -1024,6 +1037,119 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         requireActivity().finish();
     }
 
+    private void checkContextualOnboarding() {
+        com.bombayashi.reporteciudadano.util.SettingsManager sm = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext());
+        if (!sm.isOnboardingCompleted() && com.bombayashi.reporteciudadano.util.TokenManager.getInstance(requireContext()).isLoggedIn()) {
+            showOnboardingPrompt();
+        }
+    }
+
+    private void showOnboardingPrompt() {
+        // RF-34+: Onboarding contextual visual (Material Tap Target)
+        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
+                .setTarget(binding.fabAddReport)
+                .setPrimaryText("Reporte Rápido")
+                .setSecondaryText("Pulsa aquí para crear un reporte instantáneo en tu ubicación actual. Ideal para baches o peligros que tienes justo enfrente.")
+                .setBackButtonDismissEnabled(true)
+                .setPromptStateChangeListener((prompt, state) -> {
+                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED 
+                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                        showLocationPrompt();
+                    }
+                })
+                .show();
+    }
+
+    private void showLocationPrompt() {
+        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
+                .setTarget(binding.fabMyLocation)
+                .setPrimaryText("Tu Ubicación")
+                .setSecondaryText("¿Te perdiste explorando el mapa? Toca este botón para volver rápidamente a tu posición real.")
+                .setPromptStateChangeListener((prompt, state) -> {
+                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                        showFilterPrompt();
+                    }
+                })
+                .show();
+    }
+
+    private void showFilterPrompt() {
+        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
+                .setTarget(binding.fabFilter)
+                .setPrimaryText("Limpia el Mapa")
+                .setSecondaryText("Usa los filtros para ver solo las categorías que te interesan o reportes recientes.")
+                .setPromptStateChangeListener((prompt, state) -> {
+                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                        showProfilePrompt();
+                    }
+                })
+                .show();
+    }
+
+    private void showProfilePrompt() {
+        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
+                .setTarget(binding.fabProfile)
+                .setPrimaryText("Gestiona tu Perfil")
+                .setSecondaryText("Revisa tus puntos de ciudadano, configura tus alertas y mira el historial de tus reportes.")
+                .setPromptStateChangeListener((prompt, state) -> {
+                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                        com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).setOnboardingCompleted(true);
+                    }
+                })
+                .show();
+    }
+
+    @com.mapbox.maps.MapboxExperimental
+    private void setupUser3DLayer(@NonNull com.mapbox.maps.Style style) {
+        // Tarea 1: Registro del Modelo 3D (Usando el archivo correcto)
+        try {
+            style.addStyleModel("user-arrow-model", "asset://arrow_direction.glb");
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error cargando modelo 3D: " + e.getMessage());
+        }
+
+        // Tarea 2: Creación de la Fuente de Datos GeoJSON y la Capa 3D
+        user3DSource = new GeoJsonSource.Builder("user-3d-source")
+                .geometry(Point.fromLngLat(0, 0))
+                .build();
+        user3DSource.bindTo(style);
+
+        // Capa de Círculo (Halo) para visibilidad en zoom lejano
+        CircleLayer userHaloLayer = new CircleLayer("user-halo-layer", "user-3d-source")
+                .circleRadius(10.0) // Tamaño fijo en píxeles para que se vea siempre igual de lejos
+                .circleColor("#2196F3")
+                .circleStrokeWidth(2.0)
+                .circleStrokeColor("#FFFFFF")
+                .circleOpacity(0.8);
+        userHaloLayer.bindTo(style);
+
+        user3DLayer = new ModelLayer("user-3d-layer", "user-3d-source")
+                .modelId("user-arrow-model")
+                .modelScale(java.util.Arrays.asList(40.0, 40.0, 40.0)) 
+                .modelRotation(java.util.Arrays.asList(90.0, 0.0, 0.0)) // Rotación 90° en X para que apunte hacia adelante
+                .modelTranslation(java.util.Arrays.asList(0.0, 0.0, 2.0)); 
+        user3DLayer.bindTo(style);
+    }
+
+    @com.mapbox.maps.MapboxExperimental
+    private void updateUser3DMarker(Point point, float bearing) {
+        if (mapboxMap == null) return;
+        com.mapbox.maps.Style style = mapboxMap.getStyle();
+        if (style == null) return;
+
+        // Tarea 3: Actualización Dinámica
+        style.setStyleGeoJSONSourceData("user-3d-source", "", 
+            new com.mapbox.maps.GeoJSONSourceData(point));
+
+        if (user3DLayer != null) {
+            // Ajustamos la rotación: 90° en X (fijo) y 'bearing' en Z (dinámico)
+            user3DLayer.modelRotation(java.util.Arrays.asList(90.0, 0.0, (double) bearing));
+        }
+    }
+
     private void centerOnDefaultLocation() {
         userLocation = Point.fromLngLat(DEFAULT_LONGITUDE, DEFAULT_LATITUDE);
         addUserLocationMarker(userLocation);
@@ -1054,6 +1180,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (vm.getPoller() != null) vm.getPoller().start();
         votableReportsHandler.postDelayed(votableReportsRunnable, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
         startContinuousLocationTracking();
+        if (headingManager != null) headingManager.startListening();
     }
 
     @Override
@@ -1061,6 +1188,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (vm.getPoller() != null) vm.getPoller().stop();
         votableReportsHandler.removeCallbacks(votableReportsRunnable);
         stopContinuousLocationTracking();
+        if (headingManager != null) headingManager.stopListening();
         if (mapView != null) mapView.onStop();
         super.onStop();
     }
