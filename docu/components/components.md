@@ -360,3 +360,12 @@ dialog.show(getChildFragmentManager(), "radial_menu");
 - [ ] Verificar en dispositivo que owner ve solo btnResolve (btnConfirm GONE) y puede votar
 - [ ] Verificar que tvStatus muestra color correcto en los 4 estados (pending/verified/resolved/archived)
 - [ ] RF-07 server: probar con usuario fuera de 500m que recibe 422 desde API
+
+## [2026-06-23] Ocultar botones de voto al vencer la ventana de edición de 5 minutos
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/ReportDetailBottomSheet.java` — En `editCountdown.onFinish()`, se agregó `binding.llVoteButtons.setVisibility(View.GONE)` para ocultar los botones de voto cuando expira la ventana de 5 minutos, evitando que el usuario pueda enviar peticiones a la API después de ese tiempo.
+
+### TODOs / Próximos pasos
+- [ ] Verificar en dispositivo que los botones desaparecen exactamente al cumplirse los 5 minutos
+- [ ] Confirmar que si el usuario abre el bottom sheet después de expirado el timer, los botones tampoco aparecen (estado inicial sin `canEditVote()`)
