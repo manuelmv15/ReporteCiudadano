@@ -110,11 +110,13 @@ class MarkerRenderer {
         reportMarkers.put(String.valueOf(report.getId()), report);
 
         boolean isMine = (currentUserId != -1 && currentUserId == report.getUserId());
+        String userVote = report.getUserVote();
         Bitmap icon = bitmapFromDrawable(
                 getCategoryDrawableId(categorySlug),
                 getCategoryColor(categorySlug),
                 report.getStatus(),
-                isMine
+                isMine,
+                userVote
         );
         if (icon == null) return;
 
@@ -242,8 +244,8 @@ class MarkerRenderer {
         anim.start();
     }
 
-    private Bitmap bitmapFromDrawable(@DrawableRes int drawableId, String colorHex, String status, boolean isMine) {
-        String key = drawableId + "_" + colorHex + "_" + status + "_" + isMine;
+    private Bitmap bitmapFromDrawable(@DrawableRes int drawableId, String colorHex, String status, boolean isMine, String userVote) {
+        String key = drawableId + "_" + colorHex + "_" + status + "_" + isMine + "_" + userVote;
         Bitmap cached = bitmapCache.get(key);
         if (cached != null) return cached;
 
@@ -257,25 +259,28 @@ class MarkerRenderer {
             float center = SIZE / 2f;
             float radius = SIZE / 2.8f;
 
-            if (isMine) {
-                android.graphics.Paint halo = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                halo.setColor(android.graphics.Color.parseColor("#FFD700"));
-                halo.setAlpha(80);
-                canvas.drawCircle(center, center, radius + 12, halo);
-            }
-
             android.graphics.Paint shadow = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             shadow.setColor(android.graphics.Color.BLACK);
             shadow.setAlpha(40);
             canvas.drawCircle(center, center + 4, radius, shadow);
 
+            // Anillo dorado exterior para reportes propios
+            if (isMine) {
+                android.graphics.Paint goldRing = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                goldRing.setStyle(android.graphics.Paint.Style.STROKE);
+                goldRing.setStrokeWidth(7f);
+                goldRing.setColor(android.graphics.Color.parseColor("#FFD700"));
+                canvas.drawCircle(center, center, radius + 9f, goldRing);
+            }
+
             android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             fill.setColor(android.graphics.Color.parseColor(colorHex));
+            if (userVote != null && !isMine) fill.setAlpha(160);
             canvas.drawCircle(center, center, radius, fill);
 
             android.graphics.Paint border = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
             border.setStyle(android.graphics.Paint.Style.STROKE);
-            border.setStrokeWidth(isMine ? 8f : 6f);
+            border.setStrokeWidth(6f);
             border.setColor(android.graphics.Color.parseColor(statusStrokeColor(status)));
             canvas.drawCircle(center, center, radius, border);
 
@@ -284,6 +289,36 @@ class MarkerRenderer {
             int off = (int) (center - iconSize / 2f);
             d.setBounds(off, off, off + iconSize, off + iconSize);
             d.draw(canvas);
+
+            // Badge: checkmark verde si ya votó (y no es suyo)
+            if (userVote != null && !isMine) {
+                float badgeRadius = 18f;
+                float bx = center + radius * 0.65f;
+                float by = center - radius * 0.65f;
+
+                android.graphics.Paint badgeBg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                badgeBg.setColor(android.graphics.Color.parseColor("#4CAF50"));
+                canvas.drawCircle(bx, by, badgeRadius, badgeBg);
+
+                android.graphics.Paint badgeBorder = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                badgeBorder.setStyle(android.graphics.Paint.Style.STROKE);
+                badgeBorder.setStrokeWidth(3f);
+                badgeBorder.setColor(android.graphics.Color.WHITE);
+                canvas.drawCircle(bx, by, badgeRadius, badgeBorder);
+
+                // Dibujar checkmark ✓
+                android.graphics.Paint check = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                check.setColor(android.graphics.Color.WHITE);
+                check.setStyle(android.graphics.Paint.Style.STROKE);
+                check.setStrokeWidth(4f);
+                check.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+                check.setStrokeJoin(android.graphics.Paint.Join.ROUND);
+                android.graphics.Path path = new android.graphics.Path();
+                path.moveTo(bx - 8f, by);
+                path.lineTo(bx - 2f, by + 6f);
+                path.lineTo(bx + 8f, by - 7f);
+                canvas.drawPath(path, check);
+            }
 
             bitmapCache.put(key, bmp);
             return bmp;
