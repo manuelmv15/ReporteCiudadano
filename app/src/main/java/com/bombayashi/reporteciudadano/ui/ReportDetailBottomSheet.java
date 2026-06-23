@@ -14,7 +14,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
@@ -262,7 +262,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.btnRetractReport.setVisibility(View.VISIBLE);
         binding.tvRetractCountdown.setVisibility(View.VISIBLE);
         binding.btnRetractReport.setOnClickListener(v ->
-            new AlertDialog.Builder(requireContext())
+            new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Retirar reporte")
                 .setMessage("¿Seguro que querés retirar este reporte? Esta acción no se puede deshacer.")
                 .setPositiveButton("Retirar", (dialog, which) -> retractReport())
@@ -377,7 +377,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         input.setText(report.getDescription());
         input.setSelection(input.getText().length());
 
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
             .setTitle("Editar descripción")
             .setView(input)
             .setPositiveButton("Guardar", (dialog, which) -> {
@@ -729,7 +729,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
     private void showRetractVoteDialog(String voteType) {
         String voteText = "confirm".equals(voteType) ? "Sigue ahí" : "Ya se resolvió";
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
             .setTitle("Retirar voto")
             .setMessage("Ya votaste \"" + voteText + "\". ¿Querés retirar tu voto?")
             .setPositiveButton("Retirar", (dialog, which) -> {
@@ -751,7 +751,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             ? "Sigue ahí"
             : "Ya se resolvió";
 
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
             .setTitle("Cambiar voto")
             .setMessage("Tu voto actual: \"" + currentVoteText + "\"\n\n¿Cambiar a \"" + newVoteText + "\"?")
             .setPositiveButton("Cambiar", (dialog, which) -> {

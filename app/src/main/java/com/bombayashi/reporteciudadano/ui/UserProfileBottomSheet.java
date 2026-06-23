@@ -14,7 +14,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -239,7 +239,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         input.setText(TokenManager.getInstance(requireContext()).getUserName());
         input.setSelection(input.getText().length());
 
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Editar nombre")
                 .setView(input)
                 .setPositiveButton("Guardar", (dialog, which) -> {
@@ -279,7 +279,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
     private void showAvatarPickerDialog() {
         String[] options = {"Tomar foto", "Elegir de galería"};
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Foto de perfil")
                 .setItems(options, (dialog, which) -> {
                     if (which == 0) {
