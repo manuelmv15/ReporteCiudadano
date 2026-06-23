@@ -28,20 +28,28 @@ class NearbyReportChecker {
     }
 
     void check(Collection<ReportResponse.ReportData> reports, Point userLocation, int currentUserId) {
-        if (userLocation == null || reports.isEmpty()) return;
+        if (userLocation == null || reports.isEmpty()) {
+            android.util.Log.d("NearbyReportChecker", "⏭ skip: location=" + userLocation + " reports=" + reports.size());
+            return;
+        }
 
         try {
             int votableCount = 0;
             for (ReportResponse.ReportData report : reports) {
-                if ("archived".equals(report.getStatus())) continue;
+                String status = report.getStatus();
+                if ("archived".equals(status) || "resolved".equals(status)) continue;
                 if (report.getUser() != null && report.getUser().getId() == currentUserId) continue;
+                if (report.getUserVote() != null) continue;
 
                 double dist = haversineKm(
                         userLocation.latitude(), userLocation.longitude(),
                         report.getLatitude(), report.getLongitude()
                 );
+                android.util.Log.d("NearbyReportChecker", "📏 report " + report.getId() + " dist=" + String.format("%.0fm", dist * 1000));
                 if (dist <= VOTABLE_RANGE_KM) votableCount++;
             }
+
+            android.util.Log.d("NearbyReportChecker", "✅ votable=" + votableCount + " lastNotified=" + lastNotifiedCount);
 
             if (votableCount > 0 && votableCount != lastNotifiedCount) {
                 lastNotifiedCount = votableCount;
