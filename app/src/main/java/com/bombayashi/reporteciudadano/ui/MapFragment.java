@@ -1039,7 +1039,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void checkContextualOnboarding() {
         com.bombayashi.reporteciudadano.util.SettingsManager sm = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext());
-        if (!sm.isOnboardingCompleted() && com.bombayashi.reporteciudadano.util.TokenManager.getInstance(requireContext()).isLoggedIn()) {
+        if (!sm.isContextualOnboardingCompleted() && com.bombayashi.reporteciudadano.util.TokenManager.getInstance(requireContext()).isLoggedIn()) {
             showOnboardingPrompt();
         }
     }
@@ -1096,7 +1096,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 .setPromptStateChangeListener((prompt, state) -> {
                     if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
                         || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
-                        com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).setOnboardingCompleted(true);
+                        com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).setContextualOnboardingCompleted(true);
                     }
                 })
                 .show();

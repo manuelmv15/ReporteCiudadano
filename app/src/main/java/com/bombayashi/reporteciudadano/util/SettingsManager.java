@@ -10,7 +10,8 @@ public class SettingsManager {
     private static final String PREFS_NAME = "app_settings";
     private static final String KEY_DARK_MODE = "dark_mode"; // "system", "light", "dark"
     private static final String KEY_NOTIFICATIONS = "notifications_enabled";
-    private static final String KEY_ONBOARDING_COMPLETED = "onboarding_completed"; // RF-37
+    private static final String KEY_SLIDES_COMPLETED = "slides_completed";
+    private static final String KEY_CONTEXTUAL_COMPLETED = "contextual_completed";
     // RF-23: proximity alert settings
     private static final String KEY_ALERT_RADIUS = "alert_radius_meters";
     private static final String KEY_ALERT_CAT_BACHE = "alert_cat_bache";
@@ -73,12 +74,31 @@ public class SettingsManager {
     }
 
     // RF-37
-    public boolean isOnboardingCompleted() {
-        return prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false);
+    public boolean isSlidesOnboardingCompleted() {
+        return prefs.getBoolean(KEY_SLIDES_COMPLETED, false);
     }
 
+    public void setSlidesOnboardingCompleted(boolean completed) {
+        prefs.edit().putBoolean(KEY_SLIDES_COMPLETED, completed).apply();
+    }
+
+    public boolean isContextualOnboardingCompleted() {
+        return prefs.getBoolean(KEY_CONTEXTUAL_COMPLETED, false);
+    }
+
+    public void setContextualOnboardingCompleted(boolean completed) {
+        prefs.edit().putBoolean(KEY_CONTEXTUAL_COMPLETED, completed).apply();
+    }
+
+    /** @deprecated Use isSlidesOnboardingCompleted or isContextualOnboardingCompleted */
+    public boolean isOnboardingCompleted() {
+        return isSlidesOnboardingCompleted() || isContextualOnboardingCompleted();
+    }
+
+    /** @deprecated Use setSlidesOnboardingCompleted or setContextualOnboardingCompleted */
     public void setOnboardingCompleted(boolean completed) {
-        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply();
+        setSlidesOnboardingCompleted(completed);
+        setContextualOnboardingCompleted(completed);
     }
 
     // RF-23: alert radius (100–500 m)

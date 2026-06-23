@@ -82,7 +82,7 @@ public class OnboardingActivity extends AppCompatActivity {
     }
 
     private void finishOnboarding() {
-        SettingsManager.getInstance(this).setOnboardingCompleted(true); // RF-37
+        SettingsManager.getInstance(this).setSlidesOnboardingCompleted(true);
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);

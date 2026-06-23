@@ -150,35 +150,38 @@ public class LoginActivity extends AppCompatActivity {
         String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
         TokenManager.getInstance(this).saveAuth(auth.getToken(), userId, userName, userEmail);
 
-        // Resetear estado de onboarding local para que el MapFragment muestre el tutorial visual
-        com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(this).setOnboardingCompleted(false);
+        // No reseteamos el onboarding aquí. 
+        // Si es un usuario nuevo en este dispositivo, slides_completed será false por defecto.
+        com.bombayashi.reporteciudadano.util.SettingsManager sm = 
+            com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(this);
 
         // Request notification permission on Android 13+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
         }
 
-        // Sincronizar FCM Token tras login exitoso
+        // ... FCM token logic ...
+        syncFcmToken();
+
+        if (!sm.isSlidesOnboardingCompleted()) {
+            startActivity(new Intent(this, OnboardingActivity.class));
+            finish();
+        } else {
+            goToMain();
+        }
+    }
+
+    private void syncFcmToken() {
         com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
             .addOnCompleteListener(task -> {
                 if (task.isSuccessful() && task.getResult() != null) {
                     String fcmToken = task.getResult();
-                    android.util.Log.i("FCM_TOKEN_DEBUG", "TOKEN_ACTUAL: " + fcmToken);
                     ApiClient.getInstance().updateFcmToken(fcmToken).enqueue(new Callback<Void>() {
-                        @Override
-                        public void onResponse(Call<Void> call, Response<Void> response) {
-                            android.util.Log.i("Login", "✓ FCM Token sincronizado con éxito.");
-                        }
-
-                        @Override
-                        public void onFailure(Call<Void> call, Throwable t) {
-                            android.util.Log.e("Login", "✗ Error sincronizando FCM Token", t);
-                        }
+                        @Override public void onResponse(Call<Void> call, Response<Void> response) {}
+                        @Override public void onFailure(Call<Void> call, Throwable t) {}
                     });
                 }
             });
-
-        goToMain();
     }
 
     private void goToMain() {
