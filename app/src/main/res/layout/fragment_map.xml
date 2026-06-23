@@ -74,7 +74,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="Filtros"
-                app:icon="@drawable/filter_alt_24px"
+                app:icon="@drawable/tune_24px"
                 app:layout_overflowText="Filtros" />
 
             <!-- Botón: Mi Cuenta -->

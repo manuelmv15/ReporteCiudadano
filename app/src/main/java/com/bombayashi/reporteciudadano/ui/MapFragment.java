@@ -223,7 +223,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             com.mapbox.maps.extension.style.terrain.generated.Terrain terrain =
                     new com.mapbox.maps.extension.style.terrain.generated.Terrain("mapbox-dem")
                             .exaggeration(1.5);
-            com.mapbox.maps.extension.style.terrain.generated.TerrainUtils.setTerrain(style, terrain);
+            terrain.bindTo(style);
 
 
             // Luz dinámica según hora del día

@@ -3,7 +3,6 @@ package com.bombayashi.reporteciudadano.ui;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.view.LayoutInflater;
-import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
@@ -60,7 +59,8 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
             binding.tvDescription.setText(
                     report.getDescription() != null ? report.getDescription() : "Sin descripción");
             binding.tvDate.setText(formatDate(report.getCreatedAt()));
-            binding.tvVotes.setText("👍 " + report.getVotesConfirm() + "   ✅ " + report.getVotesResolve());
+            binding.tvConfirmCount.setText(String.valueOf(report.getVotesConfirm()));
+            binding.tvResolveCount.setText(String.valueOf(report.getVotesResolve()));
             binding.ivCategoryIcon.setImageResource(getCategoryDrawableId(categorySlug));
 
             String status = report.getStatus() != null ? report.getStatus() : "pending";
