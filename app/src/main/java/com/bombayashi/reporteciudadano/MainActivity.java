@@ -3,10 +3,13 @@ package com.bombayashi.reporteciudadano;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -45,6 +48,39 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         // Handle notification intent if app was already running
         handleNotificationIntent(intent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkNotificationsEnabled();
+    }
+
+    private void checkNotificationsEnabled() {
+        boolean blocked = !NotificationManagerCompat.from(this).areNotificationsEnabled()
+                || !hasAtLeastOneActiveChannel();
+        Log.d(TAG, "notifications blocked=" + blocked);
+        View banner = binding.bannerNotificationsBlocked;
+        if (blocked) {
+            banner.setVisibility(View.VISIBLE);
+            binding.bannerBtnActivar.setOnClickListener(v -> {
+                Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                startActivity(intent);
+            });
+        } else {
+            banner.setVisibility(View.GONE);
+        }
+    }
+
+    private boolean hasAtLeastOneActiveChannel() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return true;
+        android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+        if (nm == null) return true;
+        for (android.app.NotificationChannel ch : nm.getNotificationChannels()) {
+            if (ch.getImportance() != android.app.NotificationManager.IMPORTANCE_NONE) return true;
+        }
+        return false;
     }
 
     /**

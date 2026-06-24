@@ -21,6 +21,8 @@ public class SettingsManager {
     private static final String KEY_ALERT_CAT_ACCIDENTE = "alert_cat_accidente";
     private static final String KEY_ALERT_CAT_VANDALO = "alert_cat_vandalo";
     private static final String KEY_ALERT_CAT_OTRO = "alert_cat_otro";
+    // "auto", "dawn", "day", "dusk", "night"
+    private static final String KEY_MAP_PRESET = "map_preset";
     // SeekBar: 0→100m, 1→200m, 2→300m, 3→400m, 4→500m
     private static final int[] RADIUS_VALUES = {100, 200, 300, 400, 500};
 
@@ -139,4 +141,12 @@ public class SettingsManager {
     public String getAlertCatKeyAccidente()  { return KEY_ALERT_CAT_ACCIDENTE; }
     public String getAlertCatKeyVandalo()    { return KEY_ALERT_CAT_VANDALO; }
     public String getAlertCatKeyOtro()       { return KEY_ALERT_CAT_OTRO; }
+
+    public String getMapPreset() {
+        return prefs.getString(KEY_MAP_PRESET, "auto");
+    }
+
+    public void setMapPreset(String preset) {
+        prefs.edit().putString(KEY_MAP_PRESET, preset).apply();
+    }
 }

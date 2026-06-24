@@ -11,6 +11,7 @@ import android.widget.EditText;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import android.content.DialogInterface;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -76,6 +77,22 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
     public void setLogoutListener(OnLogoutListener listener) {
         this.logoutListener = listener;
+    }
+
+    public interface OnSettingsDismissListener {
+        void onDismiss();
+    }
+
+    private OnSettingsDismissListener settingsDismissListener;
+
+    public void setOnSettingsDismissListener(OnSettingsDismissListener listener) {
+        this.settingsDismissListener = listener;
+    }
+
+    @Override
+    public void onDismiss(@NonNull android.content.DialogInterface dialog) {
+        super.onDismiss(dialog);
+        if (settingsDismissListener != null) settingsDismissListener.onDismiss();
     }
 
     @Nullable
@@ -497,6 +514,22 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
             } else {
                 settingsManager.setThemeMode("system");
             }
+        });
+
+        switch (settingsManager.getMapPreset()) {
+            case "dawn":  binding.rbMapDawn.setChecked(true);  break;
+            case "day":   binding.rbMapDay.setChecked(true);   break;
+            case "dusk":  binding.rbMapDusk.setChecked(true);  break;
+            case "night": binding.rbMapNight.setChecked(true); break;
+            default:      binding.rbMapAuto.setChecked(true);  break;
+        }
+
+        binding.rgMapPreset.setOnCheckedChangeListener((group, checkedId) -> {
+            if (checkedId == binding.rbMapDawn.getId())       settingsManager.setMapPreset("dawn");
+            else if (checkedId == binding.rbMapDay.getId())   settingsManager.setMapPreset("day");
+            else if (checkedId == binding.rbMapDusk.getId())  settingsManager.setMapPreset("dusk");
+            else if (checkedId == binding.rbMapNight.getId()) settingsManager.setMapPreset("night");
+            else                                              settingsManager.setMapPreset("auto");
         });
 
         binding.swNotifications.setChecked(settingsManager.isNotificationsEnabled());

@@ -161,7 +161,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 SnackbarHelper.show(getView(),
                         String.format(java.util.Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", accuracy),
                         SnackbarHelper.Variant.SUCCESS);
-                
+                runNearbyCheck();
                 // Onboarding contextual tras obtener ubicación
                 checkContextualOnboarding();
             }
@@ -392,6 +392,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         }
                         if (addedCount > 0) {
                             android.util.Log.d("MapFragment", "📍 " + addedCount + " nuevos marcadores en viewport");
+                            runNearbyCheck();
                         }
                         if (limitReached) {
                             SnackbarHelper.show(getView(), "Mostrando " + MAX_REPORTS + " reportes más cercanos", SnackbarHelper.Variant.INFO);
@@ -1027,6 +1028,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void showUserProfile() {
         UserProfileBottomSheet profileSheet = new UserProfileBottomSheet();
         profileSheet.setLogoutListener(this::handleLogout);
+        profileSheet.setOnSettingsDismissListener(this::applyDynamicLighting);
         profileSheet.show(getChildFragmentManager(), "user_profile");
     }
 
@@ -1178,7 +1180,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         super.onStart();
         if (mapView != null) mapView.onStart();
         if (vm.getPoller() != null) vm.getPoller().start();
-        votableReportsHandler.postDelayed(votableReportsRunnable, VOTABLE_REPORTS_CHECK_INTERVAL_MS);
+        if (nearbyChecker != null) nearbyChecker.reset();
+        votableReportsHandler.post(votableReportsRunnable);
         startContinuousLocationTracking();
         if (headingManager != null) headingManager.startListening();
     }
@@ -1197,6 +1200,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
      * Check for nearby votable reports and notify user (Option B - periodic local notifications)
      * Called every 30 seconds while map is visible
      */
+
+    private void runNearbyCheck() {
+        if (nearbyChecker != null && userLocation != null) {
+            int uid = TokenManager.getInstance(requireContext()).getUserId();
+            android.util.Log.d("MapFragment", "🔔 runNearbyCheck: reports=" + reportMarkers().size() + " uid=" + uid);
+            nearbyChecker.check(reportMarkers().values(), userLocation, uid);
+        } else {
+            android.util.Log.d("MapFragment", "🔔 runNearbyCheck: skip (checker=" + nearbyChecker + " location=" + userLocation + ")");
+        }
+    }
 
     public boolean isMapReady() { return mapReady; }
 
@@ -1289,16 +1302,21 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void applyDynamicLighting() {
         if (mapboxMap == null) return;
-        int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        String saved = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).getMapPreset();
         String preset;
-        if (hour >= 6 && hour < 12) {
-            preset = "dawn";
-        } else if (hour >= 12 && hour < 18) {
-            preset = "day";
-        } else if (hour >= 18 && hour < 21) {
-            preset = "dusk";
+        if ("auto".equals(saved)) {
+            int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            if (hour >= 6 && hour < 12) {
+                preset = "dawn";
+            } else if (hour >= 12 && hour < 18) {
+                preset = "day";
+            } else if (hour >= 18 && hour < 21) {
+                preset = "dusk";
+            } else {
+                preset = "night";
+            }
         } else {
-            preset = "night";
+            preset = saved;
         }
         mapboxMap.setStyleImportConfigProperty("basemap", "lightPreset",
                 com.mapbox.bindgen.Value.valueOf(preset));

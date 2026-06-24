@@ -562,10 +562,12 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                     public void onFinish() {
                         if (binding == null) return;
                         binding.tvUserVoteStatus.setText(pendingVoteText + " (No editable)");
+                        binding.llVoteButtons.setVisibility(View.GONE);
                     }
                 }.start();
             } else if (state.getVoteEditableUntil() > 0) {
                 binding.tvUserVoteStatus.setText(pendingVoteText + " (No editable)");
+                binding.llVoteButtons.setVisibility(View.GONE);
             } else {
                 binding.tvUserVoteStatus.setText(pendingVoteText);
             }
