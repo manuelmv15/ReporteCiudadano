@@ -1,3 +1,22 @@
+## [2026-06-24] Fix Onboarding Contextual — Material Tap Target Overlay + Timing + Testing Helper
+
+### Archivos tocados
+- `app/src/main/java/com/bombayashi/reporteciudadano/ui/MapFragment.java` — Agregado delay de 800ms a `checkContextualOnboarding()` para esperar a que MapFragment se renderice completamente antes de mostrar prompts; todos los 4 prompts ahora tienen `.setBackButtonDismissEnabled(true)` + `.setFocalRadius(72f)` para mejor visualización; delays de 300ms entre prompts consecutivos via `postDelayed()`
+- `app/src/main/java/com/bombayashi/reporteciudadano/OnboardingActivity.java` — En `finishOnboarding()`, agregado `setContextualOnboardingCompleted(false)` para resetear flag después de completar slides (testing rápido: Ver tutorial → slides → contextual automáticamente)
+
+### Problema Corregido
+- Material Tap Target Prompts aparecían como modal opaco en parte superior (fondo sólido gris) en lugar de overlay transparente sobre el mapa
+- Causa: se llamaba `showOnboardingPrompt()` antes de que MapFragment completara su rendering (mapView, FABs aún no visibles)
+- Solución: usar `binding.getRoot().postDelayed()` para retrasar 800ms, permitiendo que Mapbox termine de cargar y las vistas estén listas
+
+### Resultado
+- ✅ Material Tap Target ahora aparece sobre el mapa con fondo semitransparente
+- ✅ Se ve la toolbar y reportes detrás del overlay
+- ✅ Ciclo completo de 4 prompts funcionan correctamente
+- ✅ Al completar el último prompt, se marca como `contextualOnboardingCompleted = true`
+
+---
+
 ## [2026-06-22] Marcador de usuario tipo flecha (Waze-style) — Sensor fusion con heading
 
 ### Archivos tocados

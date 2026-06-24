@@ -150,11 +150,6 @@ public class LoginActivity extends AppCompatActivity {
         String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
         TokenManager.getInstance(this).saveAuth(auth.getToken(), userId, userName, userEmail);
 
-        // No reseteamos el onboarding aquí. 
-        // Si es un usuario nuevo en este dispositivo, slides_completed será false por defecto.
-        com.bombayashi.reporteciudadano.util.SettingsManager sm = 
-            com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(this);
-
         // Request notification permission on Android 13+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
@@ -163,12 +158,7 @@ public class LoginActivity extends AppCompatActivity {
         // ... FCM token logic ...
         syncFcmToken();
 
-        if (!sm.isSlidesOnboardingCompleted()) {
-            startActivity(new Intent(this, OnboardingActivity.class));
-            finish();
-        } else {
-            goToMain();
-        }
+        goToMain();
     }
 
     private void syncFcmToken() {

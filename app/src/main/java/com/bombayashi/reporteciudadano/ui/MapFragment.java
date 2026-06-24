@@ -123,6 +123,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     };
 
+    private boolean contextualOnboardingShown = false;
+
     private AppDatabase appDatabase;
     private final java.util.concurrent.ExecutorService dbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor();
     private final Gson gson = new Gson();
@@ -162,8 +164,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         String.format(java.util.Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", accuracy),
                         SnackbarHelper.Variant.SUCCESS);
                 runNearbyCheck();
-                // Onboarding contextual tras obtener ubicación
-                checkContextualOnboarding();
             }
             @Override public void onLocationUpdate(Point location, float bearing) {
                 if (!isAdded() || getView() == null) return;
@@ -239,6 +239,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             setupFAB();
             requestUserLocation();
             showLongPressHintIfFirstTime();
+            checkContextualOnboarding();
             prefetchHeatmapPoints();
             mapReady = true;
             if (onMapReadyCallback != null) {
@@ -1040,68 +1041,95 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     }
 
     private void checkContextualOnboarding() {
+        if (contextualOnboardingShown) return; // Ya se mostró en esta sesión
+
         com.bombayashi.reporteciudadano.util.SettingsManager sm = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext());
         if (!sm.isContextualOnboardingCompleted() && com.bombayashi.reporteciudadano.util.TokenManager.getInstance(requireContext()).isLoggedIn()) {
-            showOnboardingPrompt();
+            contextualOnboardingShown = true;
+            // Delay para permitir que el mapa se renderice completamente antes de mostrar prompts
+            binding.getRoot().postDelayed(this::showOnboardingPrompt, 800);
         }
     }
 
     private void showOnboardingPrompt() {
-        // RF-34+: Onboarding contextual visual (Material Tap Target)
-        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
-                .setTarget(binding.fabAddReport)
-                .setPrimaryText("Reporte Rápido")
-                .setSecondaryText("Pulsa aquí para crear un reporte instantáneo en tu ubicación actual. Ideal para baches o peligros que tienes justo enfrente.")
-                .setBackButtonDismissEnabled(true)
-                .setPromptStateChangeListener((prompt, state) -> {
-                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED 
-                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
-                        showLocationPrompt();
-                    }
-                })
-                .show();
+        // RF-34+: Onboarding contextual visual (Material Tap Target) - overlay sobre toolbar
+        try {
+            new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(requireActivity())
+                    .setTarget(binding.fabAddReport)
+                    .setPrimaryText("Reporte Rápido")
+                    .setSecondaryText("Pulsa aquí para crear un reporte instantáneo en tu ubicación actual. Ideal para baches o peligros que tienes justo enfrente.")
+                    .setBackButtonDismissEnabled(true)
+                    .setFocalRadius(72f)
+                    .setPromptStateChangeListener((prompt, state) -> {
+                        if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                            || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                            binding.getRoot().postDelayed(this::showLocationPrompt, 300);
+                        }
+                    })
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error showing onboarding prompt", e);
+        }
     }
 
     private void showLocationPrompt() {
-        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
-                .setTarget(binding.fabMyLocation)
-                .setPrimaryText("Tu Ubicación")
-                .setSecondaryText("¿Te perdiste explorando el mapa? Toca este botón para volver rápidamente a tu posición real.")
-                .setPromptStateChangeListener((prompt, state) -> {
-                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
-                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
-                        showFilterPrompt();
-                    }
-                })
-                .show();
+        try {
+            new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(requireActivity())
+                    .setTarget(binding.fabMyLocation)
+                    .setPrimaryText("Tu Ubicación")
+                    .setSecondaryText("¿Te perdiste explorando el mapa? Toca este botón para volver rápidamente a tu posición real.")
+                    .setBackButtonDismissEnabled(true)
+                    .setFocalRadius(72f)
+                    .setPromptStateChangeListener((prompt, state) -> {
+                        if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                            || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                            binding.getRoot().postDelayed(this::showFilterPrompt, 300);
+                        }
+                    })
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error showing location prompt", e);
+        }
     }
 
     private void showFilterPrompt() {
-        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
-                .setTarget(binding.fabFilter)
-                .setPrimaryText("Limpia el Mapa")
-                .setSecondaryText("Usa los filtros para ver solo las categorías que te interesan o reportes recientes.")
-                .setPromptStateChangeListener((prompt, state) -> {
-                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
-                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
-                        showProfilePrompt();
-                    }
-                })
-                .show();
+        try {
+            new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(requireActivity())
+                    .setTarget(binding.fabFilter)
+                    .setPrimaryText("Limpia el Mapa")
+                    .setSecondaryText("Usa los filtros para ver solo las categorías que te interesan o reportes recientes.")
+                    .setBackButtonDismissEnabled(true)
+                    .setFocalRadius(72f)
+                    .setPromptStateChangeListener((prompt, state) -> {
+                        if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                            || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                            binding.getRoot().postDelayed(this::showProfilePrompt, 300);
+                        }
+                    })
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error showing filter prompt", e);
+        }
     }
 
     private void showProfilePrompt() {
-        new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(this)
-                .setTarget(binding.fabProfile)
-                .setPrimaryText("Gestiona tu Perfil")
-                .setSecondaryText("Revisa tus puntos de ciudadano, configura tus alertas y mira el historial de tus reportes.")
-                .setPromptStateChangeListener((prompt, state) -> {
-                    if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
-                        || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
-                        com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).setContextualOnboardingCompleted(true);
-                    }
-                })
-                .show();
+        try {
+            new uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.Builder(requireActivity())
+                    .setTarget(binding.fabProfile)
+                    .setPrimaryText("Gestiona tu Perfil")
+                    .setSecondaryText("Revisa tus puntos de ciudadano, configura tus alertas y mira el historial de tus reportes.")
+                    .setBackButtonDismissEnabled(true)
+                    .setFocalRadius(72f)
+                    .setPromptStateChangeListener((prompt, state) -> {
+                        if (state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_DISMISSED
+                            || state == uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt.STATE_FOCAL_PRESSED) {
+                            com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).setContextualOnboardingCompleted(true);
+                        }
+                    })
+                    .show();
+        } catch (Exception e) {
+            android.util.Log.e("MapFragment", "Error showing profile prompt", e);
+        }
     }
 
     @com.mapbox.maps.MapboxExperimental
