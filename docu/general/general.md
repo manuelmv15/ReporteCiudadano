@@ -524,4 +524,31 @@ Hay 5 reportes cerca donde puedes votar
 - [ ] Test: archived reports, verificar que no se incluyen
 - [ ] Test: múltiples notificaciones (cuando conteo cambia), verificar UI
 - [ ] Test: toque notificación, verifica que abre MainActivity con mapa
+
+## [2026-06-23] Wiki técnica completa del proyecto
+
+### Archivos tocados
+- `wiki/README.md` — índice principal con tabla de contenidos de los 17 archivos
+- `wiki/01_arquitectura.md` — diagrama de componentes, flujo principal, manejo offline
+- `wiki/02_android_overview.md` — estructura de paquetes, actividades, navegación, permisos, componentes registrados
+- `wiki/03_android_network.md` — ApiClient, AuthInterceptor, ApiService (todos los endpoints), TokenManager, ConnectivityHelper
+- `wiki/04_android_mapa.md` — MapFragment completo: constantes, dependencias, ciclo de vida, viewport loading, heatmap, modelo 3D, iluminación, creación de reportes, filtros, FABs, onboarding, polling, deep links
+- `wiki/05_android_db.md` — Room v2: ReportCacheEntity, PendingActionEntity (tipos y payloads), FcmNotificationCacheEntity, ExecutorService
+- `wiki/06_android_fcm.md` — MyFirebaseMessagingService pipeline completo, VoteActionReceiver, NotificationChannelHelper, ActivityStateManager, FcmNotificationManager
+- `wiki/07_android_sync.md` — SyncManager, ReportSyncWorker: lógica doWork(), syncCreateReport/Vote/RetractReport, isDefinitiveRejection
+- `wiki/08_android_models.md` — todos los POJOs de request y response con campos exactos
+- `wiki/09_laravel_rutas.md` — tabla completa de rutas públicas y protegidas con params
+- `wiki/10_laravel_auth.md` — AuthController y PasswordResetController con toda la lógica
+- `wiki/11_laravel_reportes.md` — ReportController y ReportStreamController con toda la lógica
+- `wiki/12_laravel_votos.md` — ReportVoteController, evaluateAutoStatus, umbrales, archivado
+- `wiki/13_laravel_modelos.md` — User (niveles/scoring), Report (Haversine, constantes), ReportVote, Category
+- `wiki/14_laravel_db.md` — esquema completo de todas las tablas con tipos y notas
+- `wiki/15_laravel_notificaciones.md` — NotificationService FCM, eventos broadcasting, email Brevo
+- `wiki/16_laravel_infra.md` — Docker Compose (6 servicios), Dockerfile, Nginx, variables de entorno
+- `wiki/17_flujos_completos.md` — 9 flujos end-to-end: registro, Google login, crear reporte online/offline, votar, FCM, archivado, polling, reset password
+
+### TODOs / Próximos pasos
+- [ ] Agregar capturas de pantalla a wiki/04_android_mapa.md mostrando heatmap vs marcadores
+- [ ] Documentar CategorySeeder con los IDs exactos y slugs reales de la DB de producción
+- [ ] Agregar sección de troubleshooting común (FCM token no llega, Cloudflare tunnel caído, etc.)
 	

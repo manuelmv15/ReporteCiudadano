@@ -92,3 +92,4 @@
 - [2026-06-22] [map] — Refactor MapFragment 1682→1083 líneas: extraídos MarkerRenderer (314l), LocationTracker (165l), ReportPoller (106l), NearbyReportChecker (97l)
 - [2026-06-22] [map] — MapViewModel + ReportRepository: reportMarkers, filtros, isLoadingReports y ReportPoller sobreviven rotación; repopulateMarkersFromViewModel() re-dibuja sin llamadas API
 - [2026-06-22] [map] — Marcador de usuario tipo flecha (Waze-style): HeadingManager con sensor fusion Magnetometer+Accelerometer, PointAnnotation rotativa según heading en tiempo real, se siente inmerso en mapa 3D ✅
+- [2026-06-23] [general] — Wiki técnica completa creada en wiki/: 17 archivos documentando arquitectura, Android (red/mapa/DB/FCM/sync/modelos), Laravel API (rutas/auth/reportes/votos/modelos/DB/notificaciones/infra) y flujos end-to-end
