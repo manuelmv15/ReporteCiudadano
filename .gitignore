@@ -14,3 +14,5 @@
 .navigation
 captures/
 output.json
+*.md
+!README.md

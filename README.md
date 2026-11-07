@@ -62,8 +62,6 @@ Funciona con una mecánica parecida a Waze. Las personas que están cerca de un 
 | **Resuelto** | Cuando "Ya se resolvió" llega al 70 % de los votos, con un mínimo de 3 votos | Gris durante 2 h y luego desaparece |
 | **Archivado** | Después de 24 h sin ninguna interacción | Ya no se muestra |
 
-El detalle de las reglas, con ejemplos, está en [`CRITERIOS_VOTOS.md`](CRITERIOS_VOTOS.md).
-
 ## Categorías
 
 Vialidad · Alumbrado · Agua · Tráfico · Seguridad · Basura
@@ -133,7 +131,6 @@ app/src/main/java/com/bombayashi/reporteciudadano/
 ## Documentos
 
 - [`ReporteCiudadano_v1_planteamiento.pdf`](ReporteCiudadano_v1_planteamiento.pdf): planteamiento inicial del proyecto y sus requerimientos.
-- [`CRITERIOS_VOTOS.md`](CRITERIOS_VOTOS.md): reglas de cambio de estado por votos.
 
 ## Equipo
 
