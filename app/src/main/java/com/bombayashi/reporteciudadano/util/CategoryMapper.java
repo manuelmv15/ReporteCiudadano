@@ -23,7 +23,7 @@ public final class CategoryMapper {
             case "bache", "vialidad"            -> "vialidad";
             case "alumbrado-publico", "alumbrado" -> "alumbrado";
             case "fuga-de-agua", "agua"          -> "agua";
-            case "senalizacion-vial", "senalizacion" -> "senalizacion";
+            case "senalizacion-vial", "senalizacion", "semaforo-danado" -> "senalizacion";
             case "inseguridad", "seguridad"      -> "seguridad";
             case "basura-acumulada", "parques", "basura" -> "basura";
             default                              -> "otros";

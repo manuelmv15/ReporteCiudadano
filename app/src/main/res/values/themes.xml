@@ -73,4 +73,13 @@
     <style name="CircleImageView">
         <item name="cornerSize">50%</item>
     </style>
+    <!-- Bottom sheet flotante: el contenedor no pinta fondo; el panel interno lleva bg_floating_panel -->
+    <style name="ThemeOverlay.App.BottomSheetDialog.Floating" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.App.BottomSheet.Floating</item>
+    </style>
+
+    <style name="Widget.App.BottomSheet.Floating" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="android:elevation">0dp</item>
+    </style>
 </resources>

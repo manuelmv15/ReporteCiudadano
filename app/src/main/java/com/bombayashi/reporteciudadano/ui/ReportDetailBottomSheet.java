@@ -105,6 +105,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         if (report == null || userLocation == null) return;
 
+        animateHeaderIcon();
+
         // FETCH PREVENTIVO: Antes de mostrar, pedimos los datos más recientes de la API
         fetchLatestReportData();
 
@@ -118,6 +120,24 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             setupVoteObservers();
             setupButtonListeners();
         }
+    }
+
+    @Override
+    public int getTheme() {
+        // Contenedor del bottom sheet transparente para que el panel se vea flotante
+        return R.style.ThemeOverlay_App_BottomSheetDialog_Floating;
+    }
+
+    /** Entrada del ícono de categoría con el mismo "pop" que los botones del menú radial. */
+    private void animateHeaderIcon() {
+        View icon = binding.ivCategoryIcon;
+        icon.setScaleX(0f);
+        icon.setScaleY(0f);
+        icon.animate().scaleX(1f).scaleY(1f)
+                .setStartDelay(150)
+                .setDuration(250)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.5f))
+                .start();
     }
 
     private void fetchLatestReportData() {
@@ -178,16 +198,35 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         String userName = (report.getUser() != null) ? report.getUser().getName() : "Anónimo";
 
         binding.tvCategory.setText(categoryName);
-        binding.tvStatus.setText(status);
-        int statusColor = switch (report.getStatus() != null ? report.getStatus() : "") {
-            case "verified"  -> android.graphics.Color.parseColor("#4CAF50");
-            case "resolved"  -> android.graphics.Color.parseColor("#2196F3");
-            case "archived"  -> android.graphics.Color.parseColor("#9E9E9E");
-            default          -> android.graphics.Color.parseColor("#FF9800"); // pending
+
+        // Ícono en círculo con el color de la categoría, igual que en el menú radial
+        String slug = (report.getCategory() != null && report.getCategory().getSlug() != null)
+                ? report.getCategory().getSlug() : "otros";
+        binding.ivCategoryIcon.setImageResource(MarkerRenderer.getCategoryDrawableId(slug));
+        binding.ivCategoryIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(requireContext(), MarkerRenderer.getCategoryColor(slug))));
+
+        String statusKey = report.getStatus() != null ? report.getStatus() : "";
+        int statusColor = switch (statusKey) {
+            case "verified"  -> android.graphics.Color.parseColor("#2E7D32");
+            case "resolved"  -> android.graphics.Color.parseColor("#1565C0");
+            case "archived"  -> android.graphics.Color.parseColor("#616161");
+            default          -> android.graphics.Color.parseColor("#E65100"); // pending
         };
+        String statusLabel = switch (statusKey) {
+            case "pending"   -> "Pendiente";
+            case "verified"  -> "Verificado";
+            case "resolved"  -> "Resuelto";
+            case "archived"  -> "Archivado";
+            default          -> status;
+        };
+        binding.tvStatus.setText(statusLabel);
         binding.tvStatus.setTextColor(statusColor);
+        // Píldora tonal: mismo color del estado con ~15% de opacidad
+        binding.tvStatus.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                (statusColor & 0x00FFFFFF) | 0x26000000));
         binding.tvDescription.setText(description);
-        binding.tvUser.setText("Reportado por: " + userName);
+        binding.tvUser.setText(userName);
 
         String reportStatus = report.getStatus();
         binding.tvArchiveCountdown.setVisibility(View.GONE);
@@ -203,8 +242,8 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                         long hoursLeft = msLeft / (60 * 60 * 1000L);
                         long minsLeft  = (msLeft % (60 * 60 * 1000L)) / (60 * 1000L);
                         String text = hoursLeft > 0
-                            ? "Se archivará en ~" + hoursLeft + "h " + minsLeft + "m sin más actividad"
-                            : "Se archivará en ~" + minsLeft + "m sin más actividad";
+                            ? "Se archiva en ~" + hoursLeft + "h " + minsLeft + "m sin actividad"
+                            : "Se archiva en ~" + minsLeft + "m sin actividad";
                         binding.tvArchiveCountdown.setVisibility(View.VISIBLE);
                         binding.tvArchiveCountdown.setText(text);
                     }
@@ -517,19 +556,26 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
     private void updateVoteUI(VoteState state) {
         if (state == null) return;
 
-        binding.tvVoteCount.setText(state.getFormattedVoteCount());
+        binding.tvConfirmCount.setText(String.valueOf(state.getConfirmCount()));
+        binding.tvResolveCount.setText(String.valueOf(state.getResolveCount()));
 
         if (state.getUserDistance() > 0) {
             binding.tvDistanceInfo.setVisibility(View.VISIBLE);
             if (state.isWithinRadius()) {
-                binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0fm del reporte ✓", state.getUserDistance()));
-                binding.tvDistanceInfo.setTextColor(android.graphics.Color.parseColor("#4CAF50"));
+                int green = android.graphics.Color.parseColor("#2E7D32");
+                binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0f m · podés votar", state.getUserDistance()));
+                binding.tvDistanceInfo.setTextColor(green);
+                androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(binding.tvDistanceInfo,
+                        android.content.res.ColorStateList.valueOf(green));
                 binding.llDistanceWarning.setVisibility(View.GONE);
                 binding.btnConfirm.setEnabled(true);
                 binding.btnResolve.setEnabled(true);
             } else {
-                binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0fm del reporte (máx. 500m para votar)", state.getUserDistance()));
-                binding.tvDistanceInfo.setTextColor(android.graphics.Color.parseColor("#FF9800"));
+                int orange = android.graphics.Color.parseColor("#E65100");
+                binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0f m · máx. 500 m para votar", state.getUserDistance()));
+                binding.tvDistanceInfo.setTextColor(orange);
+                androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(binding.tvDistanceInfo,
+                        android.content.res.ColorStateList.valueOf(orange));
                 binding.llDistanceWarning.setVisibility(View.GONE);
                 binding.btnConfirm.setEnabled(false);
                 binding.btnResolve.setEnabled(false);

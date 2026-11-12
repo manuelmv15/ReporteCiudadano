@@ -1,260 +1,362 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Contenedor transparente: el panel flota con margen, igual que la barra inferior -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:background="@drawable/bg_bottom_sheet">
-
-    <View
-        android:layout_width="40dp"
-        android:layout_height="4dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp"
-        android:background="#E0E0E0" />
-
-    <TextView
-        android:id="@+id/tvCategory"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Categoría"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall"
-        android:textColor="?attr/colorPrimary" />
-
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:background="@drawable/bg_status_badge"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="4dp"
-        android:text="PENDING"
-        android:textAppearance="?attr/textAppearanceLabelLarge"
-        android:textColor="@android:color/white" />
-
-    <TextView
-        android:id="@+id/tvDescription"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Descripción del reporte..."
-        android:textAppearance="?attr/textAppearanceBodyMedium" />
-
-    <TextView
-        android:id="@+id/tvUser"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Reportado por: Usuario"
-        android:textAppearance="?attr/textAppearanceLabelMedium"
-        android:textColor="?attr/colorOnSurfaceVariant" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnEditDescription"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="Editar descripción"
-        android:visibility="gone"
-        app:icon="@drawable/ic_edit" />
+    android:paddingHorizontal="12dp"
+    android:paddingBottom="12dp">
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:id="@+id/detail_panel"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:background="@drawable/bg_floating_panel"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="20dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRetractReport"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
+        <!-- Asa -->
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/bg_pill"
+            android:backgroundTint="#33000000" />
+
+        <!-- Encabezado: ícono de categoría (como el menú radial) + nombre + estado -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/ivCategoryIcon"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_pill"
+                android:elevation="3dp"
+                android:importantForAccessibility="no"
+                android:padding="13dp"
+                app:tint="@android:color/white" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvCategory"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:text="Categoría"
+                    android:textAppearance="?attr/textAppearanceTitleLarge"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_pill"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="2dp"
+                    android:text="Pendiente"
+                    android:textAppearance="?attr/textAppearanceLabelMedium" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Descripción del reporte..."
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/tvUser"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:drawablePadding="6dp"
+            android:gravity="center_vertical"
+            android:text="Usuario"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:drawableStartCompat="@drawable/person_24px"
+            app:drawableTint="?attr/colorOnSurfaceVariant" />
+
+        <!-- Chips informativos: distancia y archivo -->
+        <com.google.android.material.chip.ChipGroup
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:chipSpacingHorizontal="8dp"
+            app:chipSpacingVertical="6dp">
+
+            <TextView
+                android:id="@+id/tvDistanceInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pill"
+                android:backgroundTint="#0D000000"
+                android:drawablePadding="6dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:visibility="gone"
+                app:drawableStartCompat="@drawable/ic_my_location" />
+
+            <TextView
+                android:id="@+id/tvArchiveCountdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pill"
+                android:backgroundTint="#0D000000"
+                android:drawablePadding="6dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone"
+                app:drawableStartCompat="@drawable/ic_schedule"
+                app:drawableTint="?attr/colorOnSurfaceVariant" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <!-- Acciones del autor -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Retirar reporte"
-            android:textColor="?attr/colorError"
-            android:visibility="gone"
-            app:icon="@drawable/trash"
-            app:iconTint="?attr/colorError" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnEditDescription"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Editar"
+                android:visibility="gone"
+                app:icon="@drawable/ic_edit" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRetractReport"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Retirar"
+                android:textColor="?attr/colorError"
+                android:visibility="gone"
+                app:icon="@drawable/trash"
+                app:iconTint="?attr/colorError" />
+
+            <TextView
+                android:id="@+id/tvRetractCountdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Foto del reporte -->
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/ivReportPhoto"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:contentDescription="Foto del reporte (toca para ampliar)"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Large" />
+
+        <LinearLayout
+            android:id="@+id/llPhotoButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTakePhoto"
+                style="@style/Widget.Material3.Button.TonalButton.Icon"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:text="Tomar foto"
+                app:icon="@drawable/ic_add_photo" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPickPhoto"
+                style="@style/Widget.Material3.Button.TonalButton.Icon"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:text="Galería"
+                app:icon="@drawable/ic_gallery" />
+        </LinearLayout>
+
+        <!-- Conteo de votos -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_stat_tile"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingVertical="10dp">
+
+                <TextView
+                    android:id="@+id/tvConfirmCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sigue ahí"
+                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_stat_tile"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingVertical="10dp">
+
+                <TextView
+                    android:id="@+id/tvResolveCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ya se resolvió"
+                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Indicador del voto del usuario -->
         <TextView
-            android:id="@+id/tvRetractCountdown"
+            android:id="@+id/tvUserVoteStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_pill"
+            android:backgroundTint="?attr/colorPrimaryContainer"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="Tu voto: Sigue ahí"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textColor="?attr/colorOnPrimaryContainer"
             android:visibility="gone" />
 
-    </LinearLayout>
-
-    <!-- Countdown de archivo (24h sin actividad) -->
-    <TextView
-        android:id="@+id/tvArchiveCountdown"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:textAlignment="center"
-        android:visibility="gone" />
-
-    <!-- Conteo de Votos -->
-    <TextView
-        android:id="@+id/tvVoteCount"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="0 confirman, 0 dicen que ya se resolvió"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textStyle="bold"
-        android:textAlignment="center" />
-
-    <!-- Invitado: prompt de login para votar -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnLoginToVote"
-        style="@style/Widget.Material3.Button.OutlinedButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Iniciá sesión para votar"
-        android:visibility="gone"
-        app:icon="@drawable/ic_snackbar_info" />
-
-    <!-- Distancia al reporte (siempre visible para usuarios autenticados) -->
-    <TextView
-        android:id="@+id/tvDistanceInfo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:textAppearance="?attr/textAppearanceLabelMedium"
-        android:textAlignment="center"
-        android:visibility="gone" />
-
-    <!-- Aviso de Ubicación (solo cuando fuera de rango) -->
-    <LinearLayout
-        android:id="@+id/llDistanceWarning"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:visibility="gone"
-        android:background="@drawable/bg_status_badge"
-        android:padding="8dp">
-
-        <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginEnd="8dp"
-            android:tint="@android:color/white"
-            app:srcCompat="@drawable/ic_my_location" />
-
-        <TextView
-            android:id="@+id/tvDistance"
-            android:layout_width="0dp"
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/pbVoteLoading"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Debes estar a 500m del reporte para votar"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
-            android:textColor="@android:color/white" />
-    </LinearLayout>
+            android:layout_marginTop="12dp"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:trackCornerRadius="4dp" />
 
-    <!-- Indicador de Voto del Usuario -->
-    <TextView
-        android:id="@+id/tvUserVoteStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Tu voto: Sigue ahí"
-        android:textAppearance="?attr/textAppearanceLabelMedium"
-        android:textColor="?attr/colorPrimary"
-        android:visibility="gone"
-        android:textAlignment="center" />
-
-    <!-- Loading Progress -->
-    <ProgressBar
-        android:id="@+id/pbVoteLoading"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="12dp"
-        android:visibility="gone"
-        android:indeterminate="true" />
-
-    <!-- Foto del reporte -->
-    <ImageView
-        android:id="@+id/ivReportPhoto"
-        android:layout_width="match_parent"
-        android:layout_height="180dp"
-        android:layout_marginTop="16dp"
-        android:scaleType="centerCrop"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true"
-        android:foreground="?attr/selectableItemBackground"
-        android:contentDescription="Foto del reporte (toca para ampliar)" />
-
-    <LinearLayout
-        android:id="@+id/llPhotoButtons"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
+        <!-- Invitado: prompt de login para votar -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTakePhoto"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:text="Tomar foto"
-            app:icon="@drawable/ic_add_photo" />
+            android:id="@+id/btnLoginToVote"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="16dp"
+            android:text="Iniciá sesión para votar"
+            android:visibility="gone"
+            app:icon="@drawable/person_24px"
+            app:iconGravity="textStart" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPickPhoto"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
+        <!-- Aviso legado de distancia (se mantiene oculto; la distancia va en el chip) -->
+        <LinearLayout
+            android:id="@+id/llDistanceWarning"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="Galería"
-            app:icon="@drawable/ic_gallery" />
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvDistance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Botones de votación -->
+        <LinearLayout
+            android:id="@+id/llVoteButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnConfirm"
+                style="@style/Widget.Material3.Button.TonalButton.Icon"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="Sigue ahí"
+                app:icon="@drawable/ic_thumb_up"
+                app:iconGravity="textStart" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnResolve"
+                style="@style/Widget.Material3.Button.TonalButton.Icon"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="Ya se resolvió"
+                app:icon="@drawable/ic_check"
+                app:iconGravity="textStart" />
+        </LinearLayout>
+
     </LinearLayout>
-
-    <!-- Botones de Votación -->
-    <LinearLayout
-        android:id="@+id/llVoteButtons"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnConfirm"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:enabled="false"
-            android:text="Sigue ahí"
-            app:icon="@drawable/ic_thumb_up" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnResolve"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:enabled="false"
-            android:text="Ya se resolvió"
-            app:icon="@drawable/ic_check" />
-    </LinearLayout>
-
-</LinearLayout>
+</FrameLayout>

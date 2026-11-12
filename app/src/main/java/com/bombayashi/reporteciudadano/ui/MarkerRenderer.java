@@ -352,24 +352,24 @@ class MarkerRenderer {
         };
     }
 
-    private static @DrawableRes int getCategoryDrawableId(String slug) {
+    static @DrawableRes int getCategoryDrawableId(String slug) {
         return switch (slug) {
             case "bache", "vialidad"              -> R.drawable.ic_category_vialidad;
             case "alumbrado-publico", "alumbrado" -> R.drawable.ic_category_alumbrado;
             case "fuga-de-agua", "agua"            -> R.drawable.ic_category_agua;
-            case "senalizacion-vial", "senalizacion"      -> R.drawable.ic_category_senalizacion;
+            case "senalizacion-vial", "senalizacion", "semaforo-danado" -> R.drawable.ic_category_senalizacion;
             case "inseguridad", "seguridad"        -> R.drawable.ic_category_seguridad;
             case "basura-acumulada", "parques", "basura" -> R.drawable.ic_category_basura;
             default                                -> R.drawable.ic_category_otros;
         };
     }
 
-    private static @ColorRes int getCategoryColor(String slug) {
+    static @ColorRes int getCategoryColor(String slug) {
         return switch (slug) {
             case "vialidad", "bache"                    -> R.color.category_vialidad;
             case "alumbrado", "alumbrado-publico"       -> R.color.category_alumbrado;
             case "agua", "fuga-de-agua"                 -> R.color.category_agua;
-            case "senalizacion", "senalizacion-vial"           -> R.color.category_senalizacion;
+            case "senalizacion", "senalizacion-vial", "semaforo-danado" -> R.color.category_senalizacion;
             case "seguridad", "inseguridad"             -> R.color.category_seguridad;
             case "parques"                              -> R.color.category_parques;
             case "basura", "basura-acumulada"           -> R.color.category_basura;
