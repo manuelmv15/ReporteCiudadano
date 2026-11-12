@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 
+import androidx.annotation.ColorRes;
 import androidx.annotation.DrawableRes;
 
 import com.bombayashi.reporteciudadano.R;
@@ -244,8 +245,8 @@ class MarkerRenderer {
         anim.start();
     }
 
-    private Bitmap bitmapFromDrawable(@DrawableRes int drawableId, String colorHex, String status, boolean isMine, String userVote) {
-        String key = drawableId + "_" + colorHex + "_" + status + "_" + isMine + "_" + userVote;
+    private Bitmap bitmapFromDrawable(@DrawableRes int drawableId, @ColorRes int colorRes, String status, boolean isMine, String userVote) {
+        String key = drawableId + "_" + colorRes + "_" + status + "_" + isMine + "_" + userVote;
         Bitmap cached = bitmapCache.get(key);
         if (cached != null) return cached;
 
@@ -260,7 +261,7 @@ class MarkerRenderer {
             float radius = SIZE / 2.8f;
 
             android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            fill.setColor(android.graphics.Color.parseColor(colorHex));
+            fill.setColor(androidx.core.content.ContextCompat.getColor(context, colorRes));
             if (userVote != null && !isMine) fill.setAlpha(160);
 
             android.graphics.Paint border = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -353,26 +354,26 @@ class MarkerRenderer {
 
     private static @DrawableRes int getCategoryDrawableId(String slug) {
         return switch (slug) {
-            case "bache", "vialidad"              -> R.drawable.remove_road_24px;
-            case "alumbrado-publico", "alumbrado" -> R.drawable.backlight_high_off_24px;
-            case "fuga-de-agua", "agua"            -> R.drawable.agua;
-            case "semaforo-danado", "trafico"      -> R.drawable.traffic_jam_24px;
-            case "inseguridad", "seguridad"        -> R.drawable.warning_24px;
-            case "basura-acumulada", "parques", "basura" -> R.drawable.trash;
+            case "bache", "vialidad"              -> R.drawable.ic_category_vialidad;
+            case "alumbrado-publico", "alumbrado" -> R.drawable.ic_category_alumbrado;
+            case "fuga-de-agua", "agua"            -> R.drawable.ic_category_agua;
+            case "senalizacion-vial", "senalizacion"      -> R.drawable.ic_category_senalizacion;
+            case "inseguridad", "seguridad"        -> R.drawable.ic_category_seguridad;
+            case "basura-acumulada", "parques", "basura" -> R.drawable.ic_category_basura;
             default                                -> R.drawable.ic_category_otros;
         };
     }
 
-    private static String getCategoryColor(String slug) {
+    private static @ColorRes int getCategoryColor(String slug) {
         return switch (slug) {
-            case "vialidad", "bache"                    -> "#FF6B6B";
-            case "alumbrado", "alumbrado-publico"       -> "#FFD93D";
-            case "agua", "fuga-de-agua"                 -> "#6BCB77";
-            case "trafico", "semaforo-danado"           -> "#4D96FF";
-            case "seguridad", "inseguridad"             -> "#9D4EDD";
-            case "parques"                              -> "#06D6A0";
-            case "basura", "basura-acumulada"           -> "#8B5A3C";
-            default                                     -> "#808080";
+            case "vialidad", "bache"                    -> R.color.category_vialidad;
+            case "alumbrado", "alumbrado-publico"       -> R.color.category_alumbrado;
+            case "agua", "fuga-de-agua"                 -> R.color.category_agua;
+            case "senalizacion", "senalizacion-vial"           -> R.color.category_senalizacion;
+            case "seguridad", "inseguridad"             -> R.color.category_seguridad;
+            case "parques"                              -> R.color.category_parques;
+            case "basura", "basura-acumulada"           -> R.color.category_basura;
+            default                                     -> R.color.category_otros;
         };
     }
 

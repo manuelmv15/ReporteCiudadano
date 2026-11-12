@@ -20,7 +20,7 @@
         <CheckBox android:id="@+id/cb_filter_vialidad" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vialidad (baches)" />
         <CheckBox android:id="@+id/cb_filter_alumbrado" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Alumbrado público" />
         <CheckBox android:id="@+id/cb_filter_agua" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Fuga de agua" />
-        <CheckBox android:id="@+id/cb_filter_trafico" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Semáforo dañado" />
+        <CheckBox android:id="@+id/cb_filter_senalizacion" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Señalización vial" />
         <CheckBox android:id="@+id/cb_filter_seguridad" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Inseguridad" />
         <CheckBox android:id="@+id/cb_filter_basura" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Basura acumulada" />
         <CheckBox android:id="@+id/cb_filter_otros" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Otros" />

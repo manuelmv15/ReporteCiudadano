@@ -151,4 +151,14 @@
     <color name="snackbar_error_bg">#E53935</color>
     <color name="snackbar_info_bg">#1E88E5</color>
     <color name="snackbar_warning_bg">#FB8C00</color>
+
+    <!-- Colores de categoría: fondo del menú radial y de los pines del mapa (MarkerRenderer) -->
+    <color name="category_vialidad">#E5534B</color>
+    <color name="category_alumbrado">#E0A100</color>
+    <color name="category_agua">#2F80ED</color>
+    <color name="category_senalizacion">#F2994A</color>
+    <color name="category_seguridad">#7B4FD6</color>
+    <color name="category_basura">#2E9E5B</color>
+    <color name="category_parques">#06D6A0</color>
+    <color name="category_otros">#808080</color>
 </resources>

@@ -10,7 +10,7 @@ public final class CategoryMapper {
             case "vialidad"  -> 1;
             case "alumbrado" -> 2;
             case "agua"      -> 4;
-            case "trafico"   -> 5;
+            case "senalizacion" -> 5;
             case "seguridad" -> 6;
             default          -> 3; // basura / otros
         };
@@ -23,7 +23,7 @@ public final class CategoryMapper {
             case "bache", "vialidad"            -> "vialidad";
             case "alumbrado-publico", "alumbrado" -> "alumbrado";
             case "fuga-de-agua", "agua"          -> "agua";
-            case "semaforo-danado", "trafico"    -> "trafico";
+            case "senalizacion-vial", "senalizacion" -> "senalizacion";
             case "inseguridad", "seguridad"      -> "seguridad";
             case "basura-acumulada", "parques", "basura" -> "basura";
             default                              -> "otros";

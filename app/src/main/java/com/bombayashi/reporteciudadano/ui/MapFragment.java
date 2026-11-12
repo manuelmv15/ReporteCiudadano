@@ -696,7 +696,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         categoryCheckboxIds.put("vialidad", R.id.cb_filter_vialidad);
         categoryCheckboxIds.put("alumbrado", R.id.cb_filter_alumbrado);
         categoryCheckboxIds.put("agua", R.id.cb_filter_agua);
-        categoryCheckboxIds.put("trafico", R.id.cb_filter_trafico);
+        categoryCheckboxIds.put("senalizacion", R.id.cb_filter_senalizacion);
         categoryCheckboxIds.put("seguridad", R.id.cb_filter_seguridad);
         categoryCheckboxIds.put("basura", R.id.cb_filter_basura);
         categoryCheckboxIds.put("otros", R.id.cb_filter_otros);

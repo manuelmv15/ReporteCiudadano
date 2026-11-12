@@ -1,0 +1,12 @@
+<!-- Señalización vial: señal de peligro (triángulo con «!») sobre poste. Dibujo propio, estilo Material relleno -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:tint="?attr/colorControlNormal">
+    <path
+        android:fillColor="@android:color/white"
+        android:fillType="evenOdd"
+        android:pathData="M480,70Q505,70 518,92L808,590Q821,613 808,635Q795,656 768,656L192,656Q165,656 152,635Q139,613 152,590L442,92Q455,70 480,70ZM452,250L508,250L500,470L460,470Z M480,510A32,32 0 1,1 479.9,510ZM450,656L510,656L510,890L450,890Z"/>
+</vector>

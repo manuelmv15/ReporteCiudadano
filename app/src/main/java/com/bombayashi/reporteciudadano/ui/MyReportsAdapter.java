@@ -96,12 +96,12 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
 
         private int getCategoryDrawableId(String categorySlug) {
             return switch (categorySlug) {
-                case "bache", "vialidad" -> R.drawable.remove_road_24px;
-                case "alumbrado-publico", "alumbrado" -> R.drawable.backlight_high_off_24px;
-                case "fuga-de-agua", "agua" -> R.drawable.agua;
-                case "semaforo-danado", "trafico" -> R.drawable.traffic_jam_24px;
-                case "inseguridad", "seguridad" -> R.drawable.warning_24px;
-                case "basura-acumulada", "parques", "basura" -> R.drawable.trash;
+                case "bache", "vialidad" -> R.drawable.ic_category_vialidad;
+                case "alumbrado-publico", "alumbrado" -> R.drawable.ic_category_alumbrado;
+                case "fuga-de-agua", "agua" -> R.drawable.ic_category_agua;
+                case "senalizacion-vial", "senalizacion" -> R.drawable.ic_category_senalizacion;
+                case "inseguridad", "seguridad" -> R.drawable.ic_category_seguridad;
+                case "basura-acumulada", "parques", "basura" -> R.drawable.ic_category_basura;
                 default -> R.drawable.ic_category_otros;
             };
         }

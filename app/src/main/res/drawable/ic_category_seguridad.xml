@@ -1,9 +1,13 @@
+<!-- Material Symbols Rounded (fill, peso 500): gpp_maybe -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:tint="?attr/colorControlNormal">
+  <group android:translateY="960">
     <path
-        android:fillColor="@color/white"
-        android:pathData="M12,1L3,5v6c0,5.55 3.84,10.74 9,12 5.16,-1.26 9,-6.45 9,-12V5l-9,-4zm0,11h-4v-2h4V6h2v4h4v2h-4v4h-2v-4z" />
+        android:fillColor="@android:color/white"
+        android:pathData="M480-330.17q15.74 0 26.18-10.57 10.45-10.57 10.45-26.3 0-15.5-10.45-26.07-10.44-10.56-26.18-10.56t-26.18 10.56q-10.45 10.57-10.45 26.07 0 15.73 10.45 26.3 10.44 10.57 26.18 10.57Zm.18-135.44q13.63 0 22.44-8.93 8.81-8.94 8.81-22.5v-148.2q0-13.32-8.98-22.38-8.99-9.05-22.63-9.05-13.63 0-22.44 9.05-8.81 9.06-8.81 22.38v148.2q0 13.56 8.98 22.5 8.99 8.93 22.63 8.93ZM480-78.26q-6.04 0-11.31-1.12-5.28-1.12-10.32-3.36-140.2-47-222.27-170.65-82.08-123.65-82.08-269.72v-194.22q0-21.88 12.19-39.56 12.19-17.68 32.07-25.33l257.85-96.28q12.2-4.48 23.87-4.48 11.67 0 23.87 4.48l257.85 96.28q19.88 7.65 32.19 25.33 12.31 17.68 12.31 39.56v194.22q0 146.07-82.2 269.72-82.19 123.65-222.39 170.65-5.04 2.24-10.32 3.36-5.27 1.12-11.31 1.12Z"/>
+  </group>
 </vector>

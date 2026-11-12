@@ -1,9 +1,12 @@
+<!-- Bache: calzada en perspectiva con un hoyo (dibujo propio, estilo Material relleno) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:tint="?attr/colorControlNormal">
     <path
-        android:fillColor="@color/white"
-        android:pathData="M5,10h2v8H5zM17,10h2v8h-2zM8,14h8v2H8z" />
+        android:fillColor="@android:color/white"
+        android:fillType="evenOdd"
+        android:pathData="M352,100L608,100Q628,100 634,119L878,828Q889,860 856,860L104,860Q71,860 82,828L326,119Q332,100 352,100ZM468,150L492,150L495,230L465,230ZM464,285L496,285L500,385L460,385ZM750,625L748,659L711,688L665,712L611,732L545,739L480,733L422,726L356,726L279,719L226,694L220,658L240,625L255,597L270,568L305,543L356,524L413,508L480,493L554,494L611,518L640,550L667,574L713,596ZM672,662L668,681L645,698L613,712L574,724L528,729L480,728L436,724L389,722L340,715L305,700L295,681L302,662L311,645L324,628L351,613L389,602L432,594L480,588L532,589L574,600L602,616L626,630L653,644Z"/>
 </vector>
