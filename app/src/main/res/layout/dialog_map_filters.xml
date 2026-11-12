@@ -1,63 +1,218 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
 
+    <!-- Scrim igual al del menú radial; tocarlo cierra el diálogo -->
+    <View
+        android:id="@+id/filter_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#99000000" />
+
+    <!-- Panel flotante con la estética de la barra inferior -->
     <LinearLayout
+        android:id="@+id/filter_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="32dp"
+        android:background="@drawable/bg_floating_panel"
+        android:clickable="true"
+        android:elevation="8dp"
+        android:focusable="true"
         android:orientation="vertical"
-        android:paddingHorizontal="24dp"
-        android:paddingVertical="8dp">
+        android:paddingHorizontal="20dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="12dp">
 
+        <!-- Encabezado -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/tune_24px"
+                app:tint="?attr/colorOnSurface" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="Filtrar reportes"
+                android:textAppearance="?attr/textAppearanceTitleLarge"
+                android:textColor="?attr/colorOnSurface" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_filter_clear"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Limpiar" />
+        </LinearLayout>
+
+        <!-- Categoría -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:text="Categoría"
-            android:textStyle="bold"
-            android:layout_marginTop="8dp" />
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <CheckBox android:id="@+id/cb_filter_vialidad" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vialidad (baches)" />
-        <CheckBox android:id="@+id/cb_filter_alumbrado" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Alumbrado público" />
-        <CheckBox android:id="@+id/cb_filter_agua" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Fuga de agua" />
-        <CheckBox android:id="@+id/cb_filter_senalizacion" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Señalización vial" />
-        <CheckBox android:id="@+id/cb_filter_seguridad" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Inseguridad" />
-        <CheckBox android:id="@+id/cb_filter_basura" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Basura acumulada" />
-        <CheckBox android:id="@+id/cb_filter_otros" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Otros" />
+        <GridLayout
+            android:id="@+id/grid_filter_categories"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:columnCount="3"
+            android:useDefaultMargins="false" />
 
+        <!-- Estado -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:text="Estado"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <RadioGroup
-            android:id="@+id/rg_filter_status"
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/cg_filter_status"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-            <RadioButton android:id="@+id/rb_status_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Todos" android:checked="true" />
-            <RadioButton android:id="@+id/rb_status_pending" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Pendiente" />
-            <RadioButton android:id="@+id/rb_status_verified" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Verificado" />
-            <RadioButton android:id="@+id/rb_status_resolved" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Resuelto" />
-        </RadioGroup>
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:chipSpacingHorizontal="6dp"
+            app:chipSpacingVertical="0dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
 
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_status_all"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Todos"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_status_pending"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pendiente"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_status_verified"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Verificado"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_status_resolved"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Resuelto"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <!-- Antigüedad -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:text="Antigüedad"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <RadioGroup
-            android:id="@+id/rg_filter_age"
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/cg_filter_age"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-            <RadioButton android:id="@+id/rb_age_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cualquiera" android:checked="true" />
-            <RadioButton android:id="@+id/rb_age_1h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Última hora" />
-            <RadioButton android:id="@+id/rb_age_6h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Últimas 6 horas" />
-            <RadioButton android:id="@+id/rb_age_24h" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Últimas 24 horas" />
-        </RadioGroup>
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:chipSpacingHorizontal="6dp"
+            app:chipSpacingVertical="0dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
 
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_age_all"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cualquiera"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_age_1h"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1 h"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_age_6h"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="6 h"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_age_24h"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="24 h"
+                app:checkedIconVisible="false"
+                app:chipCornerRadius="50dp" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <!-- Acciones -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="end|center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_filter_cancel"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="Cancelar" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_filter_apply"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Aplicar"
+                app:icon="@drawable/ic_check" />
+        </LinearLayout>
     </LinearLayout>
-</ScrollView>
+
+</FrameLayout>

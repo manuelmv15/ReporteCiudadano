@@ -665,6 +665,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         java.util.Set<String> saved = prefs.getStringSet(PREF_FILTER_CATEGORIES, new java.util.HashSet<>());
         vm.filterCategories.clear();
         vm.filterCategories.addAll(saved);
+        // "otros" ya no es filtrable desde el diálogo; descartarlo de preferencias antiguas
+        vm.filterCategories.remove("otros");
     }
 
     private void saveFilterPrefs() {
@@ -690,79 +692,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     /** RF-19: muestra diálogo de filtros por categoría, estado y antigüedad. */
     private void showFilterDialog() {
-        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_map_filters, null);
-
-        java.util.Map<String, Integer> categoryCheckboxIds = new java.util.LinkedHashMap<>();
-        categoryCheckboxIds.put("vialidad", R.id.cb_filter_vialidad);
-        categoryCheckboxIds.put("alumbrado", R.id.cb_filter_alumbrado);
-        categoryCheckboxIds.put("agua", R.id.cb_filter_agua);
-        categoryCheckboxIds.put("senalizacion", R.id.cb_filter_senalizacion);
-        categoryCheckboxIds.put("seguridad", R.id.cb_filter_seguridad);
-        categoryCheckboxIds.put("basura", R.id.cb_filter_basura);
-        categoryCheckboxIds.put("otros", R.id.cb_filter_otros);
-
-        for (java.util.Map.Entry<String, Integer> entry : categoryCheckboxIds.entrySet()) {
-            android.widget.CheckBox cb = dialogView.findViewById(entry.getValue());
-            cb.setChecked(vm.filterCategories.isEmpty() || vm.filterCategories.contains(entry.getKey()));
-        }
-
-        android.widget.RadioGroup rgStatus = dialogView.findViewById(R.id.rg_filter_status);
-        int statusCheckedId = switch (vm.filterStatus) {
-            case "pending" -> R.id.rb_status_pending;
-            case "verified" -> R.id.rb_status_verified;
-            case "resolved" -> R.id.rb_status_resolved;
-            default -> R.id.rb_status_all;
-        };
-        rgStatus.check(statusCheckedId);
-
-        android.widget.RadioGroup rgAge = dialogView.findViewById(R.id.rg_filter_age);
-        int ageCheckedId = switch (vm.filterAge) {
-            case "1h" -> R.id.rb_age_1h;
-            case "6h" -> R.id.rb_age_6h;
-            case "24h" -> R.id.rb_age_24h;
-            default -> R.id.rb_age_all;
-        };
-        rgAge.check(ageCheckedId);
-
-        new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Filtrar reportes")
-                .setView(dialogView)
-                .setPositiveButton("Aplicar", (dialog, which) -> {
-                    java.util.Set<String> selected = new java.util.HashSet<>();
-                    for (java.util.Map.Entry<String, Integer> entry : categoryCheckboxIds.entrySet()) {
-                        android.widget.CheckBox cb = dialogView.findViewById(entry.getValue());
-                        if (cb.isChecked()) selected.add(entry.getKey());
-                    }
-                    // Si están todas marcadas (o ninguna), equivale a "sin filtro"
+        if (getChildFragmentManager().findFragmentByTag("filters") != null) return;
+        FilterDialogFragment.newInstance(vm.filterCategories, vm.filterStatus, vm.filterAge,
+                (categories, status, age) -> {
                     vm.filterCategories.clear();
-                    if (!selected.isEmpty() && selected.size() < categoryCheckboxIds.size()) {
-                        vm.filterCategories.addAll(selected);
-                    }
-
-                    int checkedStatus = rgStatus.getCheckedRadioButtonId();
-                    if (checkedStatus == R.id.rb_status_pending) vm.filterStatus = "pending";
-                    else if (checkedStatus == R.id.rb_status_verified) vm.filterStatus = "verified";
-                    else if (checkedStatus == R.id.rb_status_resolved) vm.filterStatus = "resolved";
-                    else vm.filterStatus = "all";
-
-                    int checkedAge = rgAge.getCheckedRadioButtonId();
-                    if (checkedAge == R.id.rb_age_1h) vm.filterAge = "1h";
-                    else if (checkedAge == R.id.rb_age_6h) vm.filterAge = "6h";
-                    else if (checkedAge == R.id.rb_age_24h) vm.filterAge = "24h";
-                    else vm.filterAge = "all";
-
+                    vm.filterCategories.addAll(categories);
+                    vm.filterStatus = status;
+                    vm.filterAge = age;
                     saveFilterPrefs();
                     applyFilters();
-                })
-                .setNeutralButton("Limpiar filtros", (dialog, which) -> {
-                    vm.filterCategories.clear();
-                    vm.filterStatus = "all";
-                    vm.filterAge = "all";
-                    saveFilterPrefs();
-                    applyFilters();
-                })
-                .setNegativeButton("Cancelar", null)
-                .show();
+                }).show(getChildFragmentManager(), "filters");
     }
 
     private void addReportMarker(ReportResponse.ReportData report) {
