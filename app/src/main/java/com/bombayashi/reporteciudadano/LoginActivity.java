@@ -149,6 +149,7 @@ public class LoginActivity extends AppCompatActivity {
         String userName = auth.getUser() != null ? auth.getUser().getName() : "";
         String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
         TokenManager.getInstance(this).saveAuth(auth.getToken(), userId, userName, userEmail);
+        TokenManager.getInstance(this).saveUserProgress(auth.getUser());
 
         // Request notification permission on Android 13+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

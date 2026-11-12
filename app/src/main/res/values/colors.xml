@@ -161,4 +161,30 @@
     <color name="category_basura">#2E9E5B</color>
     <color name="category_parques">#06D6A0</color>
     <color name="category_otros">#808080</color>
+
+    <!-- Superficies "glass" de la barra y los paneles flotantes (modo claro; ver values-night) -->
+    <color name="glass_bar">#E6FFFFFF</color>
+    <color name="glass_panel">#FAFFFFFF</color>
+    <color name="glass_stroke">#1A000000</color>
+    <!-- Bloques, filas y botones redondos dentro de los paneles -->
+    <color name="glass_tile">#0D000000</color>
+    <color name="glass_ripple">#1F000000</color>
+    <color name="glass_handle">#33000000</color>
+    <color name="danger_tile">#14BA1A1A</color>
+    <color name="danger_ripple">#29BA1A1A</color>
+
+    <!-- Saldo de la tienda (texto + fondo de la píldora) -->
+    <color name="coins_text">#B4561A</color>
+    <color name="coins_bg">#26F2994A</color>
+
+    <!-- Texto de estado de reporte y de voto, sobre píldora tonal del mismo color -->
+    <color name="status_pending">#E65100</color>
+    <color name="status_verified">#2E7D32</color>
+    <color name="status_resolved">#1565C0</color>
+    <color name="status_archived">#616161</color>
+    <color name="status_wrong">#C62828</color>
+
+    <!-- Círculos con ícono blanco (menú de cuenta): mismos en claro y oscuro, como las categorías -->
+    <color name="brand_green">#246A4B</color>
+    <color name="brand_red">#BA1A1A</color>
 </resources>

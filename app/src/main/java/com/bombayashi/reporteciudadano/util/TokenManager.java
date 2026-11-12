@@ -20,6 +20,8 @@ public class TokenManager {
     private static final String KEY_AVATAR_URL = "avatar_url";
     private static final String KEY_SCORE = "score";
     private static final String KEY_LEVEL = "level";
+    private static final String KEY_COINS = "coins";
+    private static final String KEY_COSMETICS = "cosmetics_json";
 
     private static TokenManager instance;
     private final SharedPreferences prefs;
@@ -106,6 +108,38 @@ public class TokenManager {
 
     public void setScoreAndLevel(int score, String level) {
         prefs.edit().putInt(KEY_SCORE, score).putString(KEY_LEVEL, level).apply();
+    }
+
+    /** Saldo gastable en la tienda. */
+    public int getCoins() {
+        return prefs.getInt(KEY_COINS, 0);
+    }
+
+    public void setCoins(int coins) {
+        prefs.edit().putInt(KEY_COINS, coins).apply();
+    }
+
+    /** Cosméticos equipados (copia local de user.cosmetics de /me), o null. */
+    public com.bombayashi.reporteciudadano.model.Cosmetics getCosmetics() {
+        String json = prefs.getString(KEY_COSMETICS, null);
+        if (json == null) return null;
+        try {
+            return new com.google.gson.Gson().fromJson(json, com.bombayashi.reporteciudadano.model.Cosmetics.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Guarda puntaje, nivel, saldo y cosméticos de una respuesta de la API (/me, equipar). */
+    public void saveUserProgress(com.bombayashi.reporteciudadano.model.AuthResponse.User user) {
+        if (user == null) return;
+        prefs.edit()
+                .putInt(KEY_SCORE, user.getScore())
+                .putString(KEY_LEVEL, user.getLevel())
+                .putInt(KEY_COINS, user.getCoins())
+                .putString(KEY_COSMETICS, user.getCosmetics() != null
+                        ? new com.google.gson.Gson().toJson(user.getCosmetics()) : null)
+                .apply();
     }
 
     public boolean isLoggedIn() {

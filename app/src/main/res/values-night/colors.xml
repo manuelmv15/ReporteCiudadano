@@ -1,8 +1,8 @@
 <resources>
     <color name="md_theme_primary">#ADF5CD</color>
     <color name="md_theme_onPrimary">#003823</color>
-    <color name="md_theme_primaryContainer">#92D8B2</color>
-    <color name="md_theme_onPrimaryContainer">#176042</color>
+    <color name="md_theme_primaryContainer">#005235</color>
+    <color name="md_theme_onPrimaryContainer">#ABF2CA</color>
     <color name="md_theme_secondary">#B1CDBB</color>
     <color name="md_theme_onSecondary">#1D3529</color>
     <color name="md_theme_secondaryContainer">#334C3E</color>
@@ -140,4 +140,24 @@
     <color name="md_theme_surfaceContainer_highContrast">#2D312E</color>
     <color name="md_theme_surfaceContainerHigh_highContrast">#383C39</color>
     <color name="md_theme_surfaceContainerHighest_highContrast">#444844</color>
+
+    <!-- Superficies "glass" en modo oscuro: mismas transparencias sobre surfaceContainer oscuro -->
+    <color name="glass_bar">#E6272B28</color>
+    <color name="glass_panel">#FA1D201E</color>
+    <color name="glass_stroke">#26FFFFFF</color>
+    <color name="glass_tile">#14FFFFFF</color>
+    <color name="glass_ripple">#29FFFFFF</color>
+    <color name="glass_handle">#4DFFFFFF</color>
+    <color name="danger_tile">#26FFB4AB</color>
+    <color name="danger_ripple">#3DFFB4AB</color>
+
+    <color name="coins_text">#FFB77C</color>
+    <color name="coins_bg">#33F2994A</color>
+
+    <!-- Tonos claros para que se lean sobre fondo oscuro -->
+    <color name="status_pending">#FFB77C</color>
+    <color name="status_verified">#8FD5AF</color>
+    <color name="status_resolved">#A8C7FA</color>
+    <color name="status_archived">#BDBDBD</color>
+    <color name="status_wrong">#FFB4AB</color>
 </resources>

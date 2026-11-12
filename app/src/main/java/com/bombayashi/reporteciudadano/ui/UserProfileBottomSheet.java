@@ -146,6 +146,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         setupReportsPage();
         setupVotesPage();
         setupSettingsPage();
+        setupShopPage();
     }
 
     private void displayUserInfo() {
@@ -153,6 +154,27 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.tvUserName.setText(tm.getUserName());
         binding.tvUserEmail.setText(tm.getUserEmail());
         loadAvatar(binding.ivUserAvatar);
+        bindProgress();
+    }
+
+    /**
+     * Pinta nivel, puntos, saldo y cosméticos equipados desde la copia local
+     * (TokenManager), que se actualiza con /me y al equipar en la tienda.
+     */
+    private void bindProgress() {
+        if (binding == null) return;
+        TokenManager tm = TokenManager.getInstance(requireContext());
+        com.bombayashi.reporteciudadano.model.Cosmetics c = tm.getCosmetics();
+
+        binding.tvProfileLevel.setText(com.bombayashi.reporteciudadano.util.CosmeticStyler.levelLabel(tm.getLevel()));
+        binding.tvProfileScore.setText(tm.getScore() + " pts");
+        binding.tvProfileCoins.setText(tm.getCoins() + " para gastar");
+        binding.tvMenuCoins.setText(tm.getCoins() + " pts");
+
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyFrame(binding.ringUserAvatar, c != null ? c.getFrame() : null);
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyFrame(binding.ringProfileAvatar, c != null ? c.getFrame() : null);
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyTitle(binding.tvUserTitle, c != null ? c.getTitle() : null);
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyTitle(binding.tvProfileTitle, c != null ? c.getTitle() : null);
     }
 
     private void loadAvatar(android.widget.ImageView target) {
@@ -181,6 +203,10 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
             if (!votesLoaded) loadMyVotes();
         });
         binding.llSettings.setOnClickListener(v -> showPage(binding.pageSettings));
+        binding.llShop.setOnClickListener(v -> {
+            showPage(binding.pageShop);
+            loadShop();
+        });
 
         binding.llLogout.setOnClickListener(v -> handleLogout());
 
@@ -195,6 +221,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.pageReports.setVisibility(View.GONE);
         binding.pageVotes.setVisibility(View.GONE);
         binding.pageSettings.setVisibility(View.GONE);
+        binding.pageShop.setVisibility(View.GONE);
         page.setVisibility(View.VISIBLE);
         applyPanelHeight(page);
 
@@ -218,8 +245,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         TokenManager tm = TokenManager.getInstance(requireContext());
         binding.tvProfileName.setText(tm.getUserName());
         binding.tvProfileEmail.setText(tm.getUserEmail());
-        binding.tvProfileLevel.setText(capitalize(tm.getLevel()));
-        binding.tvProfileScore.setText(tm.getScore() + " pts");
+        bindProgress();
         loadAvatar(binding.ivProfileAvatar);
 
         binding.btnEditAvatar.setOnClickListener(v -> showAvatarPickerDialog());
@@ -228,12 +254,6 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
         refreshProfile();
         loadProfileStats();
-    }
-
-    /** El nivel llega en minúsculas desde la API ("nuevo"); mostrarlo como etiqueta. */
-    private static String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     private void loadProfileStats() {
@@ -278,15 +298,14 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                         if (user == null) return;
 
                         tm.setUserName(user.getName());
-                        tm.setScoreAndLevel(user.getScore(), user.getLevel());
+                        tm.saveUserProgress(user);
                         if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
                             tm.setAvatarUrl(user.getAvatarUrl());
                         }
 
                         binding.tvProfileName.setText(user.getName());
                         binding.tvUserName.setText(user.getName());
-                        binding.tvProfileLevel.setText(capitalize(user.getLevel()));
-                        binding.tvProfileScore.setText(user.getScore() + " pts");
+                        bindProgress();
                         loadAvatar(binding.ivProfileAvatar);
                         loadAvatar(binding.ivUserAvatar);
                     }
@@ -533,6 +552,162 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         String resolvePct = resolveTotal > 0 ? (resolveCorrect * 100 / resolveTotal) + "%" : "—";
 
         return "Precisión: Sigue ahí " + confirmPct + " · Ya se resolvió " + resolvePct;
+    }
+
+    // ===================== Tienda =====================
+
+    private ShopAdapter shopAdapter;
+    private com.bombayashi.reporteciudadano.model.ShopResponse lastShop;
+
+    private void setupShopPage() {
+        binding.btnBackShop.setOnClickListener(v -> showMenu());
+
+        shopAdapter = new ShopAdapter(new ShopAdapter.Listener() {
+            @Override
+            public void onBuy(com.bombayashi.reporteciudadano.model.ShopResponse.Item item) {
+                confirmPurchase(item);
+            }
+
+            @Override
+            public void onToggleEquip(com.bombayashi.reporteciudadano.model.ShopResponse.Item item) {
+                toggleEquip(item);
+            }
+        });
+        TokenManager tm = TokenManager.getInstance(requireContext());
+        String avatarUrl = tm.getAvatarUrl();
+        String avatarPath = tm.getAvatarPath();
+        shopAdapter.setAvatarSource(avatarUrl != null && !avatarUrl.isEmpty() ? avatarUrl
+                : avatarPath != null ? new File(avatarPath) : null);
+
+        binding.rvShop.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(requireContext(), 2));
+        binding.rvShop.setAdapter(shopAdapter);
+        binding.cgShopType.setOnCheckedStateChangeListener((group, ids) -> submitShop());
+    }
+
+    private String selectedShopType() {
+        int id = binding.cgShopType.getCheckedChipId();
+        if (id == binding.chipShopTitles.getId()) return "title";
+        if (id == binding.chipShopThemes.getId()) return "theme";
+        return "frame";
+    }
+
+    private void submitShop() {
+        if (binding == null || lastShop == null) return;
+        binding.tvShopCoins.setText(lastShop.getCoins() + " pts");
+        shopAdapter.submit(lastShop.getItems(), selectedShopType(), lastShop.getCoins());
+    }
+
+    private void loadShop() {
+        if (lastShop == null) binding.progressBarShop.setVisibility(View.VISIBLE);
+        binding.tvShopError.setVisibility(View.GONE);
+
+        ApiClient.getInstance().getShop()
+                .enqueue(new Callback<com.bombayashi.reporteciudadano.model.ShopResponse>() {
+                    @Override
+                    public void onResponse(Call<com.bombayashi.reporteciudadano.model.ShopResponse> call,
+                                           Response<com.bombayashi.reporteciudadano.model.ShopResponse> response) {
+                        if (binding == null) return;
+                        binding.progressBarShop.setVisibility(View.GONE);
+                        if (!response.isSuccessful() || response.body() == null) {
+                            binding.tvShopError.setVisibility(lastShop == null ? View.VISIBLE : View.GONE);
+                            return;
+                        }
+                        lastShop = response.body();
+                        TokenManager.getInstance(requireContext()).setCoins(lastShop.getCoins());
+                        bindProgress();
+                        submitShop();
+                    }
+
+                    @Override
+                    public void onFailure(Call<com.bombayashi.reporteciudadano.model.ShopResponse> call, Throwable t) {
+                        if (binding == null) return;
+                        binding.progressBarShop.setVisibility(View.GONE);
+                        binding.tvShopError.setVisibility(lastShop == null ? View.VISIBLE : View.GONE);
+                        SnackbarHelper.show(getView(), "Sin conexión", SnackbarHelper.Variant.ERROR);
+                    }
+                });
+    }
+
+    private void confirmPurchase(com.bombayashi.reporteciudadano.model.ShopResponse.Item item) {
+        int coins = lastShop != null ? lastShop.getCoins() : 0;
+        if (coins < item.getPrice()) {
+            SnackbarHelper.show(getView(), "Te faltan " + (item.getPrice() - coins) + " pts para "
+                    + item.getName(), SnackbarHelper.Variant.WARNING);
+            return;
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Comprar " + item.getName())
+                .setMessage("Cuesta " + item.getPrice() + " pts. Te quedarán " + (coins - item.getPrice())
+                        + " para gastar. Tu nivel no cambia.")
+                .setPositiveButton("Comprar", (d, w) -> purchase(item))
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void purchase(com.bombayashi.reporteciudadano.model.ShopResponse.Item item) {
+        ApiClient.getInstance().purchaseCosmetic(item.getSlug())
+                .enqueue(new Callback<com.bombayashi.reporteciudadano.model.PurchaseResponse>() {
+                    @Override
+                    public void onResponse(Call<com.bombayashi.reporteciudadano.model.PurchaseResponse> call,
+                                           Response<com.bombayashi.reporteciudadano.model.PurchaseResponse> response) {
+                        if (binding == null) return;
+                        if (response.isSuccessful() && response.body() != null) {
+                            TokenManager.getInstance(requireContext()).setCoins(response.body().getCoins());
+                            // Equipar de una vez lo recién comprado
+                            toggleEquip(item);
+                            SnackbarHelper.show(getView(), item.getName() + " es tuyo", SnackbarHelper.Variant.SUCCESS);
+                        } else {
+                            SnackbarHelper.show(getView(), errorMessage(response, "No se pudo comprar"),
+                                    SnackbarHelper.Variant.ERROR);
+                            loadShop();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<com.bombayashi.reporteciudadano.model.PurchaseResponse> call, Throwable t) {
+                        if (binding == null) return;
+                        SnackbarHelper.show(getView(), "Sin conexión", SnackbarHelper.Variant.ERROR);
+                    }
+                });
+    }
+
+    /** Equipa el artículo, o lo quita si ya estaba equipado ("" = quitar). */
+    private void toggleEquip(com.bombayashi.reporteciudadano.model.ShopResponse.Item item) {
+        java.util.Map<String, String> body = new java.util.HashMap<>();
+        body.put(item.getType(), item.isEquipped() ? "" : item.getSlug());
+
+        ApiClient.getInstance().equipCosmetics(body)
+                .enqueue(new Callback<AuthResponse>() {
+                    @Override
+                    public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
+                        if (binding == null) return;
+                        if (response.isSuccessful() && response.body() != null && response.body().getUser() != null) {
+                            TokenManager.getInstance(requireContext()).saveUserProgress(response.body().getUser());
+                            bindProgress();
+                        } else {
+                            SnackbarHelper.show(getView(), errorMessage(response, "No se pudo equipar"),
+                                    SnackbarHelper.Variant.ERROR);
+                        }
+                        loadShop();
+                    }
+
+                    @Override
+                    public void onFailure(Call<AuthResponse> call, Throwable t) {
+                        if (binding == null) return;
+                        SnackbarHelper.show(getView(), "Sin conexión", SnackbarHelper.Variant.ERROR);
+                    }
+                });
+    }
+
+    /** Mensaje de error de la API ({"message": ...}) o el texto por defecto. */
+    private static String errorMessage(Response<?> response, String fallback) {
+        try {
+            if (response.errorBody() != null) {
+                return new org.json.JSONObject(response.errorBody().string()).optString("message", fallback);
+            }
+        } catch (Exception ignored) {
+        }
+        return fallback;
     }
 
     // ===================== Configuración =====================

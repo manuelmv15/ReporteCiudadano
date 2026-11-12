@@ -8,6 +8,8 @@ import com.bombayashi.reporteciudadano.model.GoogleLoginRequest;
 import com.bombayashi.reporteciudadano.model.LoginRequest;
 import com.bombayashi.reporteciudadano.model.ResetPasswordRequest;
 import com.bombayashi.reporteciudadano.model.MyVotesResponse;
+import com.bombayashi.reporteciudadano.model.PurchaseResponse;
+import com.bombayashi.reporteciudadano.model.ShopResponse;
 import com.bombayashi.reporteciudadano.model.RegisterRequest;
 import com.bombayashi.reporteciudadano.model.ReportDetailResponse;
 import com.bombayashi.reporteciudadano.model.ReportRequest;
@@ -126,4 +128,19 @@ public interface ApiService {
 
     @POST("me/fcm-token")
     Call<Void> updateFcmToken(@Query("fcm_token") String fcmToken);
+
+    // ===== Tienda de cosméticos =====
+
+    @GET("shop")
+    Call<ShopResponse> getShop();
+
+    @POST("shop/{slug}/purchase")
+    Call<PurchaseResponse> purchaseCosmetic(@Path("slug") String slug);
+
+    /**
+     * Equipa o quita cosméticos. Claves: "frame", "title", "theme"; valor = slug propio,
+     * o "" para quitarlo (Laravel convierte "" en null). Solo se tocan las claves enviadas.
+     */
+    @PUT("me/cosmetics")
+    Call<AuthResponse> equipCosmetics(@Body java.util.Map<String, String> body);
 }

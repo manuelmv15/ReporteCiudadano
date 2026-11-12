@@ -70,11 +70,11 @@ public class MyVotesAdapter extends RecyclerView.Adapter<MyVotesAdapter.ViewHold
 
             Boolean correct = vote.isCorrect();
             if (correct == null) {
-                setTonalPill(binding.tvVoteAccuracy, "Pendiente", Color.parseColor("#616161"));
+                setTonalPill(binding.tvVoteAccuracy, "Pendiente", androidx.core.content.ContextCompat.getColor(binding.getRoot().getContext(), R.color.status_archived));
             } else if (correct) {
-                setTonalPill(binding.tvVoteAccuracy, "Acertado", Color.parseColor("#2E7D32"));
+                setTonalPill(binding.tvVoteAccuracy, "Acertado", androidx.core.content.ContextCompat.getColor(binding.getRoot().getContext(), R.color.status_verified));
             } else {
-                setTonalPill(binding.tvVoteAccuracy, "Errado", Color.parseColor("#C62828"));
+                setTonalPill(binding.tvVoteAccuracy, "Errado", androidx.core.content.ContextCompat.getColor(binding.getRoot().getContext(), R.color.status_wrong));
             }
         }
 

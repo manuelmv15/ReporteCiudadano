@@ -62,6 +62,7 @@ public class RegisterActivity extends AppCompatActivity {
                             String userName = auth.getUser() != null ? auth.getUser().getName() : "";
                             String userEmail = auth.getUser() != null ? auth.getUser().getEmail() : "";
                             TokenManager.getInstance(RegisterActivity.this).saveAuth(auth.getToken(), userId, userName, userEmail);
+                            TokenManager.getInstance(RegisterActivity.this).saveUserProgress(auth.getUser());
                             
                             // Vamos directo a MainActivity. MapFragment se encargará del onboarding contextual.
                             Intent intent = new Intent(RegisterActivity.this, MainActivity.class);

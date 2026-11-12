@@ -33,6 +33,11 @@ public class AuthResponse {
         private int score;
         @SerializedName("level")
         private String level;
+        /** Saldo gastable en la tienda (score no baja al comprar; coins sí). */
+        @SerializedName("coins")
+        private int coins;
+        @SerializedName("cosmetics")
+        private Cosmetics cosmetics;
 
         public int getId() { return id; }
         public String getName() { return name; }
@@ -40,5 +45,7 @@ public class AuthResponse {
         public String getAvatarUrl() { return avatarUrl; }
         public int getScore() { return score; }
         public String getLevel() { return level; }
+        public int getCoins() { return coins; }
+        public Cosmetics getCosmetics() { return cosmetics; }
     }
 }

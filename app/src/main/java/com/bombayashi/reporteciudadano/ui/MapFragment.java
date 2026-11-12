@@ -968,7 +968,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private void showUserProfile() {
         UserProfileBottomSheet profileSheet = new UserProfileBottomSheet();
         profileSheet.setLogoutListener(this::handleLogout);
-        profileSheet.setOnSettingsDismissListener(this::applyDynamicLighting);
+        profileSheet.setOnSettingsDismissListener(() -> {
+            applyDynamicLighting();
+            applyToolbarTheme(); // pudo cambiar el color de barra en la tienda
+        });
         profileSheet.show(getChildFragmentManager(), "user_profile");
     }
 
@@ -1140,6 +1143,22 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     public void onResume() {
         super.onResume();
         updateFabVisibility();
+        applyToolbarTheme();
+    }
+
+    /** Color de barra comprado en la tienda (o el blanco original si no hay / sin sesión). */
+    private void applyToolbarTheme() {
+        if (binding == null) return;
+        com.bombayashi.reporteciudadano.model.Cosmetics c =
+                TokenManager.getInstance(requireContext()).getCosmetics();
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyTheme(
+                binding.floatingToolbar, c != null ? c.getTheme() : null);
+        // FloatingToolbarLayout puede reaplicar su fondo al montarse: repetir tras el layout
+        binding.floatingToolbar.post(() -> {
+            if (binding == null) return;
+            com.bombayashi.reporteciudadano.util.CosmeticStyler.applyTheme(
+                    binding.floatingToolbar, c != null ? c.getTheme() : null);
+        });
     }
 
     @Override

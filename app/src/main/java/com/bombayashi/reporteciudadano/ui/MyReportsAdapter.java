@@ -69,7 +69,7 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
 
             // Píldora tonal: texto en el color del estado y fondo del mismo color al ~15%
             String status = report.getStatus() != null ? report.getStatus() : "pending";
-            int statusColor = Color.parseColor(getStatusColor(status));
+            int statusColor = getStatusColor(status);
             binding.tvStatus.setText(getStatusLabel(status));
             binding.tvStatus.setTextColor(statusColor);
             binding.tvStatus.setBackgroundTintList(
@@ -91,14 +91,14 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
             };
         }
 
-        private String getStatusColor(String status) {
-            return switch (status) {
-                case "pending" -> "#E65100";
-                case "verified" -> "#2E7D32";
-                case "resolved" -> "#1565C0";
-                case "archived" -> "#616161";
-                default -> "#616161";
+        private int getStatusColor(String status) {
+            int res = switch (status) {
+                case "pending" -> R.color.status_pending;
+                case "verified" -> R.color.status_verified;
+                case "resolved" -> R.color.status_resolved;
+                default -> R.color.status_archived;
             };
+            return androidx.core.content.ContextCompat.getColor(binding.getRoot().getContext(), res);
         }
     }
 }

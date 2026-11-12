@@ -208,10 +208,10 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         String statusKey = report.getStatus() != null ? report.getStatus() : "";
         int statusColor = switch (statusKey) {
-            case "verified"  -> android.graphics.Color.parseColor("#2E7D32");
-            case "resolved"  -> android.graphics.Color.parseColor("#1565C0");
-            case "archived"  -> android.graphics.Color.parseColor("#616161");
-            default          -> android.graphics.Color.parseColor("#E65100"); // pending
+            case "verified"  -> androidx.core.content.ContextCompat.getColor(requireContext(), R.color.status_verified);
+            case "resolved"  -> androidx.core.content.ContextCompat.getColor(requireContext(), R.color.status_resolved);
+            case "archived"  -> androidx.core.content.ContextCompat.getColor(requireContext(), R.color.status_archived);
+            default          -> androidx.core.content.ContextCompat.getColor(requireContext(), R.color.status_pending); // pending
         };
         String statusLabel = switch (statusKey) {
             case "pending"   -> "Pendiente";
@@ -227,6 +227,19 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 (statusColor & 0x00FFFFFF) | 0x26000000));
         binding.tvDescription.setText(description);
         binding.tvUser.setText(userName);
+
+        // Cosméticos del autor (marco y título de la tienda, visibles para todos)
+        ReportResponse.UserInfo author = report.getUser();
+        com.bombayashi.reporteciudadano.model.Cosmetics authorCosmetics = author != null ? author.getCosmetics() : null;
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyFrame(binding.ringAuthorAvatar,
+                authorCosmetics != null ? authorCosmetics.getFrame() : null);
+        com.bombayashi.reporteciudadano.util.CosmeticStyler.applyTitle(binding.tvAuthorTitle,
+                authorCosmetics != null ? authorCosmetics.getTitle() : null);
+        if (author != null && author.getAvatarUrl() != null && !author.getAvatarUrl().isEmpty()) {
+            Glide.with(this).load(author.getAvatarUrl())
+                    .placeholder(R.drawable.person_24px).error(R.drawable.person_24px)
+                    .into(binding.ivAuthorAvatar);
+        }
 
         String reportStatus = report.getStatus();
         binding.tvArchiveCountdown.setVisibility(View.GONE);
@@ -562,7 +575,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         if (state.getUserDistance() > 0) {
             binding.tvDistanceInfo.setVisibility(View.VISIBLE);
             if (state.isWithinRadius()) {
-                int green = android.graphics.Color.parseColor("#2E7D32");
+                int green = androidx.core.content.ContextCompat.getColor(requireContext(), R.color.status_verified);
                 binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0f m · podés votar", state.getUserDistance()));
                 binding.tvDistanceInfo.setTextColor(green);
                 androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(binding.tvDistanceInfo,
@@ -571,7 +584,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 binding.btnConfirm.setEnabled(true);
                 binding.btnResolve.setEnabled(true);
             } else {
-                int orange = android.graphics.Color.parseColor("#E65100");
+                int orange = androidx.core.content.ContextCompat.getColor(requireContext(), R.color.status_pending);
                 binding.tvDistanceInfo.setText(String.format(java.util.Locale.getDefault(), "A %.0f m · máx. 500 m para votar", state.getUserDistance()));
                 binding.tvDistanceInfo.setTextColor(orange);
                 androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(binding.tvDistanceInfo,

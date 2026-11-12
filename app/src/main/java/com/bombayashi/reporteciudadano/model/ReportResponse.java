@@ -103,11 +103,18 @@ public class ReportResponse {
         private int score;
         @SerializedName("level")
         private String level;
+        @SerializedName("avatar_url")
+        private String avatarUrl;
+        /** Marco y título equipados por el autor (visibles para todos). */
+        @SerializedName("cosmetics")
+        private Cosmetics cosmetics;
 
         public int getId() { return id; }
         public String getName() { return name; }
         public int getScore() { return score; }
         public String getLevel() { return level; }
+        public String getAvatarUrl() { return avatarUrl; }
+        public Cosmetics getCosmetics() { return cosmetics; }
     }
 
     public static class CategoryInfo {

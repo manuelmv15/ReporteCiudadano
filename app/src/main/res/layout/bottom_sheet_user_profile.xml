@@ -25,7 +25,7 @@
             android:layout_height="4dp"
             android:layout_gravity="top|center_horizontal"
             android:background="@drawable/bg_pill"
-            android:backgroundTint="#33000000" />
+            android:backgroundTint="@color/glass_handle" />
 
         <!-- ===================== PÁGINA: MENÚ PRINCIPAL ===================== -->
         <LinearLayout
@@ -42,16 +42,23 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/ivUserAvatar"
-                    android:layout_width="64dp"
-                    android:layout_height="64dp"
-                    android:background="?attr/colorPrimaryContainer"
-                    android:contentDescription="Avatar"
-                    android:padding="0dp"
-                    android:scaleType="centerCrop"
-                    app:shapeAppearanceOverlay="@style/CircleImageView"
-                    app:srcCompat="@drawable/person_24px" />
+                <!-- Marco de avatar (tienda): el fondo asoma por el padding -->
+                <FrameLayout
+                    android:id="@+id/ringUserAvatar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="3dp">
+
+                    <com.google.android.material.imageview.ShapeableImageView
+                        android:id="@+id/ivUserAvatar"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:background="?attr/colorPrimaryContainer"
+                        android:contentDescription="Avatar"
+                        android:scaleType="centerCrop"
+                        app:shapeAppearanceOverlay="@style/CircleImageView"
+                        app:srcCompat="@drawable/person_24px" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -80,6 +87,17 @@
                         android:text="usuario@email.com"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <TextView
+                        android:id="@+id/tvUserTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_pill"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="2dp"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <ImageButton
@@ -121,7 +139,7 @@
                             android:layout_width="44dp"
                             android:layout_height="44dp"
                             android:background="@drawable/bg_pill"
-                            android:backgroundTint="@color/md_theme_primary"
+                            android:backgroundTint="@color/brand_green"
                             android:importantForAccessibility="no"
                             android:padding="11dp"
                             app:srcCompat="@drawable/person_24px"
@@ -261,6 +279,71 @@
                             app:tint="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
 
+                    <!-- Opción: Tienda -->
+                    <LinearLayout
+                        android:id="@+id/llShop"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:background="@drawable/bg_menu_row"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="12dp">
+
+                        <ImageView
+                            android:id="@+id/ivMenuShop"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:background="@drawable/bg_pill"
+                            android:backgroundTint="@color/category_senalizacion"
+                            android:importantForAccessibility="no"
+                            android:padding="11dp"
+                            app:srcCompat="@drawable/ic_store"
+                            app:tint="@android:color/white" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Tienda"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnSurface" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Marcos, títulos y colores"
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvMenuCoins"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:background="@drawable/bg_pill"
+                            android:backgroundTint="@color/coins_bg"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="2dp"
+                            android:text="0 pts"
+                            android:textAppearance="?attr/textAppearanceLabelMedium"
+                            android:textColor="@color/coins_text" />
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:importantForAccessibility="no"
+                            app:srcCompat="@drawable/ic_chevron_right"
+                            app:tint="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
+
                     <!-- Opción: Configuración -->
                     <LinearLayout
                         android:id="@+id/llSettings"
@@ -329,7 +412,7 @@
                             android:layout_width="44dp"
                             android:layout_height="44dp"
                             android:background="@drawable/bg_pill"
-                            android:backgroundTint="@color/md_theme_error"
+                            android:backgroundTint="@color/brand_red"
                             android:importantForAccessibility="no"
                             android:padding="11dp"
                             app:srcCompat="@drawable/logout_24px"
@@ -413,15 +496,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
 
-                        <com.google.android.material.imageview.ShapeableImageView
-                            android:id="@+id/ivProfileAvatar"
-                            android:layout_width="104dp"
-                            android:layout_height="104dp"
-                            android:background="?attr/colorPrimaryContainer"
-                            android:contentDescription="Avatar"
-                            android:scaleType="centerCrop"
-                            app:shapeAppearanceOverlay="@style/CircleImageView"
-                            app:srcCompat="@drawable/person_24px" />
+                        <FrameLayout
+                            android:id="@+id/ringProfileAvatar"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:padding="5dp">
+
+                            <com.google.android.material.imageview.ShapeableImageView
+                                android:id="@+id/ivProfileAvatar"
+                                android:layout_width="104dp"
+                                android:layout_height="104dp"
+                                android:background="?attr/colorPrimaryContainer"
+                                android:contentDescription="Avatar"
+                                android:scaleType="centerCrop"
+                                app:shapeAppearanceOverlay="@style/CircleImageView"
+                                app:srcCompat="@drawable/person_24px" />
+                        </FrameLayout>
 
                         <ImageButton
                             android:id="@+id/btnEditAvatar"
@@ -475,6 +565,17 @@
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?attr/colorOnSurfaceVariant" />
 
+                    <TextView
+                        android:id="@+id/tvProfileTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_pill"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="3dp"
+                        android:textAppearance="?attr/textAppearanceLabelLarge"
+                        android:visibility="gone" />
+
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -500,12 +601,25 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
                             android:background="@drawable/bg_pill"
-                            android:backgroundTint="#0D000000"
+                            android:backgroundTint="@color/glass_tile"
                             android:paddingHorizontal="12dp"
                             android:paddingVertical="4dp"
                             android:text="0 pts"
                             android:textAppearance="?attr/textAppearanceLabelLarge"
                             android:textColor="?attr/colorOnSurface" />
+
+                        <TextView
+                            android:id="@+id/tvProfileCoins"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_pill"
+                            android:backgroundTint="@color/coins_bg"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="4dp"
+                            android:text="0 para gastar"
+                            android:textAppearance="?attr/textAppearanceLabelLarge"
+                            android:textColor="@color/coins_text" />
                     </LinearLayout>
 
                     <!-- Estadísticas -->
@@ -750,6 +864,139 @@
                     android:gravity="center"
                     android:padding="32dp"
                     android:text="Todavía no votaste ningún reporte"
+                    android:textAppearance="?attr/textAppearanceBodyLarge"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- ===================== PÁGINA: TIENDA ===================== -->
+        <LinearLayout
+            android:id="@+id/pageShop"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/btnBackShop"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_circle_button"
+                    android:contentDescription="Volver"
+                    android:padding="9dp"
+                    android:scaleType="fitCenter"
+                    app:srcCompat="@drawable/ic_arrow_back"
+                    app:tint="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:text="Tienda"
+                    android:textAppearance="?attr/textAppearanceTitleLarge"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:id="@+id/tvShopCoins"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_pill"
+                    android:backgroundTint="@color/coins_bg"
+                    android:drawablePadding="6dp"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:text="0 pts"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="@color/coins_text"
+                    app:drawableStartCompat="@drawable/ic_store"
+                    app:drawableTint="@color/coins_text" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Comprar no baja tu nivel: se descuenta solo de los puntos para gastar."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgShopType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                app:chipSpacingHorizontal="6dp"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipShopFrames"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="Marcos"
+                    app:checkedIconVisible="false"
+                    app:chipCornerRadius="50dp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipShopTitles"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Títulos"
+                    app:checkedIconVisible="false"
+                    app:chipCornerRadius="50dp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipShopThemes"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Color de barra"
+                    app:checkedIconVisible="false"
+                    app:chipCornerRadius="50dp" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="6dp"
+                android:layout_weight="1">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvShop"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:scrollbars="none" />
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/progressBarShop"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:indeterminate="true"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvShopError"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center"
+                    android:padding="32dp"
+                    android:text="No se pudo cargar la tienda"
                     android:textAppearance="?attr/textAppearanceBodyLarge"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:visibility="gone" />
