@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fila del menú: bloque redondeado como bg_stat_tile, con ripple -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#1F000000">
+    <item>
+        <shape>
+            <solid android:color="#0D000000" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</ripple>

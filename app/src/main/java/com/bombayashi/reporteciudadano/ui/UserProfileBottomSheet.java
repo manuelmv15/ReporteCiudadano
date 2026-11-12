@@ -95,6 +95,40 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         if (settingsDismissListener != null) settingsDismissListener.onDismiss();
     }
 
+    @Override
+    public int getTheme() {
+        // Contenedor transparente: el panel interno (bg_floating_panel) flota como la barra inferior
+        return com.bombayashi.reporteciudadano.R.style.ThemeOverlay_App_BottomSheetDialog_Floating;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (getDialog() instanceof com.google.android.material.bottomsheet.BottomSheetDialog) {
+            com.google.android.material.bottomsheet.BottomSheetDialog d =
+                    (com.google.android.material.bottomsheet.BottomSheetDialog) getDialog();
+            d.getBehavior().setSkipCollapsed(true);
+            d.getBehavior().setState(com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED);
+        }
+    }
+
+    /**
+     * El menú y "Mi perfil" se ajustan a su contenido; las secciones con listas o ajustes usan
+     * altura fija (~85% de pantalla) para que tengan espacio y no salten al cargar.
+     */
+    private void applyPanelHeight(View page) {
+        ViewGroup.LayoutParams lp = binding.getRoot().getLayoutParams();
+        if (lp == null) return;
+        boolean fitsContent = page == binding.pageMenu || page == binding.pageProfile;
+        int target = fitsContent
+                ? ViewGroup.LayoutParams.WRAP_CONTENT
+                : (int) (getResources().getDisplayMetrics().heightPixels * 0.85f);
+        if (lp.height != target) {
+            lp.height = target;
+            binding.getRoot().setLayoutParams(lp);
+        }
+    }
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -162,6 +196,14 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         binding.pageVotes.setVisibility(View.GONE);
         binding.pageSettings.setVisibility(View.GONE);
         page.setVisibility(View.VISIBLE);
+        applyPanelHeight(page);
+
+        // Entrada suave: desde la derecha al abrir una sección, desde la izquierda al volver
+        float dir = page == binding.pageMenu ? -1f : 1f;
+        page.setAlpha(0f);
+        page.setTranslationX(dir * 24 * getResources().getDisplayMetrics().density);
+        page.animate().alpha(1f).translationX(0f).setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
     }
 
     private void showMenu() {
@@ -176,7 +218,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
         TokenManager tm = TokenManager.getInstance(requireContext());
         binding.tvProfileName.setText(tm.getUserName());
         binding.tvProfileEmail.setText(tm.getUserEmail());
-        binding.tvProfileLevel.setText(tm.getLevel());
+        binding.tvProfileLevel.setText(capitalize(tm.getLevel()));
         binding.tvProfileScore.setText(tm.getScore() + " pts");
         loadAvatar(binding.ivProfileAvatar);
 
@@ -186,6 +228,12 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
         refreshProfile();
         loadProfileStats();
+    }
+
+    /** El nivel llega en minúsculas desde la API ("nuevo"); mostrarlo como etiqueta. */
+    private static String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     private void loadProfileStats() {
@@ -237,7 +285,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
 
                         binding.tvProfileName.setText(user.getName());
                         binding.tvUserName.setText(user.getName());
-                        binding.tvProfileLevel.setText(user.getLevel());
+                        binding.tvProfileLevel.setText(capitalize(user.getLevel()));
                         binding.tvProfileScore.setText(user.getScore() + " pts");
                         loadAvatar(binding.ivProfileAvatar);
                         loadAvatar(binding.ivUserAvatar);
@@ -506,7 +554,9 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                 break;
         }
 
-        binding.rgTheme.setOnCheckedChangeListener((group, checkedId) -> {
+        binding.rgTheme.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            int checkedId = checkedIds.get(0);
             if (checkedId == binding.rbThemeLight.getId()) {
                 settingsManager.setThemeMode("light");
             } else if (checkedId == binding.rbThemeDark.getId()) {
@@ -524,7 +574,9 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
             default:      binding.rbMapAuto.setChecked(true);  break;
         }
 
-        binding.rgMapPreset.setOnCheckedChangeListener((group, checkedId) -> {
+        binding.rgMapPreset.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            int checkedId = checkedIds.get(0);
             if (checkedId == binding.rbMapDawn.getId())       settingsManager.setMapPreset("dawn");
             else if (checkedId == binding.rbMapDay.getId())   settingsManager.setMapPreset("day");
             else if (checkedId == binding.rbMapDusk.getId())  settingsManager.setMapPreset("dusk");
@@ -537,17 +589,13 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                 settingsManager.setNotificationsEnabled(isChecked));
 
         // RF-23: alert radius seekbar
-        binding.seekAlertRadius.setProgress(settingsManager.getAlertRadiusSeekIndex());
-        binding.tvAlertRadius.setText("Radio de alerta: " + settingsManager.getAlertRadiusMeters() + " m");
-        binding.seekAlertRadius.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
-                int meters = settingsManager.seekIndexToRadius(progress);
-                binding.tvAlertRadius.setText("Radio de alerta: " + meters + " m");
-                if (fromUser) settingsManager.setAlertRadiusMeters(meters);
-            }
-            @Override public void onStartTrackingTouch(android.widget.SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(android.widget.SeekBar seekBar) {}
+        int seekIndex = Math.max(0, Math.min(4, settingsManager.getAlertRadiusSeekIndex()));
+        binding.seekAlertRadius.setValue(seekIndex);
+        binding.tvAlertRadius.setText(settingsManager.getAlertRadiusMeters() + " m");
+        binding.seekAlertRadius.addOnChangeListener((slider, value, fromUser) -> {
+            int meters = settingsManager.seekIndexToRadius(Math.round(value));
+            binding.tvAlertRadius.setText(meters + " m");
+            if (fromUser) settingsManager.setAlertRadiusMeters(meters);
         });
 
         // RF-23: alert categories

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fila "Cerrar sesión": igual que bg_menu_row pero con tinte rojo suave -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#29BA1A1A">
+    <item>
+        <shape>
+            <solid android:color="#14BA1A1A" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</ripple>

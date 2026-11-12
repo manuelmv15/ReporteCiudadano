@@ -64,17 +64,25 @@ public class MyVotesAdapter extends RecyclerView.Adapter<MyVotesAdapter.ViewHold
 
             binding.tvVoteDate.setText(formatDate(vote.getCreatedAt()));
 
+            // Círculo de color según el tipo de voto (verde = sigue ahí, azul = resuelto)
+            binding.ivVoteType.setBackgroundTintList(ColorStateList.valueOf(
+                    Color.parseColor(isConfirm ? "#246A4B" : "#2F80ED")));
+
             Boolean correct = vote.isCorrect();
             if (correct == null) {
-                binding.tvVoteAccuracy.setText("Pendiente");
-                binding.tvVoteAccuracy.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#9E9E9E")));
+                setTonalPill(binding.tvVoteAccuracy, "Pendiente", Color.parseColor("#616161"));
             } else if (correct) {
-                binding.tvVoteAccuracy.setText("Acertado");
-                binding.tvVoteAccuracy.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
+                setTonalPill(binding.tvVoteAccuracy, "Acertado", Color.parseColor("#2E7D32"));
             } else {
-                binding.tvVoteAccuracy.setText("Errado");
-                binding.tvVoteAccuracy.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#F44336")));
+                setTonalPill(binding.tvVoteAccuracy, "Errado", Color.parseColor("#C62828"));
             }
+        }
+
+        /** Píldora tonal: texto en el color y fondo del mismo color al ~15%. */
+        private void setTonalPill(android.widget.TextView tv, String text, int color) {
+            tv.setText(text);
+            tv.setTextColor(color);
+            tv.setBackgroundTintList(ColorStateList.valueOf((color & 0x00FFFFFF) | 0x26000000));
         }
 
         private String formatDate(String createdAt) {

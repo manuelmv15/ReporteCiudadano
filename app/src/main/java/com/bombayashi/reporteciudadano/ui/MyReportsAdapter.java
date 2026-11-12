@@ -61,12 +61,19 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
             binding.tvDate.setText(formatDate(report.getCreatedAt()));
             binding.tvConfirmCount.setText(String.valueOf(report.getVotesConfirm()));
             binding.tvResolveCount.setText(String.valueOf(report.getVotesResolve()));
-            binding.ivCategoryIcon.setImageResource(getCategoryDrawableId(categorySlug));
+            // Ícono en círculo con el color de la categoría, igual que en el menú radial y los pines
+            binding.ivCategoryIcon.setImageResource(MarkerRenderer.getCategoryDrawableId(categorySlug));
+            binding.ivCategoryIcon.setBackgroundTintList(ColorStateList.valueOf(
+                    androidx.core.content.ContextCompat.getColor(binding.getRoot().getContext(),
+                            MarkerRenderer.getCategoryColor(categorySlug))));
 
+            // Píldora tonal: texto en el color del estado y fondo del mismo color al ~15%
             String status = report.getStatus() != null ? report.getStatus() : "pending";
+            int statusColor = Color.parseColor(getStatusColor(status));
             binding.tvStatus.setText(getStatusLabel(status));
+            binding.tvStatus.setTextColor(statusColor);
             binding.tvStatus.setBackgroundTintList(
-                    ColorStateList.valueOf(Color.parseColor(getStatusColor(status))));
+                    ColorStateList.valueOf((statusColor & 0x00FFFFFF) | 0x26000000));
         }
 
         private String formatDate(String createdAt) {
@@ -86,23 +93,11 @@ public class MyReportsAdapter extends RecyclerView.Adapter<MyReportsAdapter.View
 
         private String getStatusColor(String status) {
             return switch (status) {
-                case "pending" -> "#FF9800";
-                case "verified" -> "#4CAF50";
-                case "resolved" -> "#2196F3";
-                case "archived" -> "#9E9E9E";
-                default -> "#757575";
-            };
-        }
-
-        private int getCategoryDrawableId(String categorySlug) {
-            return switch (categorySlug) {
-                case "bache", "vialidad" -> R.drawable.ic_category_vialidad;
-                case "alumbrado-publico", "alumbrado" -> R.drawable.ic_category_alumbrado;
-                case "fuga-de-agua", "agua" -> R.drawable.ic_category_agua;
-                case "senalizacion-vial", "senalizacion" -> R.drawable.ic_category_senalizacion;
-                case "inseguridad", "seguridad" -> R.drawable.ic_category_seguridad;
-                case "basura-acumulada", "parques", "basura" -> R.drawable.ic_category_basura;
-                default -> R.drawable.ic_category_otros;
+                case "pending" -> "#E65100";
+                case "verified" -> "#2E7D32";
+                case "resolved" -> "#1565C0";
+                case "archived" -> "#616161";
+                default -> "#616161";
             };
         }
     }
