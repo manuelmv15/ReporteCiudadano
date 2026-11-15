@@ -91,10 +91,11 @@
             android:padding="8dp"
             android:layout_marginBottom="16dp" />
 
-        <ProgressBar
+        <com.google.android.material.loadingindicator.LoadingIndicator
             android:id="@+id/progress_bar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:visibility="gone" />
 
 

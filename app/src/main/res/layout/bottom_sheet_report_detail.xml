@@ -39,7 +39,6 @@
                 android:layout_width="52dp"
                 android:layout_height="52dp"
                 android:background="@drawable/bg_pill"
-                android:elevation="3dp"
                 android:importantForAccessibility="no"
                 android:padding="13dp"
                 app:tint="@android:color/white" />
@@ -328,14 +327,13 @@
             android:textColor="?attr/colorOnPrimaryContainer"
             android:visibility="gone" />
 
-        <com.google.android.material.progressindicator.LinearProgressIndicator
+        <com.google.android.material.loadingindicator.LoadingIndicator
             android:id="@+id/pbVoteLoading"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:layout_marginTop="12dp"
-            android:indeterminate="true"
-            android:visibility="gone"
-            app:trackCornerRadius="4dp" />
+            android:visibility="gone" />
 
         <!-- Invitado: prompt de login para votar -->
         <com.google.android.material.button.MaterialButton

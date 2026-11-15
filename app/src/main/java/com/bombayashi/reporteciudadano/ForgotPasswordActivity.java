@@ -57,7 +57,7 @@ public class ForgotPasswordActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        binding.progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+        if (loading) binding.progressBar.show(); else binding.progressBar.hide();
         binding.btnSend.setEnabled(!loading);
     }
 }

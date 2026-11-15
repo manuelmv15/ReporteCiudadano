@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Reporte Ciudadano: Senal ciudadana</title>
+  <desc id="desc">A pale green location marker with a speech bubble cut out of its center, on a deep green field.</desc>
+  <metadata>Original vector artwork authored for Reporte Ciudadano. Brief: minimalist location and citizen voice symbol; deep green and pale green; no lettering, gradients, or shadows. Proposal only, not installed as launcher.</metadata>
+  <path fill="#123F32" d="M0 0h512v512H0z"/>
+  <path fill="#E1F3CF" fill-rule="evenodd" d="M256 140c-62 0-112 47-112 107 0 47 32 80 65 112l39 38c4 4 12 4 16 0l39-38c33-32 65-65 65-112 0-60-50-107-112-107Zm-31 65h62c12 0 22 10 22 22v31c0 12-10 22-22 22h-35l-27 23v-23c-12 0-22-10-22-22v-31c0-12 10-22 22-22Z"/>
+</svg>

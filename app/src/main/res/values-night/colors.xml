@@ -160,4 +160,15 @@
     <color name="status_resolved">#A8C7FA</color>
     <color name="status_archived">#BDBDBD</color>
     <color name="status_wrong">#FFB4AB</color>
+
+    <!-- Snackbar: versiones más profundas que las de día para no quemar sobre fondo oscuro.
+         El texto se mantiene blanco en los tres (siguen siendo "banners" vívidos, no
+         superficies tonales). El variant de error usa md_theme_error/onError, que ya
+         invierte solo. -->
+    <color name="snackbar_success_bg">#1B5E20</color>
+    <color name="snackbar_success_on">#FFFFFF</color>
+    <color name="snackbar_info_bg">#0D47A1</color>
+    <color name="snackbar_info_on">#FFFFFF</color>
+    <color name="snackbar_warning_bg">#B33E00</color>
+    <color name="snackbar_warning_on">#FFFFFF</color>
 </resources>

@@ -27,13 +27,32 @@
             android:layout_height="wrap_content"
             android:contentDescription="Bache"
             app:srcCompat="@drawable/ic_category_vialidad"
-            app:backgroundTint="@color/category_vialidad"
-            app:tint="@android:color/white"
+            app:backgroundTint="@android:color/transparent"
             app:fabSize="mini"
+            app:tint="@null"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
             app:layout_constraintCircleAngle="0"
             tools:ignore="MissingConstraints" />
+
+        <TextView
+            android:id="@+id/tv_label_vialidad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:maxWidth="88dp"
+            android:text="Bache"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
+            app:layout_constraintTop_toBottomOf="@id/fab_vialidad"
+            app:layout_constraintStart_toStartOf="@id/fab_vialidad"
+            app:layout_constraintEnd_toEndOf="@id/fab_vialidad" />
 
         <!-- Alumbrado (60°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -42,13 +61,32 @@
             android:layout_height="wrap_content"
             android:contentDescription="Alumbrado público"
             app:srcCompat="@drawable/ic_category_alumbrado"
-            app:backgroundTint="@color/category_alumbrado"
-            app:tint="@android:color/white"
+            app:backgroundTint="@android:color/transparent"
             app:fabSize="mini"
+            app:tint="@null"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
             app:layout_constraintCircleAngle="60"
             tools:ignore="MissingConstraints" />
+
+        <TextView
+            android:id="@+id/tv_label_alumbrado"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:maxWidth="88dp"
+            android:text="Alumbrado"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
+            app:layout_constraintTop_toBottomOf="@id/fab_alumbrado"
+            app:layout_constraintStart_toStartOf="@id/fab_alumbrado"
+            app:layout_constraintEnd_toEndOf="@id/fab_alumbrado" />
 
         <!-- Agua (120°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -57,13 +95,32 @@
             android:layout_height="wrap_content"
             android:contentDescription="Fuga de agua"
             app:srcCompat="@drawable/ic_category_agua"
-            app:backgroundTint="@color/category_agua"
-            app:tint="@android:color/white"
+            app:backgroundTint="@android:color/transparent"
             app:fabSize="mini"
+            app:tint="@null"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
             app:layout_constraintCircleAngle="120"
             tools:ignore="MissingConstraints" />
+
+        <TextView
+            android:id="@+id/tv_label_agua"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:maxWidth="88dp"
+            android:text="Agua"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
+            app:layout_constraintTop_toBottomOf="@id/fab_agua"
+            app:layout_constraintStart_toStartOf="@id/fab_agua"
+            app:layout_constraintEnd_toEndOf="@id/fab_agua" />
 
         <!-- Señalización vial (180°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -72,13 +129,32 @@
             android:layout_height="wrap_content"
             android:contentDescription="Señalización vial"
             app:srcCompat="@drawable/ic_category_senalizacion"
-            app:backgroundTint="@color/category_senalizacion"
-            app:tint="@android:color/white"
+            app:backgroundTint="@android:color/transparent"
             app:fabSize="mini"
+            app:tint="@null"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
             app:layout_constraintCircleAngle="180"
             tools:ignore="MissingConstraints" />
+
+        <TextView
+            android:id="@+id/tv_label_senalizacion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:maxWidth="88dp"
+            android:text="Señales"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
+            app:layout_constraintTop_toBottomOf="@id/fab_senalizacion"
+            app:layout_constraintStart_toStartOf="@id/fab_senalizacion"
+            app:layout_constraintEnd_toEndOf="@id/fab_senalizacion" />
 
         <!-- Seguridad (240°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -87,13 +163,32 @@
             android:layout_height="wrap_content"
             android:contentDescription="Inseguridad"
             app:srcCompat="@drawable/ic_category_seguridad"
-            app:backgroundTint="@color/category_seguridad"
-            app:tint="@android:color/white"
+            app:backgroundTint="@android:color/transparent"
             app:fabSize="mini"
+            app:tint="@null"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
             app:layout_constraintCircleAngle="240"
             tools:ignore="MissingConstraints" />
+
+        <TextView
+            android:id="@+id/tv_label_seguridad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:maxWidth="88dp"
+            android:text="Seguridad"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
+            app:layout_constraintTop_toBottomOf="@id/fab_seguridad"
+            app:layout_constraintStart_toStartOf="@id/fab_seguridad"
+            app:layout_constraintEnd_toEndOf="@id/fab_seguridad" />
 
         <!-- Basura (300°) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -102,13 +197,32 @@
             android:layout_height="wrap_content"
             android:contentDescription="Basura acumulada"
             app:srcCompat="@drawable/ic_category_basura"
-            app:backgroundTint="@color/category_basura"
-            app:tint="@android:color/white"
+            app:backgroundTint="@android:color/transparent"
             app:fabSize="mini"
+            app:tint="@null"
             app:layout_constraintCircle="@id/center_point"
             app:layout_constraintCircleRadius="120dp"
             app:layout_constraintCircleAngle="300"
             tools:ignore="MissingConstraints" />
+
+        <TextView
+            android:id="@+id/tv_label_basura"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:maxWidth="88dp"
+            android:text="Basura"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
+            app:layout_constraintTop_toBottomOf="@id/fab_basura"
+            app:layout_constraintStart_toStartOf="@id/fab_basura"
+            app:layout_constraintEnd_toEndOf="@id/fab_basura" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

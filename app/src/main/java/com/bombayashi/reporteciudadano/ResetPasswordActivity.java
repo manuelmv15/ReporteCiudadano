@@ -79,7 +79,7 @@ public class ResetPasswordActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        binding.progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+        if (loading) binding.progressBar.show(); else binding.progressBar.hide();
         binding.btnReset.setEnabled(!loading);
     }
 }

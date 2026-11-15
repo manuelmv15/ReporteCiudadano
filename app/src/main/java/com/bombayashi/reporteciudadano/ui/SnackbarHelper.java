@@ -36,7 +36,7 @@ public final class SnackbarHelper {
         Snackbar snackbar = Snackbar.make(anchor, message, duration);
 
         int bgColor   = ContextCompat.getColor(anchor.getContext(), bgColorRes(variant));
-        int textColor = ContextCompat.getColor(anchor.getContext(), R.color.snackbar_on_color);
+        int textColor = ContextCompat.getColor(anchor.getContext(), onColorRes(variant));
 
         View snackView = snackbar.getView();
         snackView.setBackgroundTintList(ColorStateList.valueOf(bgColor));
@@ -73,7 +73,17 @@ public final class SnackbarHelper {
             case SUCCESS: return R.color.snackbar_success_bg;
             case INFO:    return R.color.snackbar_info_bg;
             case WARNING: return R.color.snackbar_warning_bg;
-            default:      return R.color.snackbar_error_bg;
+            // Error usa el rol M3 real (se invierte solo en modo oscuro), no un color aparte.
+            default:      return R.color.md_theme_error;
+        }
+    }
+
+    private static int onColorRes(Variant v) {
+        switch (v) {
+            case SUCCESS: return R.color.snackbar_success_on;
+            case INFO:    return R.color.snackbar_info_on;
+            case WARNING: return R.color.snackbar_warning_on;
+            default:      return R.color.md_theme_onError;
         }
     }
 

@@ -145,12 +145,15 @@
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
 
-    <!-- Snackbar colors -->
-    <color name="snackbar_on_color">#FFFFFF</color>
-    <color name="snackbar_success_bg">#43A047</color>
-    <color name="snackbar_error_bg">#E53935</color>
-    <color name="snackbar_info_bg">#1E88E5</color>
-    <color name="snackbar_warning_bg">#FB8C00</color>
+    <!-- Snackbar: mismos tonos que status_verified/pending/resolved (no inventamos una
+         paleta aparte) + md_theme_error/onError para el variant de error, que ya se
+         adaptan solos a modo oscuro. El resto tiene su contraparte en values-night. -->
+    <color name="snackbar_success_bg">#2E7D32</color>
+    <color name="snackbar_success_on">#FFFFFF</color>
+    <color name="snackbar_info_bg">#1565C0</color>
+    <color name="snackbar_info_on">#FFFFFF</color>
+    <color name="snackbar_warning_bg">#E65100</color>
+    <color name="snackbar_warning_on">#FFFFFF</color>
 
     <!-- Colores de categoría: fondo del menú radial y de los pines del mapa (MarkerRenderer) -->
     <color name="category_vialidad">#E5534B</color>
