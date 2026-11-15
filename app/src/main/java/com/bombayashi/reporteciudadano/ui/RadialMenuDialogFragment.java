@@ -134,7 +134,10 @@ public class RadialMenuDialogFragment extends DialogFragment {
         if (bitmap == null) return;
 
         fab.setImageBitmap(bitmap);
-        int sizePx = (int) (34 * getResources().getDisplayMetrics().density);
+        // ~30% más que los 40dp (design_fab_size_mini) que ya ocupaban todo el espacio
+        // del FAB. Ojo: el touch target mínimo de Material es 48dp — si esto empieza a
+        // recortarse en los bordes, probablemente estemos pasando ese límite real.
+        int sizePx = (int) (52 * getResources().getDisplayMetrics().density);
         fab.setMaxImageSize(sizePx);
     }
 
