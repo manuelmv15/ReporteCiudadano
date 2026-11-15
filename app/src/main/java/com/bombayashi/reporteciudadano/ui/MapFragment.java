@@ -86,6 +86,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     // Más corto que antes (era 600ms, luego 250ms): para la demo priorizamos que los
     // pines reaccionen rápido al hacer zoom/pan sobre ahorrar llamadas a la API.
     private static final long CAMERA_IDLE_DEBOUNCE_MS = 120;
+    // Antigüedad máxima de los puntos de densidad antes de volver a pedirlos.
+    private static final long HEATMAP_TTL_MS = 30_000L;
 
     // RF-19 — densidad a zoom bajo: en vez del HeatmapLayer clásico de Mapbox, un círculo
     // sólido con clustering nativo + el número de reportes de esa zona encima.
@@ -317,6 +319,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (zoom < MIN_ZOOM_TO_LOAD) {
             // Cámara ya quieta a zoom bajo — mostrar heatmap
             if (markerRenderer != null) markerRenderer.clearAll();
+            // Si los puntos están viejos, se piden otra vez y la capa se repinta al llegar.
+            prefetchHeatmapPoints();
             if (!vm.heatmapEnabled) {
                 if (!reportMarkers().isEmpty()) {
                     toggleHeatmap(true);
@@ -558,19 +562,27 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     }
 
-    /** Fetch en background al arrancar — guarda puntos en ViewModel para uso inmediato. */
+    /**
+     * Fetch en background (al arrancar y al quedar la cámara a zoom bajo) — guarda puntos
+     * en el ViewModel. Reutiliza los existentes mientras no superen HEATMAP_TTL_MS.
+     */
     private void prefetchHeatmapPoints() {
-        if (vm.heatmapPoints != null) return; // ya tenemos datos del ciclo anterior (rotación)
+        if (vm.heatmapFetchInFlight) return;
+        if (vm.heatmapPoints != null
+                && System.currentTimeMillis() - vm.heatmapFetchedAtMs < HEATMAP_TTL_MS) return;
         if (!ConnectivityHelper.isOnline(requireContext())) return;
+        vm.heatmapFetchInFlight = true;
 
         com.bombayashi.reporteciudadano.network.ApiClient.getInstance().getHeatmapPoints()
             .enqueue(new Callback<com.bombayashi.reporteciudadano.model.HeatmapResponse>() {
                 @Override
                 public void onResponse(@NonNull Call<com.bombayashi.reporteciudadano.model.HeatmapResponse> call,
                                        @NonNull Response<com.bombayashi.reporteciudadano.model.HeatmapResponse> response) {
+                    vm.heatmapFetchInFlight = false;
                     if (response.isSuccessful() && response.body() != null
                             && response.body().getPoints() != null) {
                         vm.heatmapPoints = response.body().getPoints();
+                        vm.heatmapFetchedAtMs = System.currentTimeMillis();
                         android.util.Log.d("MapFragment", "🗺 Heatmap precargado: " + vm.heatmapPoints.size() + " puntos");
                         // Si el usuario ya estaba a zoom bajo cuando llegó la respuesta, pintar ya
                         if (isAdded() && mapboxMap != null
@@ -582,6 +594,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 @Override
                 public void onFailure(@NonNull Call<com.bombayashi.reporteciudadano.model.HeatmapResponse> call,
                                       @NonNull Throwable t) {
+                    vm.heatmapFetchInFlight = false;
                     android.util.Log.w("MapFragment", "Heatmap prefetch failed: " + t.getMessage());
                 }
             });
