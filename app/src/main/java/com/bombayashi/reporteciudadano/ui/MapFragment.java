@@ -79,15 +79,19 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final double DEFAULT_LONGITUDE = -58.3816;
     private static final double DEFAULT_ZOOM = 15.0;
     private static final int MAX_REPORTS = 200;
-    private static final double MIN_ZOOM_TO_LOAD = 13.0;
+    // Antes 13.0: bajamos el umbral para que los pines individuales aparezcan con menos
+    // zoom — de todos modos siguen clusterizándose (ver MarkerRenderer) si hay muchos juntos.
+    private static final double MIN_ZOOM_TO_LOAD = 11.5;
     private static final int VIEWPORT_PAGE_SIZE = 50;
     // Más corto que antes (era 600ms, luego 250ms): para la demo priorizamos que los
     // pines reaccionen rápido al hacer zoom/pan sobre ahorrar llamadas a la API.
     private static final long CAMERA_IDLE_DEBOUNCE_MS = 120;
 
-    // RF-19
+    // RF-19 — densidad a zoom bajo: en vez del HeatmapLayer clásico de Mapbox, un círculo
+    // sólido con clustering nativo + el número de reportes de esa zona encima.
     private static final String HEATMAP_SOURCE_ID = "reports-heatmap-source";
-    private static final String HEATMAP_LAYER_ID = "reports-heatmap-layer";
+    private static final String DENSITY_CORE_LAYER_ID = "reports-density-core";
+    private static final String DENSITY_COUNT_LAYER_ID = "reports-density-count";
 
     private static final String PREFS_FILTERS = "map_filters";
     private static final String PREF_FILTER_STATUS = "filter_status";
@@ -229,7 +233,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 onMapReadyCallback.run();
                 onMapReadyCallback = null;
             }
-            if (binding != null) binding.pbMapLoading.setVisibility(View.GONE);
+            if (binding != null) binding.pbMapLoading.hide();
 
             android.util.Log.d("MapFragment", "3. Cargando reportes...");
             if (!vm.getReportMarkers().isEmpty()) {
@@ -598,7 +602,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 features.add(com.mapbox.geojson.Feature.fromGeometry(
                     com.mapbox.geojson.Point.fromLngLat(p.getLongitude(), p.getLatitude())));
             }
-            buildHeatmapOnStyle(style, com.mapbox.geojson.FeatureCollection.fromFeatures(features));
+            buildDensityLayers(style, com.mapbox.geojson.FeatureCollection.fromFeatures(features));
         });
     }
 
@@ -614,7 +618,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             }
         } else {
             mapboxMap.getStyle(style -> {
-                if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
+                if (style.styleLayerExists(DENSITY_COUNT_LAYER_ID)) style.removeStyleLayer(DENSITY_COUNT_LAYER_ID);
+                if (style.styleLayerExists(DENSITY_CORE_LAYER_ID)) style.removeStyleLayer(DENSITY_CORE_LAYER_ID);
                 if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
             });
         }
@@ -629,36 +634,53 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 features.add(com.mapbox.geojson.Feature.fromGeometry(
                     com.mapbox.geojson.Point.fromLngLat(r.getLongitude(), r.getLatitude())));
             }
-            buildHeatmapOnStyle(style, com.mapbox.geojson.FeatureCollection.fromFeatures(features));
+            buildDensityLayers(style, com.mapbox.geojson.FeatureCollection.fromFeatures(features));
         });
     }
 
-    private void buildHeatmapOnStyle(com.mapbox.maps.Style style,
-                                     com.mapbox.geojson.FeatureCollection fc) {
-        if (style.styleLayerExists(HEATMAP_LAYER_ID)) style.removeStyleLayer(HEATMAP_LAYER_ID);
+    /**
+     * Densidad a zoom bajo: el mismo "bubble" flotante que ya usan los clusters de
+     * pines (círculo + número encima), no una mancha pegada al plano del terreno.
+     */
+    private void buildDensityLayers(com.mapbox.maps.Style style, com.mapbox.geojson.FeatureCollection fc) {
+        if (style.styleLayerExists(DENSITY_COUNT_LAYER_ID)) style.removeStyleLayer(DENSITY_COUNT_LAYER_ID);
+        if (style.styleLayerExists(DENSITY_CORE_LAYER_ID)) style.removeStyleLayer(DENSITY_CORE_LAYER_ID);
         if (style.styleSourceExists(HEATMAP_SOURCE_ID)) style.removeStyleSource(HEATMAP_SOURCE_ID);
 
         com.mapbox.maps.extension.style.sources.generated.GeoJsonSource src =
             new com.mapbox.maps.extension.style.sources.generated.GeoJsonSource.Builder(HEATMAP_SOURCE_ID)
-                .featureCollection(fc).build();
+                .featureCollection(fc)
+                .cluster(true)
+                .clusterRadius(80L)
+                .clusterMaxZoom(14L)
+                .build();
         src.bindTo(style);
 
-        com.mapbox.maps.extension.style.layers.generated.HeatmapLayer layer =
-            new com.mapbox.maps.extension.style.layers.generated.HeatmapLayer(HEATMAP_LAYER_ID, HEATMAP_SOURCE_ID);
-        layer.heatmapOpacity(0.82);
-        layer.heatmapRadius(24.0);
-        layer.heatmapIntensity(1.1);
-        // Rampa con la paleta de marca (verde primario → ámbar/naranja → rojo de error)
-        // en vez del degradado azul-verde-rojo genérico por default de Mapbox.
-        layer.heatmapColor(com.mapbox.maps.extension.style.expressions.generated.Expression.fromRaw(
-                "[\"interpolate\", [\"linear\"], [\"heatmap-density\"],"
-                        + "0, \"rgba(36,106,75,0)\","
-                        + "0.2, \"rgba(36,106,75,0.55)\","
-                        + "0.4, \"rgba(224,161,0,0.65)\","
-                        + "0.6, \"rgba(242,153,74,0.78)\","
-                        + "0.8, \"rgba(229,83,75,0.88)\","
-                        + "1, \"rgba(186,26,26,0.95)\"]"));
-        layer.bindTo(style);
+        // Un punto suelto (sin point_count, porque no se agrupó con nada) cuenta como 1.
+        String radiusCore = "[\"step\", [\"coalesce\", [\"get\", \"point_count\"], 1], 14.0, 5, 18.0, 15, 23.0, 40, 29.0]";
+        // Misma progresión de color que ya usa el resto de la app: verde primario → ámbar
+        // → naranja de señalización → rojo de error, de menos a más denso.
+        String colorByDensity = "[\"step\", [\"coalesce\", [\"get\", \"point_count\"], 1], "
+                + "\"#246A4B\", 5, \"#E0A100\", 15, \"#F2994A\", 40, \"#BA1A1A\"]";
+
+        com.mapbox.maps.extension.style.layers.generated.CircleLayer core =
+            new com.mapbox.maps.extension.style.layers.generated.CircleLayer(DENSITY_CORE_LAYER_ID, HEATMAP_SOURCE_ID);
+        core.circleRadius(com.mapbox.maps.extension.style.expressions.generated.Expression.fromRaw(radiusCore));
+        core.circleColor(com.mapbox.maps.extension.style.expressions.generated.Expression.fromRaw(colorByDensity));
+        core.circleOpacity(0.88);
+        core.circleStrokeWidth(2.0);
+        core.circleStrokeColor("#FFFFFF");
+        core.bindTo(style);
+
+        com.mapbox.maps.extension.style.layers.generated.SymbolLayer count =
+            new com.mapbox.maps.extension.style.layers.generated.SymbolLayer(DENSITY_COUNT_LAYER_ID, HEATMAP_SOURCE_ID);
+        count.textField(com.mapbox.maps.extension.style.expressions.generated.Expression.fromRaw(
+                "[\"to-string\", [\"coalesce\", [\"get\", \"point_count_abbreviated\"], [\"get\", \"point_count\"], 1]]"));
+        count.textColor("#FFFFFF");
+        count.textSize(13.0);
+        count.textAllowOverlap(true);
+        count.textIgnorePlacement(true);
+        count.bindTo(style);
     }
 
     private void loadFilterPrefs() {

@@ -183,7 +183,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.llVoteButtons.setVisibility(View.GONE);
         binding.llDistanceWarning.setVisibility(View.GONE);
         binding.tvUserVoteStatus.setVisibility(View.GONE);
-        binding.pbVoteLoading.setVisibility(View.GONE);
+        binding.pbVoteLoading.hide();
         binding.btnLoginToVote.setVisibility(View.VISIBLE);
         binding.btnLoginToVote.setOnClickListener(v -> {
             dismiss();
@@ -346,13 +346,13 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             return;
         }
 
-        binding.pbVoteLoading.setVisibility(View.VISIBLE);
+        binding.pbVoteLoading.show();
         ApiClient.getInstance().deleteReport(report.getId())
             .enqueue(new Callback<com.bombayashi.reporteciudadano.model.SimpleResponse>() {
                 @Override
                 public void onResponse(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Response<com.bombayashi.reporteciudadano.model.SimpleResponse> response) {
                     if (!isAdded() || getView() == null) return;
-                    binding.pbVoteLoading.setVisibility(View.GONE);
+                    binding.pbVoteLoading.hide();
                     if (response.isSuccessful()) {
                         SnackbarHelper.show(getView(), "Reporte retirado", SnackbarHelper.Variant.SUCCESS);
                         if (statusChangeListener != null) {
@@ -376,7 +376,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 @Override
                 public void onFailure(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Throwable t) {
                     if (!isAdded() || getView() == null) return;
-                    binding.pbVoteLoading.setVisibility(View.GONE);
+                    binding.pbVoteLoading.hide();
                     SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
                 }
             });
@@ -636,11 +636,11 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         }
 
         if (state.isLoading()) {
-            binding.pbVoteLoading.setVisibility(View.VISIBLE);
+            binding.pbVoteLoading.show();
             binding.btnConfirm.setEnabled(false);
             binding.btnResolve.setEnabled(false);
         } else {
-            binding.pbVoteLoading.setVisibility(View.GONE);
+            binding.pbVoteLoading.hide();
             if (state.isWithinRadius()) {
                 binding.btnConfirm.setEnabled(true);
                 binding.btnResolve.setEnabled(true);
@@ -746,13 +746,13 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             String currentDesc = report.getDescription() != null ? report.getDescription() : "";
             RequestBody descBody = RequestBody.create(currentDesc, MediaType.parse("text/plain"));
 
-            binding.pbVoteLoading.setVisibility(View.VISIBLE);
+            binding.pbVoteLoading.show();
             ApiClient.getInstance().updateReport(report.getId(), descBody, photoPart)
                 .enqueue(new Callback<CreateReportResponse>() {
                     @Override
                     public void onResponse(Call<CreateReportResponse> call, Response<CreateReportResponse> response) {
                         if (!isAdded() || getView() == null) return;
-                        binding.pbVoteLoading.setVisibility(View.GONE);
+                        binding.pbVoteLoading.hide();
                         if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                             // Actualizar objeto en memoria para próximas aperturas
                             if (response.body().getReport() != null && response.body().getReport().getPhoto() != null) {
@@ -777,7 +777,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onFailure(Call<CreateReportResponse> call, Throwable t) {
                         if (!isAdded() || getView() == null) return;
-                        binding.pbVoteLoading.setVisibility(View.GONE);
+                        binding.pbVoteLoading.hide();
                         SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
                     }
                 });

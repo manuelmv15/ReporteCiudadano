@@ -1,14 +1,29 @@
 package com.bombayashi.reporteciudadano.ui;
 
 import android.animation.ValueAnimator;
+import android.graphics.Bitmap;
+import android.graphics.BlurMaskFilter;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RadialGradient;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.TextView;
 
+import androidx.annotation.ColorRes;
+import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 
 import com.bombayashi.reporteciudadano.R;
@@ -80,6 +95,8 @@ public class RadialMenuDialogFragment extends DialogFragment {
     }
 
     private void setupFabWithAnimations(FloatingActionButton fab, String category) {
+        applyVolumeIcon(fab, category);
+
         fab.setOnClickListener(v -> {
             // Animación de click rápida + dismiss inmediato
             animateFabClick(fab);
@@ -102,6 +119,89 @@ public class RadialMenuDialogFragment extends DialogFragment {
         });
     }
 
+    // ===== ÍCONOS CON VOLUMEN =====
+
+    /**
+     * Reemplaza el glyph plano por un bitmap compuesto: sombra suave, relleno con el
+     * color de categoría, brillo diagonal tipo vidrio (misma técnica que los pines
+     * "propios" del mapa) y el ícono blanco centrado. El fondo/tint del FAB se deja
+     * intacto (ripple, elevación, forma) — el bitmap ocupa casi toda la cara del botón.
+     */
+    private void applyVolumeIcon(FloatingActionButton fab, String category) {
+        int drawableId = MarkerRenderer.getCategoryDrawableId(category);
+        int colorRes = MarkerRenderer.getCategoryColor(category);
+        Bitmap bitmap = buildVolumeIcon(drawableId, colorRes);
+        if (bitmap == null) return;
+
+        fab.setImageBitmap(bitmap);
+        int sizePx = (int) (34 * getResources().getDisplayMetrics().density);
+        fab.setMaxImageSize(sizePx);
+    }
+
+    private Bitmap buildVolumeIcon(@DrawableRes int drawableId, @ColorRes int colorRes) {
+        Drawable d = ContextCompat.getDrawable(requireContext(), drawableId);
+        if (d == null) return null;
+
+        final int SIZE = 140;
+        final float INSET = 8f;
+        final float CORNER = SIZE * 0.32f;
+
+        Bitmap bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+
+        RectF rect = new RectF(INSET, INSET, SIZE - INSET, SIZE - INSET);
+        Path shape = new Path();
+        shape.addRoundRect(rect, CORNER, CORNER, Path.Direction.CW);
+
+        // Sombra suave debajo, para separar el ícono del fondo del botón.
+        Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shadow.setColor(Color.BLACK);
+        shadow.setAlpha(55);
+        shadow.setMaskFilter(new BlurMaskFilter(6f, BlurMaskFilter.Blur.NORMAL));
+        canvas.save();
+        canvas.translate(0, 3f);
+        canvas.drawPath(shape, shadow);
+        canvas.restore();
+
+        // Relleno base con el color de la categoría.
+        int baseColor = ContextCompat.getColor(requireContext(), colorRes);
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setColor(baseColor);
+        canvas.drawPath(shape, fill);
+
+        canvas.save();
+        canvas.clipPath(shape);
+
+        // Brillo diagonal (glass sheen), sutil.
+        RadialGradient sheen = new RadialGradient(
+                SIZE * 0.32f, SIZE * 0.28f, SIZE * 0.85f,
+                new int[]{0x4DFFFFFF, 0x14FFFFFF, 0x00000000},
+                new float[]{0f, 0.55f, 1f},
+                Shader.TileMode.CLAMP);
+        Paint sheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sheenPaint.setShader(sheen);
+        canvas.drawPath(shape, sheenPaint);
+
+        // Sombreado hacia abajo, para dar sensación de profundidad/curvatura.
+        LinearGradient baseShade = new LinearGradient(
+                0, SIZE * 0.55f, 0, SIZE,
+                0x00000000, 0x33000000,
+                Shader.TileMode.CLAMP);
+        Paint shadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shadePaint.setShader(baseShade);
+        canvas.drawPath(shape, shadePaint);
+        canvas.restore();
+
+        // Ícono blanco centrado.
+        try { d.setTint(Color.WHITE); } catch (Exception ignored) {}
+        int iconSize = (int) (SIZE * 0.5f);
+        int off = (SIZE - iconSize) / 2;
+        d.setBounds(off, off, off + iconSize, off + iconSize);
+        d.draw(canvas);
+
+        return bmp;
+    }
+
     // ===== ANIMACIONES =====
 
     private void animateMenuEntrance() {
@@ -119,6 +219,10 @@ public class RadialMenuDialogFragment extends DialogFragment {
             binding.fabVialidad, binding.fabAlumbrado, binding.fabAgua, binding.fabSenalizacion,
             binding.fabSeguridad, binding.fabBasura
         };
+        TextView[] labels = {
+            binding.tvLabelVialidad, binding.tvLabelAlumbrado, binding.tvLabelAgua,
+            binding.tvLabelSenalizacion, binding.tvLabelSeguridad, binding.tvLabelBasura
+        };
 
         for (int i = 0; i < fabs.length; i++) {
             FloatingActionButton fab = fabs[i];
@@ -132,6 +236,15 @@ public class RadialMenuDialogFragment extends DialogFragment {
                     .alpha(1.0f)
                     .setDuration(ANIMATION_DURATION_SHORT)
                     .setStartDelay(i * 30L)  // Stagger delay
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+
+            TextView label = labels[i];
+            label.setAlpha(0.0f);
+            label.animate()
+                    .alpha(1.0f)
+                    .setDuration(ANIMATION_DURATION_SHORT)
+                    .setStartDelay(i * 30L + 40L)
                     .setInterpolator(new DecelerateInterpolator())
                     .start();
         }
@@ -182,11 +295,21 @@ public class RadialMenuDialogFragment extends DialogFragment {
             binding.fabVialidad, binding.fabAlumbrado, binding.fabAgua, binding.fabSenalizacion,
             binding.fabSeguridad, binding.fabBasura
         };
+        TextView[] labels = {
+            binding.tvLabelVialidad, binding.tvLabelAlumbrado, binding.tvLabelAgua,
+            binding.tvLabelSenalizacion, binding.tvLabelSeguridad, binding.tvLabelBasura
+        };
 
         for (int i = 0; i < fabs.length; i++) {
             fabs[i].animate()
                     .scaleX(0.0f)
                     .scaleY(0.0f)
+                    .alpha(0.0f)
+                    .setDuration(ANIMATION_DURATION_SHORT)
+                    .setStartDelay(i * 20L)
+                    .start();
+
+            labels[i].animate()
                     .alpha(0.0f)
                     .setDuration(ANIMATION_DURATION_SHORT)
                     .setStartDelay(i * 20L)

@@ -456,7 +456,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void loadMyReports() {
-        binding.progressBarReports.setVisibility(View.VISIBLE);
+        binding.progressBarReports.show();
         binding.tvEmptyReports.setVisibility(View.GONE);
 
         TokenManager tm = TokenManager.getInstance(requireContext());
@@ -466,7 +466,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onResponse(Call<ReportResponse> call, Response<ReportResponse> response) {
                         if (binding == null) return;
-                        binding.progressBarReports.setVisibility(View.GONE);
+                        binding.progressBarReports.hide();
 
                         List<ReportResponse.ReportData> myReports = new ArrayList<>();
                         if (response.isSuccessful() && response.body() != null && response.body().getData() != null) {
@@ -481,7 +481,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onFailure(Call<ReportResponse> call, Throwable t) {
                         if (binding == null) return;
-                        binding.progressBarReports.setVisibility(View.GONE);
+                        binding.progressBarReports.hide();
                         binding.tvEmptyReports.setText("Error al cargar tus reportes");
                         binding.tvEmptyReports.setVisibility(View.VISIBLE);
                     }
@@ -499,7 +499,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void loadMyVotes() {
-        binding.progressBarVotes.setVisibility(View.VISIBLE);
+        binding.progressBarVotes.show();
         binding.tvEmptyVotes.setVisibility(View.GONE);
 
         TokenManager tm = TokenManager.getInstance(requireContext());
@@ -509,7 +509,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onResponse(Call<MyVotesResponse> call, Response<MyVotesResponse> response) {
                         if (binding == null) return;
-                        binding.progressBarVotes.setVisibility(View.GONE);
+                        binding.progressBarVotes.hide();
 
                         List<MyVotesResponse.VoteData> myVotes = new ArrayList<>();
                         if (response.isSuccessful() && response.body() != null && response.body().getData() != null) {
@@ -525,7 +525,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onFailure(Call<MyVotesResponse> call, Throwable t) {
                         if (binding == null) return;
-                        binding.progressBarVotes.setVisibility(View.GONE);
+                        binding.progressBarVotes.hide();
                         binding.tvEmptyVotes.setText("Error al cargar tus votos");
                         binding.tvEmptyVotes.setVisibility(View.VISIBLE);
                     }
@@ -598,7 +598,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
     }
 
     private void loadShop() {
-        if (lastShop == null) binding.progressBarShop.setVisibility(View.VISIBLE);
+        if (lastShop == null) binding.progressBarShop.show();
         binding.tvShopError.setVisibility(View.GONE);
 
         ApiClient.getInstance().getShop()
@@ -607,7 +607,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                     public void onResponse(Call<com.bombayashi.reporteciudadano.model.ShopResponse> call,
                                            Response<com.bombayashi.reporteciudadano.model.ShopResponse> response) {
                         if (binding == null) return;
-                        binding.progressBarShop.setVisibility(View.GONE);
+                        binding.progressBarShop.hide();
                         if (!response.isSuccessful() || response.body() == null) {
                             binding.tvShopError.setVisibility(lastShop == null ? View.VISIBLE : View.GONE);
                             return;
@@ -621,7 +621,7 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onFailure(Call<com.bombayashi.reporteciudadano.model.ShopResponse> call, Throwable t) {
                         if (binding == null) return;
-                        binding.progressBarShop.setVisibility(View.GONE);
+                        binding.progressBarShop.hide();
                         binding.tvShopError.setVisibility(lastShop == null ? View.VISIBLE : View.GONE);
                         SnackbarHelper.show(getView(), "Sin conexión", SnackbarHelper.Variant.ERROR);
                     }
