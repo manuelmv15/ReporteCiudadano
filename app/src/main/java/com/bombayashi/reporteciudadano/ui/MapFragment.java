@@ -38,17 +38,6 @@ import com.mapbox.maps.MapView;
 import com.mapbox.maps.MapboxMap;
 import com.mapbox.maps.Style;
 import com.mapbox.maps.plugin.animation.CameraAnimationsUtils;
-import com.mapbox.maps.plugin.annotation.AnnotationConfig;
-import com.mapbox.maps.plugin.annotation.AnnotationPlugin;
-import com.mapbox.maps.plugin.annotation.AnnotationsUtils;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotation;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationManager;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationManagerKt;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotation;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManagerKt;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -56,8 +45,6 @@ import android.graphics.Paint;
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
 
 import com.mapbox.maps.extension.style.layers.LayerUtils;
-import com.mapbox.maps.extension.style.layers.generated.CircleLayer;
-import com.mapbox.maps.extension.style.layers.generated.ModelLayer;
 import com.mapbox.maps.extension.style.sources.SourceUtils;
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource;
 import com.mapbox.maps.plugin.gestures.GesturesUtils;
@@ -82,9 +69,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private LocationTracker locationTracker;
     private NearbyReportChecker nearbyChecker;
     
-    private GeoJsonSource user3DSource;
-    private ModelLayer user3DLayer;
-    private com.bombayashi.reporteciudadano.util.HeadingManager headingManager;
+    private com.mapbox.maps.plugin.locationcomponent.LocationComponentPlugin locationComponent;
+    private SmoothedLocationProvider smoothedLocationProvider;
 
     // Convenience accessors — delegate to ViewModel
     private java.util.Map<String, ReportResponse.ReportData> reportMarkers() { return vm.getReportMarkers(); }
@@ -95,7 +81,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     private static final int MAX_REPORTS = 200;
     private static final double MIN_ZOOM_TO_LOAD = 13.0;
     private static final int VIEWPORT_PAGE_SIZE = 50;
-    private static final long CAMERA_IDLE_DEBOUNCE_MS = 600;
+    // Más corto que antes (era 600ms, luego 250ms): para la demo priorizamos que los
+    // pines reaccionen rápido al hacer zoom/pan sobre ahorrar llamadas a la API.
+    private static final long CAMERA_IDLE_DEBOUNCE_MS = 120;
 
     // RF-19
     private static final String HEATMAP_SOURCE_ID = "reports-heatmap-source";
@@ -109,6 +97,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private final android.os.Handler cameraIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable cameraIdleRunnable;
+    // Si la cámara se vuelve a mover mientras un fetch de viewport sigue en vuelo, el
+    // pedido nuevo se descarta (ver onViewportChanged) — esto marca que hay que repetirlo
+    // apenas termine, en vez de dejar los pines desactualizados hasta el próximo gesto.
+    private boolean viewportDirtyWhileLoading = false;
 
     private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 30_000;
     private final android.os.Handler votableReportsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -157,8 +149,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             @Override public void onLocationReady(Point location, float accuracy, float bearing) {
                 if (!isAdded() || getView() == null) return;
                 userLocation = location;
-                // addUserLocationMarker(location); // Removido para dejar solo 3D
-                updateUser3DMarker(location, bearing);
+                if (smoothedLocationProvider != null) smoothedLocationProvider.push(location, bearing);
                 animateCameraTo(location);
                 SnackbarHelper.show(getView(),
                         String.format(java.util.Locale.getDefault(), "Ubicación obtenida (precisión ±%.0fm)", accuracy),
@@ -168,21 +159,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             @Override public void onLocationUpdate(Point location, float bearing) {
                 if (!isAdded() || getView() == null) return;
                 userLocation = location;
-                // addUserLocationMarker(location); // Removido para dejar solo 3D
-                updateUser3DMarker(location, bearing);
+                if (smoothedLocationProvider != null) smoothedLocationProvider.push(location, bearing);
             }
             @Override public void onPermissionDenied() { centerOnDefaultLocation(); }
         });
         locationTracker.init(this);
 
         nearbyChecker = new NearbyReportChecker(requireContext());
-
-        headingManager = new com.bombayashi.reporteciudadano.util.HeadingManager(requireContext(),
-            heading -> {
-                if (markerRenderer != null) {
-                    markerRenderer.updateUserHeading(heading);
-                }
-            });
 
         // Observe report updates from ViewModel (poller runs during rotation)
         vm.reportUpdated.observe(getViewLifecycleOwner(), report -> {
@@ -228,13 +211,13 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
             // Luz dinámica según hora del día
             applyDynamicLighting();
+            applyMapDeclutter();
 
-            // Tarea 1 & 2: Configuración del Marcador 3D del Usuario
-            setupUser3DLayer(style);
+            // Puck 3D del usuario (un solo elemento visual: sin halo/flecha duplicados)
+            setupLocationPuck();
 
             android.util.Log.d("MapFragment", "2. Inicializando components...");
-            setupAnnotationManager();
-            // if (userLocation != null) addUserLocationMarker(userLocation); // Removido para dejar solo 3D
+            setupAnnotationManager(style);
             setupMapListeners();
             setupFAB();
             requestUserLocation();
@@ -266,8 +249,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         android.util.Log.d("MapFragment", "♻️ " + vm.getReportMarkers().size() + " marcadores re-dibujados tras rotación");
     }
 
-    private void setupAnnotationManager() {
-        markerRenderer.init(mapView);
+    private void setupAnnotationManager(Style style) {
+        markerRenderer.init(mapView, style);
 
         mapboxMap.subscribeCameraChanged(event -> {
             double zoom = mapboxMap.getCameraState().getZoom();
@@ -298,9 +281,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         locationTracker.stopContinuous(this);
     }
 
-    private void addUserLocationMarker(Point point) {
-        if (markerRenderer != null) markerRenderer.addUserLocation(point);
-    }
 
     /** Llamado al inicio (carga inicial) y desde onViewportChanged. */
     private void loadReportsFromAPI() {
@@ -308,8 +288,15 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         onViewportChanged();
     }
 
+    /** Si la cámara se movió mientras un fetch seguía en vuelo, repite con el viewport actual. */
+    private void maybeRetryViewportFetch() {
+        if (!viewportDirtyWhileLoading) return;
+        viewportDirtyWhileLoading = false;
+        if (isAdded() && getView() != null) onViewportChanged();
+    }
+
     /**
-     * Triggered ~600ms after camera stops moving.
+     * Triggered CAMERA_IDLE_DEBOUNCE_MS después de que la cámara deja de moverse.
      * If zoom < MIN_ZOOM_TO_LOAD: clear markers and show hint.
      * Otherwise: fetch reports within current bounding box.
      */
@@ -335,7 +322,10 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         // Cámara quieta a zoom suficiente — apagar heatmap si estaba activo
         if (vm.heatmapEnabled) toggleHeatmap(false);
 
-        if (vm.isLoadingReports) return;
+        if (vm.isLoadingReports) {
+            viewportDirtyWhileLoading = true;
+            return;
+        }
 
         if (!ConnectivityHelper.isOnline(requireContext())) {
             loadReportsFromCache();
@@ -403,6 +393,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     android.util.Log.e("MapFragment", "✗ Error HTTP: " + response.code());
                     SnackbarHelper.show(getView(), "Error: " + response.code(), SnackbarHelper.Variant.ERROR);
                 }
+                maybeRetryViewportFetch();
             }
 
             @Override
@@ -411,6 +402,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 if (!isAdded() || getView() == null) return;
                 android.util.Log.e("MapFragment", "❌ Error de red: " + t.getMessage(), t);
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
+                maybeRetryViewportFetch();
             }
         });
     }
@@ -653,8 +645,19 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         com.mapbox.maps.extension.style.layers.generated.HeatmapLayer layer =
             new com.mapbox.maps.extension.style.layers.generated.HeatmapLayer(HEATMAP_LAYER_ID, HEATMAP_SOURCE_ID);
-        layer.heatmapOpacity(0.7);
-        layer.heatmapRadius(20.0);
+        layer.heatmapOpacity(0.82);
+        layer.heatmapRadius(24.0);
+        layer.heatmapIntensity(1.1);
+        // Rampa con la paleta de marca (verde primario → ámbar/naranja → rojo de error)
+        // en vez del degradado azul-verde-rojo genérico por default de Mapbox.
+        layer.heatmapColor(com.mapbox.maps.extension.style.expressions.generated.Expression.fromRaw(
+                "[\"interpolate\", [\"linear\"], [\"heatmap-density\"],"
+                        + "0, \"rgba(36,106,75,0)\","
+                        + "0.2, \"rgba(36,106,75,0.55)\","
+                        + "0.4, \"rgba(224,161,0,0.65)\","
+                        + "0.6, \"rgba(242,153,74,0.78)\","
+                        + "0.8, \"rgba(229,83,75,0.88)\","
+                        + "1, \"rgba(186,26,26,0.95)\"]"));
         layer.bindTo(style);
     }
 
@@ -1074,57 +1077,36 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
     }
 
-    @com.mapbox.maps.MapboxExperimental
-    private void setupUser3DLayer(@NonNull com.mapbox.maps.Style style) {
-        // Tarea 1: Registro del Modelo 3D (Usando el archivo correcto)
-        try {
-            style.addStyleModel("user-arrow-model", "asset://arrow_direction.glb");
-        } catch (Exception e) {
-            android.util.Log.e("MapFragment", "Error cargando modelo 3D: " + e.getMessage());
-        }
+    /**
+     * Puck del usuario vía LocationComponentPlugin: un solo elemento visual (el modelo 3D),
+     * sin halo/dot superpuesto. Le damos nuestro propio LocationProvider (en vez del que
+     * trae el plugin por default) para poder suavizar la posición/bearing nosotros mismos
+     * — ver SmoothedLocationProvider — y así evitar el giro errático típico del bearing
+     * del GPS a baja velocidad.
+     */
+    private void setupLocationPuck() {
+        locationComponent = com.mapbox.maps.plugin.locationcomponent.LocationComponentUtils.getLocationComponent(mapView);
 
-        // Tarea 2: Creación de la Fuente de Datos GeoJSON y la Capa 3D
-        user3DSource = new GeoJsonSource.Builder("user-3d-source")
-                .geometry(Point.fromLngLat(0, 0))
-                .build();
-        user3DSource.bindTo(style);
+        com.mapbox.maps.plugin.LocationPuck3D puck = new com.mapbox.maps.plugin.LocationPuck3D("asset://arrow_direction.glb");
+        puck.setModelScale(java.util.Arrays.asList(60f, 60f, 60f));
+        puck.setModelScaleMode(com.mapbox.maps.plugin.ModelScaleMode.VIEWPORT);
+        puck.setModelRotation(java.util.Arrays.asList(90f, 0f, 0f));
+        puck.setModelTranslation(java.util.Arrays.asList(0f, 0f, 2f)); // lo levanta del piso/edificios 3D
+        puck.setModelCastShadows(true);
+        puck.setModelReceiveShadows(true);
 
-        // Capa de Círculo (Halo) para visibilidad en zoom lejano
-        CircleLayer userHaloLayer = new CircleLayer("user-halo-layer", "user-3d-source")
-                .circleRadius(10.0) // Tamaño fijo en píxeles para que se vea siempre igual de lejos
-                .circleColor("#2196F3")
-                .circleStrokeWidth(2.0)
-                .circleStrokeColor("#FFFFFF")
-                .circleOpacity(0.8);
-        userHaloLayer.bindTo(style);
-
-        user3DLayer = new ModelLayer("user-3d-layer", "user-3d-source")
-                .modelId("user-arrow-model")
-                .modelScale(java.util.Arrays.asList(40.0, 40.0, 40.0)) 
-                .modelRotation(java.util.Arrays.asList(90.0, 0.0, 0.0)) // Rotación 90° en X para que apunte hacia adelante
-                .modelTranslation(java.util.Arrays.asList(0.0, 0.0, 2.0)); 
-        user3DLayer.bindTo(style);
-    }
-
-    @com.mapbox.maps.MapboxExperimental
-    private void updateUser3DMarker(Point point, float bearing) {
-        if (mapboxMap == null) return;
-        com.mapbox.maps.Style style = mapboxMap.getStyle();
-        if (style == null) return;
-
-        // Tarea 3: Actualización Dinámica
-        style.setStyleGeoJSONSourceData("user-3d-source", "", 
-            new com.mapbox.maps.GeoJSONSourceData(point));
-
-        if (user3DLayer != null) {
-            // Ajustamos la rotación: 90° en X (fijo) y 'bearing' en Z (dinámico)
-            user3DLayer.modelRotation(java.util.Arrays.asList(90.0, 0.0, (double) bearing));
-        }
+        smoothedLocationProvider = new SmoothedLocationProvider();
+        locationComponent.setLocationProvider(smoothedLocationProvider);
+        locationComponent.setLocationPuck(puck);
+        locationComponent.setPuckBearingEnabled(true);
+        locationComponent.setPuckBearing(com.mapbox.maps.plugin.PuckBearing.COURSE);
+        locationComponent.setShowAccuracyRing(false);
+        locationComponent.setPulsingEnabled(false);
+        locationComponent.setEnabled(true);
     }
 
     private void centerOnDefaultLocation() {
         userLocation = Point.fromLngLat(DEFAULT_LONGITUDE, DEFAULT_LATITUDE);
-        addUserLocationMarker(userLocation);
         animateCameraTo(userLocation);
     }
 
@@ -1169,7 +1151,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (nearbyChecker != null) nearbyChecker.reset();
         votableReportsHandler.post(votableReportsRunnable);
         startContinuousLocationTracking();
-        if (headingManager != null) headingManager.startListening();
     }
 
     @Override
@@ -1177,7 +1158,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         if (vm.getPoller() != null) vm.getPoller().stop();
         votableReportsHandler.removeCallbacks(votableReportsRunnable);
         stopContinuousLocationTracking();
-        if (headingManager != null) headingManager.stopListening();
         if (mapView != null) mapView.onStop();
         super.onStop();
     }
@@ -1306,6 +1286,19 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         }
         mapboxMap.setStyleImportConfigProperty("basemap", "lightPreset",
                 com.mapbox.bindgen.Value.valueOf(preset));
+    }
+
+    /**
+     * Baja el ruido visual del mapa base (POIs genéricos y etiquetas de transporte)
+     * para que los pines de reportes y el heatmap destaquen; se deja el nombre de
+     * calles/lugares porque el usuario los sigue necesitando para ubicarse.
+     */
+    private void applyMapDeclutter() {
+        if (mapboxMap == null) return;
+        mapboxMap.setStyleImportConfigProperty("basemap", "showPointOfInterestLabels",
+                com.mapbox.bindgen.Value.valueOf(false));
+        mapboxMap.setStyleImportConfigProperty("basemap", "showTransitLabels",
+                com.mapbox.bindgen.Value.valueOf(false));
     }
 
     @Override

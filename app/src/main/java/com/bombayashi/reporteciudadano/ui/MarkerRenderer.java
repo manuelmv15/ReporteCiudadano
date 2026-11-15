@@ -2,52 +2,75 @@ package com.bombayashi.reporteciudadano.ui;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
+import android.graphics.Path;
 
 import androidx.annotation.ColorRes;
 import androidx.annotation.DrawableRes;
+import androidx.core.graphics.ColorUtils;
 
 import com.bombayashi.reporteciudadano.R;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.mapbox.geojson.Feature;
+import com.mapbox.geojson.FeatureCollection;
+import com.mapbox.geojson.Geometry;
 import com.mapbox.geojson.Point;
-import com.mapbox.maps.plugin.annotation.AnnotationConfig;
-import com.mapbox.maps.plugin.annotation.AnnotationPlugin;
-import com.mapbox.maps.plugin.annotation.AnnotationsUtils;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotation;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationManager;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationManagerKt;
-import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotation;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManagerKt;
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions;
+import com.mapbox.maps.CameraOptions;
+import com.mapbox.maps.MapView;
+import com.mapbox.maps.MapboxMap;
+import com.mapbox.maps.QueriedRenderedFeature;
+import com.mapbox.maps.RenderedQueryGeometry;
+import com.mapbox.maps.RenderedQueryOptions;
+import com.mapbox.maps.ScreenCoordinate;
+import com.mapbox.maps.Style;
+import com.mapbox.maps.extension.style.expressions.generated.Expression;
+import com.mapbox.maps.extension.style.image.ImageExtensionImpl;
+import com.mapbox.maps.extension.style.image.ImageUtils;
+import com.mapbox.maps.extension.style.layers.generated.CircleLayer;
+import com.mapbox.maps.extension.style.layers.generated.SymbolLayer;
+import com.mapbox.maps.extension.style.layers.properties.generated.IconAnchor;
+import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource;
+import com.mapbox.maps.plugin.animation.CameraAnimationsUtils;
+import com.mapbox.maps.plugin.gestures.GesturesUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Locale;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
+/**
+ * Dibuja los reportes como una única fuente GeoJSON con capas de estilo
+ * (clustering nativo + expressions), en vez de una anotación Java por reporte.
+ * La ubicación del usuario la maneja LocationComponentPlugin, no esta clase.
+ */
 class MarkerRenderer {
 
     interface ClickListener {
         void onReportClicked(ReportResponse.ReportData report);
     }
 
+    private static final String REPORTS_SOURCE_ID = "reports-source";
+    private static final String REPORTS_LAYER_ID = "reports-layer";
+    private static final String CLUSTERS_CIRCLE_LAYER_ID = "reports-clusters-circle";
+    private static final String CLUSTERS_COUNT_LAYER_ID = "reports-clusters-count";
+
     private final Context context;
     private final Map<String, ReportResponse.ReportData> reportMarkers;
     private final Predicate<ReportResponse.ReportData> passesFilters;
     private final ClickListener clickListener;
 
-    private PointAnnotationManager pointManager;
-    private CircleAnnotationManager circleManager;
-    private PointAnnotation userLocationMarker;
+    private MapboxMap mapboxMap;
+    private Style style;
+    private GeoJsonSource reportsSource;
+    private final Map<Integer, Feature> reportFeatures = new HashMap<>();
+    private final Set<String> registeredImageIds = new HashSet<>();
 
-    private final Map<Integer, PointAnnotation> reportIconMarkers = new HashMap<>();
-    private final Map<Integer, CircleAnnotation> reportStrokeMarkers = new HashMap<>();
-    private final Map<String, Integer> annotationToReportId = new HashMap<>();
-    private final Map<String, Integer> coordOccupancy = new HashMap<>();
     private final android.util.LruCache<String, Bitmap> bitmapCache = new android.util.LruCache<>(100);
-    private double lastZoomLevel = -1;
 
     MarkerRenderer(Context context,
                    Map<String, ReportResponse.ReportData> reportMarkers,
@@ -59,85 +82,173 @@ class MarkerRenderer {
         this.clickListener = clickListener;
     }
 
-    void init(com.mapbox.maps.MapView mapView) {
-        AnnotationPlugin plugin = AnnotationsUtils.getAnnotations(mapView);
+    void init(MapView mapView, Style style) {
+        this.mapboxMap = mapView.getMapboxMap();
+        this.style = style;
+        registeredImageIds.clear();
+        reportFeatures.clear();
 
-        circleManager = CircleAnnotationManagerKt.createCircleAnnotationManager(
-                plugin, new AnnotationConfig());
+        setupReportsSourceAndLayers(style);
 
-        pointManager = PointAnnotationManagerKt.createPointAnnotationManager(
-                plugin, new AnnotationConfig());
-
-        pointManager.addClickListener(annotation -> {
-            Integer reportId = annotationToReportId.get(annotation.getId());
-            if (reportId != null) {
-                ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
-                if (report != null) clickListener.onReportClicked(report);
-            }
+        GesturesUtils.getGestures(mapView).addOnMapClickListener(point -> {
+            handleMapClick(point);
             return true;
         });
     }
 
-    PointAnnotationManager getPointAnnotationManager() { return pointManager; }
-    CircleAnnotationManager getCircleAnnotationManager() { return circleManager; }
-    Map<String, Integer> getAnnotationToReportId() { return annotationToReportId; }
+    // ---------------------------------------------------------------------
+    // Fuente GeoJSON + capas: categoría/estado vienen "horneados" en el
+    // bitmap registrado (mismo diseño que antes), pero el clustering, el
+    // escalado por zoom y el pintado corren nativamente en el motor de
+    // estilos de Mapbox — no en un loop de Java por cada marcador.
+    // ---------------------------------------------------------------------
+
+    private void setupReportsSourceAndLayers(Style style) {
+        if (style.styleLayerExists(CLUSTERS_COUNT_LAYER_ID)) style.removeStyleLayer(CLUSTERS_COUNT_LAYER_ID);
+        if (style.styleLayerExists(CLUSTERS_CIRCLE_LAYER_ID)) style.removeStyleLayer(CLUSTERS_CIRCLE_LAYER_ID);
+        if (style.styleLayerExists(REPORTS_LAYER_ID)) style.removeStyleLayer(REPORTS_LAYER_ID);
+        if (style.styleSourceExists(REPORTS_SOURCE_ID)) style.removeStyleSource(REPORTS_SOURCE_ID);
+
+        reportsSource = new GeoJsonSource.Builder(REPORTS_SOURCE_ID)
+                .featureCollection(FeatureCollection.fromFeatures(new ArrayList<>()))
+                .cluster(true)
+                .clusterRadius(55L)
+                .clusterMaxZoom(17L)
+                .build();
+        reportsSource.bindTo(style);
+
+        // Mismo factor de escala por zoom que antes (1.1 * 1.06^(zoom-15)),
+        // ahora expresado de forma declarativa en vez de recorrer anotaciones.
+        Expression zoomSize = Expression.fromRaw(
+                "[\"interpolate\", [\"exponential\", 1.06], [\"zoom\"], 13, 0.979, 20, 1.472]");
+
+        SymbolLayer reportsLayer = new SymbolLayer(REPORTS_LAYER_ID, REPORTS_SOURCE_ID);
+        reportsLayer.filter(Expression.fromRaw("[\"!\", [\"has\", \"point_count\"]]"));
+        reportsLayer.iconImage(Expression.fromRaw("[\"get\", \"iconId\"]"));
+        reportsLayer.iconSize(zoomSize);
+        reportsLayer.iconAnchor(IconAnchor.BOTTOM);
+        reportsLayer.iconAllowOverlap(true);
+        reportsLayer.iconIgnorePlacement(true);
+        reportsLayer.bindTo(style);
+
+        CircleLayer clustersCircle = new CircleLayer(CLUSTERS_CIRCLE_LAYER_ID, REPORTS_SOURCE_ID);
+        clustersCircle.filter(Expression.fromRaw("[\"has\", \"point_count\"]"));
+        clustersCircle.circleColor("#4A5D8D");
+        clustersCircle.circleRadius(Expression.fromRaw(
+                "[\"step\", [\"get\", \"point_count\"], 16.0, 10, 20.0, 30, 26.0]"));
+        clustersCircle.circleStrokeWidth(3.0);
+        clustersCircle.circleStrokeColor("#FFFFFF");
+        clustersCircle.circleOpacity(0.92);
+        clustersCircle.bindTo(style);
+
+        SymbolLayer clustersCount = new SymbolLayer(CLUSTERS_COUNT_LAYER_ID, REPORTS_SOURCE_ID);
+        clustersCount.filter(Expression.fromRaw("[\"has\", \"point_count\"]"));
+        clustersCount.textField(Expression.fromRaw("[\"get\", \"point_count_abbreviated\"]"));
+        clustersCount.textColor("#FFFFFF");
+        clustersCount.textSize(13.0);
+        clustersCount.textAllowOverlap(true);
+        clustersCount.textIgnorePlacement(true);
+        clustersCount.bindTo(style);
+    }
+
+    private void pushFeatures() {
+        if (reportsSource == null) return;
+        reportsSource.featureCollection(FeatureCollection.fromFeatures(new ArrayList<>(reportFeatures.values())));
+    }
+
+    private void ensureImageRegistered(String imageId, Bitmap bitmap) {
+        if (style == null || registeredImageIds.contains(imageId)) return;
+        ImageExtensionImpl image = new ImageExtensionImpl.Builder(imageId, bitmap).build();
+        ImageUtils.addImage(style, image);
+        registeredImageIds.add(imageId);
+    }
+
+    // ---------------------------------------------------------------------
+    // Click: no hay un listener por anotación, así que se consulta qué
+    // feature(s) hay bajo el dedo en las capas de reportes/clusters.
+    // ---------------------------------------------------------------------
+
+    private void handleMapClick(Point point) {
+        if (mapboxMap == null) return;
+        ScreenCoordinate screen = mapboxMap.pixelForCoordinate(point);
+        RenderedQueryOptions opts = new RenderedQueryOptions(
+                Arrays.asList(REPORTS_LAYER_ID, CLUSTERS_CIRCLE_LAYER_ID, CLUSTERS_COUNT_LAYER_ID), null);
+
+        mapboxMap.queryRenderedFeatures(new RenderedQueryGeometry(screen), opts, expected -> {
+            if (!expected.isValue()) return;
+            List<QueriedRenderedFeature> results = expected.getValue();
+            if (results == null || results.isEmpty()) return;
+
+            Feature feature = results.get(0).getQueriedFeature().getFeature();
+            if (feature == null) return;
+
+            if (feature.hasProperty("point_count")) {
+                expandCluster(feature);
+            } else if (feature.hasProperty("reportId")) {
+                int reportId = feature.getNumberProperty("reportId").intValue();
+                ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
+                if (report != null) clickListener.onReportClicked(report);
+            }
+        });
+    }
+
+    private void expandCluster(Feature clusterFeature) {
+        if (mapboxMap == null) return;
+        Geometry geometry = clusterFeature.geometry();
+        if (!(geometry instanceof Point)) return;
+        Point center = (Point) geometry;
+
+        mapboxMap.getGeoJsonClusterExpansionZoom(REPORTS_SOURCE_ID, clusterFeature, expected -> {
+            if (!expected.isValue() || mapboxMap == null) return;
+            Object contents = expected.getValue().getValue().getContents();
+            double targetZoom = (contents instanceof Number)
+                    ? ((Number) contents).doubleValue() + 0.3
+                    : mapboxMap.getCameraState().getZoom() + 2.0;
+
+            CameraOptions cam = new CameraOptions.Builder().center(center).zoom(targetZoom).build();
+            CameraAnimationsUtils.easeTo(mapboxMap, cam, null);
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // API usada por MapFragment — misma firma que antes salvo init().
+    // ---------------------------------------------------------------------
 
     void addReport(ReportResponse.ReportData report, int currentUserId) {
-        if (pointManager == null || circleManager == null) return;
-
-        removeReport(report.getId());
+        reportMarkers.put(String.valueOf(report.getId()), report);
 
         if (!passesFilters.test(report)) {
-            reportMarkers.put(String.valueOf(report.getId()), report);
+            reportFeatures.remove(report.getId());
+            pushFeatures();
             return;
         }
 
-        double lat = report.getLatitude();
-        double lng = report.getLongitude();
-
-        String coordKey = String.format(Locale.US, "%.6f,%.6f", lat, lng);
-        int slot = coordOccupancy.getOrDefault(coordKey, 0);
-        coordOccupancy.put(coordKey, slot + 1);
-        if (slot > 0) {
-            double angle = (slot - 1) * (2 * Math.PI / 6);
-            double offset = 0.00003;
-            lat += offset * Math.cos(angle);
-            lng += offset * Math.sin(angle);
-        }
-
         String categorySlug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
-        Point point = Point.fromLngLat(lng, lat);
-
-        reportMarkers.put(String.valueOf(report.getId()), report);
-
+        int drawableId = getCategoryDrawableId(categorySlug);
+        int colorRes = getCategoryColor(categorySlug);
         boolean isMine = (currentUserId != -1 && currentUserId == report.getUserId());
         String userVote = report.getUserVote();
-        Bitmap icon = bitmapFromDrawable(
-                getCategoryDrawableId(categorySlug),
-                getCategoryColor(categorySlug),
-                report.getStatus(),
-                isMine,
-                userVote
-        );
-        if (icon == null) return;
+        String status = report.getStatus();
 
-        double size = 1.1 * getUserSizeMultiplier(report);
-        PointAnnotationOptions opts = new PointAnnotationOptions()
-                .withPoint(point)
-                .withIconImage(icon)
-                .withIconSize(size);
+        String imageId = iconKey(drawableId, colorRes, status, isMine, userVote);
+        if (!registeredImageIds.contains(imageId)) {
+            Bitmap bitmap = bitmapFromDrawable(drawableId, colorRes, status, isMine, userVote);
+            if (bitmap == null) return;
+            ensureImageRegistered(imageId, bitmap);
+        }
 
-        PointAnnotation pa = pointManager.create(opts);
-        pa.setDraggable(false);
-        annotationToReportId.put(pa.getId(), report.getId());
-        reportIconMarkers.put(report.getId(), pa);
+        Point point = Point.fromLngLat(report.getLongitude(), report.getLatitude());
+        Feature feature = Feature.fromGeometry(point);
+        feature.addNumberProperty("reportId", report.getId());
+        feature.addStringProperty("iconId", imageId);
+
+        reportFeatures.put(report.getId(), feature);
+        pushFeatures();
     }
 
     void removeReport(int reportId) {
-        PointAnnotation icon = reportIconMarkers.remove(reportId);
-        if (icon != null && pointManager != null) pointManager.delete(icon);
-        CircleAnnotation stroke = reportStrokeMarkers.remove(reportId);
-        if (stroke != null && circleManager != null) circleManager.delete(stroke);
+        reportFeatures.remove(reportId);
+        pushFeatures();
     }
 
     void updateReport(int reportId, String newStatus, int confirmCount, int resolveCount, int currentUserId) {
@@ -148,105 +259,73 @@ class MarkerRenderer {
             report.getVotes().setConfirm(confirmCount);
             report.getVotes().setResolve(resolveCount);
         }
-        bitmapCache.evictAll();
         addReport(report, currentUserId);
     }
 
-    void addUserLocation(Point point) {
-        if (pointManager == null) return;
-        
-        if (userLocationMarker != null) {
-            userLocationMarker.setPoint(point);
-            pointManager.update(userLocationMarker);
-            return;
-        }
-
-        Bitmap arrowBitmap = bitmapCache.get("user_arrow");
-        if (arrowBitmap == null) {
-            arrowBitmap = drawableToBitmap(context, R.drawable.ic_user_arrow);
-            if (arrowBitmap != null) bitmapCache.put("user_arrow", arrowBitmap);
-        }
-            
-        if (arrowBitmap == null) return;
-
-        PointAnnotationOptions opts = new PointAnnotationOptions()
-                .withPoint(point)
-                .withIconImage(arrowBitmap)
-                .withIconSize(1.0)
-                .withIconRotate(0f);
-
-        userLocationMarker = pointManager.create(opts);
-    }
-
-    private Bitmap drawableToBitmap(Context context, @DrawableRes int drawableId) {
-        android.graphics.drawable.Drawable d = androidx.core.content.ContextCompat.getDrawable(context, drawableId);
-        if (d == null) return null;
-        Bitmap bitmap = Bitmap.createBitmap(d.getIntrinsicWidth(), d.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        d.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-        d.draw(canvas);
-        return bitmap;
-    }
-
-    void updateUserHeading(float heading) {
-        if (userLocationMarker != null) {
-            userLocationMarker.setIconRotate((double) heading);
-        }
-    }
-
     void removeOutsideBounds(double latMin, double latMax, double lngMin, double lngMax) {
-        for (Map.Entry<String, ReportResponse.ReportData> entry : new java.util.ArrayList<>(reportMarkers.entrySet())) {
+        boolean changed = false;
+        for (Map.Entry<String, ReportResponse.ReportData> entry : new ArrayList<>(reportMarkers.entrySet())) {
             ReportResponse.ReportData r = entry.getValue();
             boolean inBounds = r.getLatitude() >= latMin && r.getLatitude() <= latMax
                     && r.getLongitude() >= lngMin && r.getLongitude() <= lngMax;
             if (!inBounds) {
-                removeReport(r.getId());
+                reportFeatures.remove(r.getId());
                 reportMarkers.remove(entry.getKey());
-                String coordKey = String.format(Locale.US, "%.6f,%.6f", r.getLatitude(), r.getLongitude());
-                Integer count = coordOccupancy.get(coordKey);
-                if (count != null && count > 1) coordOccupancy.put(coordKey, count - 1);
-                else coordOccupancy.remove(coordKey);
+                changed = true;
             }
         }
+        if (changed) pushFeatures();
     }
 
     void clearAll() {
-        if (pointManager != null) pointManager.deleteAll();
-        if (circleManager != null) circleManager.deleteAll();
-        reportIconMarkers.clear();
-        reportStrokeMarkers.clear();
-        annotationToReportId.clear();
-        coordOccupancy.clear();
-        userLocationMarker = null;
+        reportFeatures.clear();
+        pushFeatures();
     }
 
+    /** El escalado por zoom ahora lo resuelve la expression de icon-size en la capa. */
     void updateScale(double zoom) {
-        if (zoom == lastZoomLevel) return;
-        lastZoomLevel = zoom;
-        float scale = (float) Math.max(0.6, Math.min(1.4, Math.pow(1.06, zoom - 15)));
-        double base = 1.1 * scale;
-        for (Map.Entry<Integer, PointAnnotation> e : reportIconMarkers.entrySet()) {
-            ReportResponse.ReportData r = reportMarkers.get(String.valueOf(e.getKey()));
-            double mult = (r != null) ? getUserSizeMultiplier(r) : 1.0;
-            e.getValue().setIconSize(base * mult);
-        }
-        if (!reportIconMarkers.isEmpty()) pointManager.update(pointManager.getAnnotations());
+        // no-op: antes recorría cada anotación en Java, ahora es declarativo en el estilo.
     }
 
-    void animateBounce(PointAnnotation annotation) {
-        float base = 1.6f;
-        android.animation.ValueAnimator anim = android.animation.ValueAnimator.ofFloat(base, base * 1.4f, base);
-        anim.setDuration(400);
-        anim.setInterpolator(new android.view.animation.OvershootInterpolator());
-        anim.addUpdateListener(a -> {
-            annotation.setIconSize(((Float) a.getAnimatedValue()).doubleValue());
-            pointManager.update(annotation);
-        });
-        anim.start();
+    // ---------------------------------------------------------------------
+    // Dibujo del bitmap de cada pin: forma "teardrop" (cabeza + punta = ancla
+    // exacta de la coordenada), categoría como color/ícono, estado como
+    // badge separado, halo blanco para reportes propios y sombra con blur.
+    // Este bitmap se registra una sola vez por combinación (categoría,
+    // estado, propio, voto) como imagen de estilo — no por cada reporte.
+    // ---------------------------------------------------------------------
+
+    private static String iconKey(int drawableId, int colorRes, String status, boolean isMine, String userVote) {
+        return "pin_" + drawableId + "_" + colorRes + "_" + status + "_" + isMine + "_" + userVote;
+    }
+
+    /** La punta del teardrop llega hasta cy + r*TAIL_LENGTH_FACTOR — ver H en bitmapFromDrawable. */
+    static final float TAIL_LENGTH_FACTOR = 1.3f;
+
+    private static Path buildPinPath(float cx, float cy, float r) {
+        Path head = new Path();
+        head.addCircle(cx, cy, r, Path.Direction.CW);
+
+        // Cola corta y angosta, con los costados curvos (en vez de rectos) para que
+        // se sienta "cute"/redondeada y no un carámbano exagerado.
+        float tailHalfWidth = r * 0.32f;
+        float tailBaseY = cy + r * 0.6f;
+        float tipY = cy + r * TAIL_LENGTH_FACTOR;
+        float curveY = tailBaseY + (tipY - tailBaseY) * 0.6f;
+
+        Path tail = new Path();
+        tail.moveTo(cx - tailHalfWidth, tailBaseY);
+        tail.quadTo(cx - tailHalfWidth * 0.2f, curveY, cx, tipY);
+        tail.quadTo(cx + tailHalfWidth * 0.2f, curveY, cx + tailHalfWidth, tailBaseY);
+        tail.close();
+
+        Path pin = new Path(head);
+        pin.op(tail, Path.Op.UNION);
+        return pin;
     }
 
     private Bitmap bitmapFromDrawable(@DrawableRes int drawableId, @ColorRes int colorRes, String status, boolean isMine, String userVote) {
-        String key = drawableId + "_" + colorRes + "_" + status + "_" + isMine + "_" + userVote;
+        String key = iconKey(drawableId, colorRes, status, isMine, userVote);
         Bitmap cached = bitmapCache.get(key);
         if (cached != null) return cached;
 
@@ -254,84 +333,95 @@ class MarkerRenderer {
             android.graphics.drawable.Drawable d = androidx.core.content.ContextCompat.getDrawable(context, drawableId);
             if (d == null) return null;
 
-            final int SIZE = 130;
-            Bitmap bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
+            final float CX = 78f;
+            final float CY = 66f;
+            final float R_OUTER = 42f;
+            final int W = 156;
+            final int H = (int) (CY + R_OUTER * TAIL_LENGTH_FACTOR); // la punta toca el borde inferior = ancla exacta
+
+            Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bmp);
-            float center = SIZE / 2f;
-            float radius = SIZE / 2.8f;
 
-            android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            fill.setColor(androidx.core.content.ContextCompat.getColor(context, colorRes));
-            if (userVote != null && !isMine) fill.setAlpha(160);
+            float grayBlend = statusGrayBlend(status);
+            int baseAlpha = statusAlpha(status);
 
-            android.graphics.Paint border = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            border.setStyle(android.graphics.Paint.Style.STROKE);
-            border.setStrokeWidth(6f);
-            border.setColor(android.graphics.Color.parseColor(statusStrokeColor(status)));
-
-            android.graphics.Paint shadow = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            shadow.setColor(android.graphics.Color.BLACK);
-            shadow.setAlpha(40);
-
-            if (isMine) {
-                // Forma diamante para reportes propios
-                android.graphics.Path diamond = new android.graphics.Path();
-                diamond.moveTo(center, center - radius);         // top
-                diamond.lineTo(center + radius, center);         // right
-                diamond.lineTo(center, center + radius);         // bottom
-                diamond.lineTo(center - radius, center);         // left
-                diamond.close();
-
-                android.graphics.Path shadowDiamond = new android.graphics.Path();
-                shadowDiamond.moveTo(center, center - radius + 4);
-                shadowDiamond.lineTo(center + radius, center + 4);
-                shadowDiamond.lineTo(center, center + radius + 4);
-                shadowDiamond.lineTo(center - radius, center + 4);
-                shadowDiamond.close();
-                canvas.drawPath(shadowDiamond, shadow);
-                canvas.drawPath(diamond, fill);
-                canvas.drawPath(diamond, border);
-            } else {
-                // Forma círculo para reportes de otros
-                canvas.drawCircle(center, center + 4, radius, shadow);
-                canvas.drawCircle(center, center, radius, fill);
-                canvas.drawCircle(center, center, radius, border);
+            int categoryColor = androidx.core.content.ContextCompat.getColor(context, colorRes);
+            if (grayBlend > 0f) {
+                categoryColor = ColorUtils.blendARGB(categoryColor, android.graphics.Color.rgb(150, 150, 150), grayBlend);
             }
+            int fillAlpha = baseAlpha;
+            if (userVote != null && !isMine) fillAlpha = (int) (fillAlpha * 0.72f);
+
+            // Sombra con blur real (en vez del óvalo plano anterior)
+            Path shadowPath = buildPinPath(CX, CY + 2f, R_OUTER);
+            android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            shadowPaint.setColor(android.graphics.Color.BLACK);
+            shadowPaint.setAlpha(70);
+            shadowPaint.setMaskFilter(new BlurMaskFilter(8f, BlurMaskFilter.Blur.NORMAL));
+            canvas.drawPath(shadowPath, shadowPaint);
+
+            float rActual = R_OUTER;
+
+            Path pin = buildPinPath(CX, CY, rActual);
+            android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            fill.setColor(categoryColor);
+            fill.setAlpha(fillAlpha);
+            canvas.drawPath(pin, fill);
 
             try { d.setTint(android.graphics.Color.WHITE); } catch (Exception ignored) {}
-            int iconSize = (int) (radius * 1.1f);
-            int off = (int) (center - iconSize / 2f);
-            d.setBounds(off, off, off + iconSize, off + iconSize);
+            int iconSize = (int) (rActual * 1.15f);
+            int offX = (int) (CX - iconSize / 2f);
+            int offY = (int) (CY - iconSize / 2f);
+            d.setBounds(offX, offY, offX + iconSize, offY + iconSize);
             d.draw(canvas);
 
-            // Badge: checkmark verde si ya votó (y no es suyo)
+            // "Mío" ya no es un halo aparte: es un acabado vidrioso sobre el mismo pin
+            // (brillo diagonal + filo sutil), los ajenos quedan mate. Es una diferencia
+            // de material, no una forma extra.
+            if (isMine) {
+                canvas.save();
+                canvas.clipPath(pin);
+                android.graphics.RadialGradient sheenShader = new android.graphics.RadialGradient(
+                        CX - rActual * 0.32f, CY - rActual * 0.42f, rActual * 1.35f,
+                        new int[]{0x59FFFFFF, 0x14FFFFFF, 0x00FFFFFF},
+                        new float[]{0f, 0.55f, 1f},
+                        android.graphics.Shader.TileMode.CLAMP);
+                android.graphics.Paint sheenPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                sheenPaint.setShader(sheenShader);
+                canvas.drawPath(pin, sheenPaint);
+                canvas.restore();
+
+                android.graphics.Paint rim = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                rim.setStyle(android.graphics.Paint.Style.STROKE);
+                rim.setStrokeWidth(2.2f);
+                rim.setColor(0x80FFFFFF);
+                canvas.drawPath(pin, rim);
+            }
+
+            // El estado (pending/verified/resolved/archived) ya no tiene su propio badge
+            // en el pin: un punto de color solo no dice nada sin un texto al lado, y el
+            // estado real se ve clarito al tocar el reporte. Acá solo sigue afectando el
+            // atenuado (resolved/archived) que ya se calculó arriba.
+
+            // Badge de "ya voté" (esquina inferior derecha), si corresponde
             if (userVote != null && !isMine) {
-                float badgeRadius = 18f;
-                float bx = center + radius * 0.65f;
-                float by = center - radius * 0.65f;
+                float vr = 12f;
+                float vx = CX + rActual * 0.5f;
+                float vy = CY + rActual * 0.5f;
 
-                android.graphics.Paint badgeBg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                badgeBg.setColor(android.graphics.Color.parseColor("#4CAF50"));
-                canvas.drawCircle(bx, by, badgeRadius, badgeBg);
+                drawGlossyBadge(canvas, vx, vy, vr, android.graphics.Color.parseColor("#4CAF50"));
 
-                android.graphics.Paint badgeBorder = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                badgeBorder.setStyle(android.graphics.Paint.Style.STROKE);
-                badgeBorder.setStrokeWidth(3f);
-                badgeBorder.setColor(android.graphics.Color.WHITE);
-                canvas.drawCircle(bx, by, badgeRadius, badgeBorder);
-
-                // Dibujar checkmark ✓
                 android.graphics.Paint check = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
                 check.setColor(android.graphics.Color.WHITE);
                 check.setStyle(android.graphics.Paint.Style.STROKE);
-                check.setStrokeWidth(4f);
+                check.setStrokeWidth(3.2f);
                 check.setStrokeCap(android.graphics.Paint.Cap.ROUND);
                 check.setStrokeJoin(android.graphics.Paint.Join.ROUND);
-                android.graphics.Path path = new android.graphics.Path();
-                path.moveTo(bx - 8f, by);
-                path.lineTo(bx - 2f, by + 6f);
-                path.lineTo(bx + 8f, by - 7f);
-                canvas.drawPath(path, check);
+                Path checkPath = new Path();
+                checkPath.moveTo(vx - 5.6f, vy);
+                checkPath.lineTo(vx - 1.6f, vy + 4.4f);
+                checkPath.lineTo(vx + 6f, vy - 5.2f);
+                canvas.drawPath(checkPath, check);
             }
 
             bitmapCache.put(key, bmp);
@@ -341,15 +431,39 @@ class MarkerRenderer {
         }
     }
 
-    private static String statusStrokeColor(String status) {
-        if (status == null) return "#757575";
-        return switch (status) {
-            case "pending"  -> "#FF9800";
-            case "verified" -> "#4CAF50";
-            case "resolved" -> "#2196F3";
-            case "archived" -> "#9E9E9E";
-            default         -> "#757575";
-        };
+    /** Insignia tipo "esmalte": sombra propia + relleno con gradiente en vez de color plano. */
+    private static void drawGlossyBadge(Canvas canvas, float cx, float cy, float radius, int baseColor) {
+        android.graphics.Paint shadow = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        shadow.setColor(android.graphics.Color.BLACK);
+        shadow.setAlpha(55);
+        shadow.setMaskFilter(new BlurMaskFilter(4f, BlurMaskFilter.Blur.NORMAL));
+        canvas.drawCircle(cx, cy + 1.5f, radius, shadow);
+
+        android.graphics.Paint border = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        border.setColor(android.graphics.Color.WHITE);
+        canvas.drawCircle(cx, cy, radius + 1.8f, border);
+
+        int highlight = ColorUtils.blendARGB(baseColor, android.graphics.Color.WHITE, 0.5f);
+        android.graphics.RadialGradient shader = new android.graphics.RadialGradient(
+                cx - radius * 0.35f, cy - radius * 0.35f, radius * 1.6f,
+                new int[]{highlight, baseColor},
+                new float[]{0f, 1f},
+                android.graphics.Shader.TileMode.CLAMP);
+        android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        fill.setShader(shader);
+        canvas.drawCircle(cx, cy, radius, fill);
+    }
+
+    private static float statusGrayBlend(String status) {
+        if ("resolved".equals(status)) return 0.35f;
+        if ("archived".equals(status)) return 0.55f;
+        return 0f;
+    }
+
+    private static int statusAlpha(String status) {
+        if ("resolved".equals(status)) return 210;
+        if ("archived".equals(status)) return 165;
+        return 255;
     }
 
     static @DrawableRes int getCategoryDrawableId(String slug) {
@@ -374,17 +488,6 @@ class MarkerRenderer {
             case "parques"                              -> R.color.category_parques;
             case "basura", "basura-acumulada"           -> R.color.category_basura;
             default                                     -> R.color.category_otros;
-        };
-    }
-
-    private static double getUserSizeMultiplier(ReportResponse.ReportData report) {
-        ReportResponse.UserInfo user = report.getUser();
-        if (user == null || user.getLevel() == null) return 1.0;
-        return switch (user.getLevel()) {
-            case "experto"     -> 1.3;
-            case "guardian"    -> 1.2;
-            case "colaborador" -> 1.1;
-            default            -> 1.0;
         };
     }
 }
