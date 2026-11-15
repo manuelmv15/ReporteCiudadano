@@ -61,6 +61,16 @@ public class VoteResponse {
         public int votesConfirm;
         @SerializedName("votes_resolve")
         public int votesResolve;
+        /** Puntos que ganó el votante con este voto (0 si ya había cobrado este reporte). */
+        @SerializedName("points_awarded")
+        public int pointsAwarded;
+        /** Progreso del votante tras el voto; null en respuestas antiguas. */
+        @SerializedName("score")
+        public Integer score;
+        @SerializedName("coins")
+        public Integer coins;
+        @SerializedName("level")
+        public String level;
 
         public VoteData() {}
 
@@ -70,5 +80,9 @@ public class VoteResponse {
         public String getCreatedAt() { return createdAt; }
         public int getVotesConfirm() { return votesConfirm; }
         public int getVotesResolve() { return votesResolve; }
+        public int getPointsAwarded() { return pointsAwarded; }
+        public Integer getScore() { return score; }
+        public Integer getCoins() { return coins; }
+        public String getLevel() { return level; }
     }
 }

@@ -183,7 +183,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         binding.llVoteButtons.setVisibility(View.GONE);
         binding.llDistanceWarning.setVisibility(View.GONE);
         binding.tvUserVoteStatus.setVisibility(View.GONE);
-        binding.pbVoteLoading.hide();
+        hideVoteLoading();
         binding.btnLoginToVote.setVisibility(View.VISIBLE);
         binding.btnLoginToVote.setOnClickListener(v -> {
             dismiss();
@@ -352,7 +352,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 @Override
                 public void onResponse(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Response<com.bombayashi.reporteciudadano.model.SimpleResponse> response) {
                     if (!isAdded() || getView() == null) return;
-                    binding.pbVoteLoading.hide();
+                    hideVoteLoading();
                     if (response.isSuccessful()) {
                         SnackbarHelper.show(getView(), "Reporte retirado", SnackbarHelper.Variant.SUCCESS);
                         if (statusChangeListener != null) {
@@ -376,7 +376,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                 @Override
                 public void onFailure(Call<com.bombayashi.reporteciudadano.model.SimpleResponse> call, Throwable t) {
                     if (!isAdded() || getView() == null) return;
-                    binding.pbVoteLoading.hide();
+                    hideVoteLoading();
                     SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
                 }
             });
@@ -505,6 +505,16 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                             displayReportInfo();
                             if (statusChangeListener != null) statusChangeListener.onReportDataUpdated(fresh);
                         }
+                    }
+                    break;
+
+                case POINTS_AWARDED:
+                    if (getDialog() != null && getDialog().getWindow() != null) {
+                        PointsAnimator.show(
+                            (android.view.ViewGroup) getDialog().getWindow().getDecorView(),
+                            lastVoteButton,
+                            Integer.parseInt(event.getData()),
+                            "¡Gracias por votar!");
                     }
                     break;
 
@@ -640,7 +650,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
             binding.btnConfirm.setEnabled(false);
             binding.btnResolve.setEnabled(false);
         } else {
-            binding.pbVoteLoading.hide();
+            hideVoteLoading();
             if (state.isWithinRadius()) {
                 binding.btnConfirm.setEnabled(true);
                 binding.btnResolve.setEnabled(true);
@@ -670,9 +680,21 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
         }
     }
 
+    /**
+     * LoadingIndicator.hide() deja la vista INVISIBLE y conserva su hueco en el layout
+     * (aparecía un espacio vacío sobre los botones después de votar). GONE lo colapsa.
+     */
+    private void hideVoteLoading() {
+        if (binding != null) binding.pbVoteLoading.setVisibility(View.GONE);
+    }
+
+    /** Botón del último voto: de ahí brotan las burbujas de puntos. */
+    private View lastVoteButton;
+
     private void setupButtonListeners() {
         binding.btnConfirm.setOnClickListener(v -> {
             android.util.Log.d("ReportDetailBS", "👆 Click en btnConfirm");
+            lastVoteButton = v;
             if (voteStateManager != null) {
                 android.util.Log.d("ReportDetailBS", "✓ VoteStateManager existe, llamando submitVote(confirm)");
                 voteStateManager.submitVote("confirm");
@@ -683,6 +705,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
 
         binding.btnResolve.setOnClickListener(v -> {
             android.util.Log.d("ReportDetailBS", "👆 Click en btnResolve");
+            lastVoteButton = v;
             if (voteStateManager != null) {
                 android.util.Log.d("ReportDetailBS", "✓ VoteStateManager existe, llamando submitVote(resolve)");
                 voteStateManager.submitVote("resolve");
@@ -752,7 +775,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onResponse(Call<CreateReportResponse> call, Response<CreateReportResponse> response) {
                         if (!isAdded() || getView() == null) return;
-                        binding.pbVoteLoading.hide();
+                        hideVoteLoading();
                         if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                             // Actualizar objeto en memoria para próximas aperturas
                             if (response.body().getReport() != null && response.body().getReport().getPhoto() != null) {
@@ -777,7 +800,7 @@ public class ReportDetailBottomSheet extends BottomSheetDialogFragment {
                     @Override
                     public void onFailure(Call<CreateReportResponse> call, Throwable t) {
                         if (!isAdded() || getView() == null) return;
-                        binding.pbVoteLoading.hide();
+                        hideVoteLoading();
                         SnackbarHelper.show(getView(), "Error de red", SnackbarHelper.Variant.ERROR);
                     }
                 });

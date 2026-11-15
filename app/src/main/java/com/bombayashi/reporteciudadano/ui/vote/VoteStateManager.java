@@ -295,10 +295,21 @@ public class VoteStateManager {
     private void handleVoteSuccess(VoteResponse response) {
         Log.d(TAG, "═══════════════════════════════════════════");
         Log.d(TAG, "✅ handleVoteSuccess()");
-        Log.d(TAG, "⚠️ La API no retorna datos de votos, recargar reporte para obtener conteos actualizados...");
 
-        // La API retorna solo {success, message} sin datos de votos
-        // Necesitamos recargar el reporte para obtener los conteos actualizados
+        // Guardar el progreso que devuelve el servidor antes de animar, para que
+        // MainActivity no vuelva a anunciar estos puntos como "ganados mientras no estabas".
+        VoteResponse.VoteData data = response.getData();
+        if (data != null && data.getScore() != null) {
+            tokenManager.setScoreAndLevel(data.getScore(),
+                data.getLevel() != null ? data.getLevel() : tokenManager.getLevel());
+            if (data.getCoins() != null) tokenManager.setCoins(data.getCoins());
+        }
+        if (data != null && data.getPointsAwarded() > 0) {
+            voteEventLiveData.setValue(new VoteEvent(VoteEvent.Type.POINTS_AWARDED,
+                String.valueOf(data.getPointsAwarded())));
+        }
+
+        // Recargar el reporte para obtener conteos, estado y user_vote actualizados
         refreshReportVotes();
     }
 
@@ -514,6 +525,8 @@ public class VoteStateManager {
     public static class VoteEvent {
         public enum Type {
             VOTE_SUCCESS,
+            /** El servidor otorgó puntos al votante; data = cantidad. */
+            POINTS_AWARDED,
             CONFIRM_CHANGE_VOTE,
             CONFIRM_RETRACT_VOTE,
             ERROR,

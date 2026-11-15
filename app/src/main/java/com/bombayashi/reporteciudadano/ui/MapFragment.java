@@ -153,6 +153,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             @Override public void onLocationReady(Point location, float accuracy, float bearing) {
                 if (!isAdded() || getView() == null) return;
                 userLocation = location;
+                com.bombayashi.reporteciudadano.util.LocationReporter.report(
+                        requireContext(), location.latitude(), location.longitude());
                 if (smoothedLocationProvider != null) smoothedLocationProvider.push(location, bearing);
                 animateCameraTo(location);
                 SnackbarHelper.show(getView(),
@@ -163,6 +165,8 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             @Override public void onLocationUpdate(Point location, float bearing) {
                 if (!isAdded() || getView() == null) return;
                 userLocation = location;
+                com.bombayashi.reporteciudadano.util.LocationReporter.report(
+                        requireContext(), location.latitude(), location.longitude());
                 if (smoothedLocationProvider != null) smoothedLocationProvider.push(location, bearing);
             }
             @Override public void onPermissionDenied() { centerOnDefaultLocation(); }
@@ -1170,7 +1174,6 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         super.onStart();
         if (mapView != null) mapView.onStart();
         if (vm.getPoller() != null) vm.getPoller().start();
-        if (nearbyChecker != null) nearbyChecker.reset();
         votableReportsHandler.post(votableReportsRunnable);
         startContinuousLocationTracking();
     }
