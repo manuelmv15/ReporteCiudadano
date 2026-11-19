@@ -1110,12 +1110,25 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         locationComponent = com.mapbox.maps.plugin.locationcomponent.LocationComponentUtils.getLocationComponent(mapView);
 
         com.mapbox.maps.plugin.LocationPuck3D puck = new com.mapbox.maps.plugin.LocationPuck3D("asset://arrow_direction.glb");
-        puck.setModelScale(java.util.Arrays.asList(60f, 60f, 60f));
         puck.setModelScaleMode(com.mapbox.maps.plugin.ModelScaleMode.VIEWPORT);
-        puck.setModelRotation(java.util.Arrays.asList(90f, 0f, 0f));
+        // +180 en Z: el modelo quedaba apuntando contrario al rumbo (bearing se aplica como yaw
+        // en el source; este offset estático solo corrige la orientación base del asset).
+        puck.setModelRotation(java.util.Arrays.asList(90f, 0f, 180f));
         puck.setModelTranslation(java.util.Arrays.asList(0f, 0f, 2f)); // lo levanta del piso/edificios 3D
         puck.setModelCastShadows(true);
         puck.setModelReceiveShadows(true);
+        // Tamaño en pixeles (modo VIEWPORT) interpolado por zoom, en vez de un valor fijo:
+        // se ve chico/discreto alejado y gana presencia al acercarse, igual que los pines.
+        // El rango bajo (vista globo/región/ciudad, zoom ~3-13) se achicaba todo por igual
+        // (quedaba clampeado cerca del piso); ahora ese piso es casi tan grande como el techo,
+        // y solo crece un poco más al acercarte del todo.
+        puck.setModelScaleExpression(
+                "[\"interpolate\", [\"linear\"], [\"zoom\"],"
+                        + "3, [\"literal\", [100, 100, 100]],"
+                        + "13, [\"literal\", [105, 105, 105]],"
+                        + "16, [\"literal\", [115, 115, 115]],"
+                        + "18, [\"literal\", [125, 125, 125]],"
+                        + "20, [\"literal\", [135, 135, 135]]]");
 
         smoothedLocationProvider = new SmoothedLocationProvider();
         locationComponent.setLocationProvider(smoothedLocationProvider);
