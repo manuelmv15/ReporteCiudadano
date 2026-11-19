@@ -107,6 +107,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
     // pedido nuevo se descarta (ver onViewportChanged) — esto marca que hay que repetirlo
     // apenas termine, en vez de dejar los pines desactualizados hasta el próximo gesto.
     private boolean viewportDirtyWhileLoading = false;
+    // Evita re-suscribirse a subscribeCameraChanged en cada cambio de estilo de mapa
+    // (ver switchMapStyle) — esa suscripción vive en mapboxMap, no en el Style.
+    private boolean cameraChangedSubscribed = false;
 
     private static final long VOTABLE_REPORTS_CHECK_INTERVAL_MS = 30_000;
     private final android.os.Handler votableReportsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -200,34 +203,67 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         mapView = binding.mapView;
 
-        mapView.getMapboxMap().loadStyleUri(Style.STANDARD, style -> {
+        mapView.getMapboxMap().loadStyleUri(resolveMapStyleUri(), style -> {
             mapboxMap = mapView.getMapboxMap();
-            android.util.Log.d("MapFragment", "1. Estilo cargado");
+            onStyleLoaded(style, true);
+        });
+    }
 
-            // Topografía 3D
-            com.mapbox.maps.extension.style.sources.generated.RasterDemSource demSource =
-                    new com.mapbox.maps.extension.style.sources.generated.RasterDemSource.Builder("mapbox-dem")
-                            .url("mapbox://mapbox.mapbox-terrain-dem-v1")
-                            .tileSize(512)
-                            .maxzoom(14L)
-                            .build();
-            demSource.bindTo(style);
+    /** "standard" o "satellite" (persistido) → el URI de estilo de Mapbox a cargar. */
+    private String resolveMapStyleUri() {
+        String saved = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext()).getMapStyle();
+        return "satellite".equals(saved) ? Style.STANDARD_SATELLITE : Style.STANDARD;
+    }
 
-            com.mapbox.maps.extension.style.terrain.generated.Terrain terrain =
-                    new com.mapbox.maps.extension.style.terrain.generated.Terrain("mapbox-dem")
-                            .exaggeration(1.5);
-            terrain.bindTo(style);
+    /** Alterna Standard ↔ Standard Satellite y recarga el estilo del mapa en vivo. */
+    private void toggleMapStyle() {
+        if (mapboxMap == null) return;
+        com.bombayashi.reporteciudadano.util.SettingsManager sm =
+                com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext());
+        boolean toSatellite = !"satellite".equals(sm.getMapStyle());
+        sm.setMapStyle(toSatellite ? "satellite" : "standard");
 
+        if (binding != null) binding.pbMapLoading.show();
+        mapboxMap.loadStyleUri(toSatellite ? Style.STANDARD_SATELLITE : Style.STANDARD, style -> {
+            onStyleLoaded(style, false);
+            if (binding != null) binding.pbMapLoading.hide();
+        });
+    }
 
-            // Luz dinámica según hora del día
-            applyDynamicLighting();
-            applyMapDeclutter();
+    /**
+     * Todo lo que depende del Style actual: se reconstruye tanto en la carga inicial como
+     * cada vez que se cambia de estilo (ver toggleMapStyle), porque un Style nuevo no
+     * conserva sources/layers del anterior. Lo que NO depende del Style (listeners de
+     * mapboxMap/mapView, FABs, permisos de ubicación) corre una sola vez, en firstLoad.
+     */
+    private void onStyleLoaded(com.mapbox.maps.Style style, boolean firstLoad) {
+        android.util.Log.d("MapFragment", "1. Estilo cargado (firstLoad=" + firstLoad + ")");
 
-            // Puck 3D del usuario (un solo elemento visual: sin halo/flecha duplicados)
-            setupLocationPuck();
+        // Topografía 3D
+        com.mapbox.maps.extension.style.sources.generated.RasterDemSource demSource =
+                new com.mapbox.maps.extension.style.sources.generated.RasterDemSource.Builder("mapbox-dem")
+                        .url("mapbox://mapbox.mapbox-terrain-dem-v1")
+                        .tileSize(512)
+                        .maxzoom(14L)
+                        .build();
+        demSource.bindTo(style);
 
-            android.util.Log.d("MapFragment", "2. Inicializando components...");
-            setupAnnotationManager(style);
+        com.mapbox.maps.extension.style.terrain.generated.Terrain terrain =
+                new com.mapbox.maps.extension.style.terrain.generated.Terrain("mapbox-dem")
+                        .exaggeration(1.5);
+        terrain.bindTo(style);
+
+        // Luz dinámica según hora del día
+        applyDynamicLighting();
+        applyMapDeclutter();
+
+        // Puck 3D del usuario (un solo elemento visual: sin halo/flecha duplicados)
+        setupLocationPuck();
+
+        android.util.Log.d("MapFragment", "2. Inicializando components...");
+        setupAnnotationManager(style);
+
+        if (firstLoad) {
             setupMapListeners();
             setupFAB();
             requestUserLocation();
@@ -240,15 +276,23 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                 onMapReadyCallback = null;
             }
             if (binding != null) binding.pbMapLoading.hide();
+        }
 
-            android.util.Log.d("MapFragment", "3. Cargando reportes...");
-            if (!vm.getReportMarkers().isEmpty()) {
-                // Data survived rotation — re-draw from ViewModel, no API call needed
-                repopulateMarkersFromViewModel();
+        android.util.Log.d("MapFragment", "3. Cargando reportes...");
+        if (vm.heatmapEnabled) {
+            // La vista de densidad también vivía en los layers del Style anterior.
+            if (vm.heatmapPoints != null && !vm.heatmapPoints.isEmpty()) {
+                buildHeatmapLayer(vm.heatmapPoints);
             } else {
-                loadReportsFromAPI();
+                buildHeatmapFromReportMarkers();
             }
-        });
+        } else if (!vm.getReportMarkers().isEmpty()) {
+            // Data survived rotation (o un cambio de estilo) — re-dibujar desde el
+            // ViewModel, sin golpear la API de nuevo.
+            repopulateMarkersFromViewModel();
+        } else {
+            loadReportsFromAPI();
+        }
     }
 
     private void repopulateMarkersFromViewModel() {
@@ -261,6 +305,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
     private void setupAnnotationManager(Style style) {
         markerRenderer.init(mapView, style);
+
+        // La suscripción vive en mapboxMap/mapView, no en el Style — si esto corre de
+        // nuevo tras un cambio de estilo (ver switchMapStyle), se duplicarían los fetches
+        // de viewport. Solo se registra una vez.
+        if (cameraChangedSubscribed) return;
+        cameraChangedSubscribed = true;
 
         mapboxMap.subscribeCameraChanged(event -> {
             double zoom = mapboxMap.getCameraState().getZoom();
@@ -994,6 +1044,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
         // Botón: Filtros (RF-19)
         binding.fabFilter.setOnClickListener(v -> showFilterDialog());
+
+        // Botón: Estilo del mapa (Standard ↔ Satelital)
+        binding.fabMapStyle.setOnClickListener(v -> toggleMapStyle());
 
         // Botón: Perfil de usuario
         binding.fabProfile.setOnClickListener(v -> {

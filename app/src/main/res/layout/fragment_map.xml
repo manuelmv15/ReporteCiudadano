@@ -103,6 +103,23 @@
                 app:iconTint="?attr/colorOnSurface"
                 app:layout_overflowText="Filtros" />
 
+            <!-- Botón: Estilo del mapa (Standard / Satelital) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/fab_map_style"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                app:iconSize="22dp"
+                app:iconGravity="textStart"
+                android:contentDescription="Estilo del mapa"
+                app:icon="@drawable/layers_24px"
+                app:iconTint="?attr/colorOnSurface"
+                app:layout_overflowText="Estilo del mapa" />
+
             <!-- Botón: Mi Cuenta -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/fab_profile"

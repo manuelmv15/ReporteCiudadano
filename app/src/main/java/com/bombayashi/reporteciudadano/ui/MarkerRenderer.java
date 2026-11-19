@@ -94,6 +94,7 @@ class MarkerRenderer {
     private ScreenCoordinate lastTouch;
     /** Margen alrededor del toque para la consulta, así no hace falta acertarle al pixel exacto. */
     private static final float TAP_SLOP_DP = 10f;
+    private boolean clickListenerRegistered = false;
 
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     void init(MapView mapView, Style style) {
@@ -115,10 +116,15 @@ class MarkerRenderer {
             return false;
         });
 
-        GesturesUtils.getGestures(mapView).addOnMapClickListener(point -> {
-            handleMapClick(point);
-            return true;
-        });
+        // addOnMapClickListener() suma a una lista, no reemplaza — si init() corre de
+        // nuevo (cambio de estilo de mapa), evita duplicar el handler de tap en los pines.
+        if (!clickListenerRegistered) {
+            clickListenerRegistered = true;
+            GesturesUtils.getGestures(mapView).addOnMapClickListener(point -> {
+                handleMapClick(point);
+                return true;
+            });
+        }
     }
 
     // ---------------------------------------------------------------------

@@ -23,6 +23,8 @@ public class SettingsManager {
     private static final String KEY_ALERT_CAT_OTRO = "alert_cat_otro";
     // "auto", "dawn", "day", "dusk", "night"
     private static final String KEY_MAP_PRESET = "map_preset";
+    // "standard", "satellite"
+    private static final String KEY_MAP_STYLE = "map_style";
     // SeekBar: 0→100m, 1→200m, 2→300m, 3→400m, 4→500m
     private static final int[] RADIUS_VALUES = {100, 200, 300, 400, 500};
 
@@ -148,5 +150,13 @@ public class SettingsManager {
 
     public void setMapPreset(String preset) {
         prefs.edit().putString(KEY_MAP_PRESET, preset).apply();
+    }
+
+    public String getMapStyle() {
+        return prefs.getString(KEY_MAP_STYLE, "standard");
+    }
+
+    public void setMapStyle(String style) {
+        prefs.edit().putString(KEY_MAP_STYLE, style).apply();
     }
 }
