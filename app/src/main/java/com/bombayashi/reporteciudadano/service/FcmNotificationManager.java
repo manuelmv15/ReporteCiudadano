@@ -16,7 +16,6 @@ import com.google.gson.Gson;
 
 public class FcmNotificationManager {
     private static final String TAG = "FcmNotificationManager";
-    private static final double VOTING_RANGE_KM = 0.3;  // 300m per RF-21
     private static FcmNotificationManager instance;
     private final Context context;
     private final Gson gson;
@@ -104,36 +103,34 @@ public class FcmNotificationManager {
     }
 
     /**
-     * Check if user is within voting range for this report
-     * Uses cached location if available, falls back to last known location
+     * ¿El usuario está a menos de radiusMeters del reporte? Usa la última ubicación del
+     * dispositivo (bloquea hasta 3 s; onMessageReceived corre fuera del hilo principal).
+     * Sin permiso o sin ubicación confía en el servidor, que ya filtró a 500 m con la
+     * última ubicación enviada por la app (POST /me/location).
      */
-    public boolean isUserInVotingRange(double reportLat, double reportLng) {
+    public boolean isUserInVotingRange(double reportLat, double reportLng, int radiusMeters) {
         try {
-            // Try to get current user location
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                if (context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
-                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "⚠️ Location permission not granted, suppressing notification");
-                    return false;
-                }
-            }
+            boolean fine = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            boolean coarse = context.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!fine && !coarse) return true;
 
-            fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
-                if (location == null) {
-                    Log.d(TAG, "⚠️ No location available");
-                }
-            });
+            Location location = com.google.android.gms.tasks.Tasks.await(
+                    fusedLocationClient.getLastLocation(), 3, java.util.concurrent.TimeUnit.SECONDS);
+            if (location == null) return true;
 
-            // For notification flow, we check the distance provided in the payload
-            // The backend calculates distance based on user's last known location
-            // If distance > 0.5km (500m), backend won't send notification
-            // So if we get here, backend already validated distance
-            Log.d(TAG, "✓ User in voting range");
+            double distance = LocationUtil.calculateDistance(
+                    location.getLatitude(), location.getLongitude(), reportLat, reportLng);
+            // Margen por la imprecisión del GPS, como máximo 100 m.
+            double margin = Math.min(location.hasAccuracy() ? location.getAccuracy() : 0, 100);
+            Log.d(TAG, "📍 Distancia al reporte: " + Math.round(distance) + " m (radio " + radiusMeters + " m)");
+            return distance <= radiusMeters + margin;
+        } catch (SecurityException e) {
             return true;
-
         } catch (Exception e) {
-            Log.e(TAG, "Error checking distance", e);
-            return false;
+            Log.w(TAG, "No se pudo obtener la ubicación, se confía en el filtro del servidor", e);
+            return true;
         }
     }
 

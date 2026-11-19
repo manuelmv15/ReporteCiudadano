@@ -46,16 +46,30 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             return;
         }
 
-        // Check for duplicate notifications
-        if (notificationManager.isDuplicateNotification(payload.getReportId())) {
-            Log.d(TAG, "🔄 Duplicate notification detected, not showing");
-            notificationManager.cacheNotification(payload);
+        if ("status_changed".equals(payload.getType())) {
+            showStatusNotification(payload);
             return;
         }
 
-        // Check if user is in voting range (backend already validates, but double-check)
-        if (!notificationManager.isUserInVotingRange(payload.getLatitude(), payload.getLongitude())) {
-            Log.d(TAG, "📍 User not in voting range, suppressing notification");
+        com.bombayashi.reporteciudadano.util.SettingsManager settings =
+                com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(this);
+
+        // Interruptor "Notificaciones" de Ajustes
+        if (!settings.isNotificationsEnabled()) {
+            Log.d(TAG, "🔕 Notificaciones desactivadas en ajustes");
+            return;
+        }
+
+        // RF-25: un reporte se avisa una sola vez (compartido con el aviso local del mapa)
+        if (com.bombayashi.reporteciudadano.util.NotifiedReports.wasNotified(this, payload.getReportId())) {
+            Log.d(TAG, "🔄 Ya se avisó de este reporte, no se repite");
+            return;
+        }
+
+        // RF-21/RF-23: solo si estás dentro del radio configurado (100–500 m, 300 por defecto)
+        if (!notificationManager.isUserInVotingRange(payload.getLatitude(), payload.getLongitude(),
+                settings.getAlertRadiusMeters())) {
+            Log.d(TAG, "📍 Fuera del radio de alerta, no se muestra");
             return;
         }
 
@@ -65,14 +79,37 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             return;
         }
 
-        // Cache notification for offline/replay scenarios
         notificationManager.cacheNotification(payload);
-
-        // Mark as processed
         notificationManager.markAsProcessed(payload.getReportId());
+        com.bombayashi.reporteciudadano.util.NotifiedReports.markNotified(this, payload.getReportId());
 
-        // Show notification with deep link
         showNotification(payload);
+    }
+
+    /** Aviso de cambio de estado de un reporte que votaste: sin botones de voto ni filtros de cercanía. */
+    private void showStatusNotification(NotificationPayloadModel payload) {
+        try {
+            Intent deepLinkIntent = new Intent(Intent.ACTION_VIEW);
+            deepLinkIntent.setData(Uri.parse("reporteciudadano://show_report?id=" + payload.getReportId()));
+            deepLinkIntent.setClass(this, MainActivity.class);
+            deepLinkIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, payload.getReportId(), deepLinkIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            NotificationCompat.Builder builder =
+                    new NotificationCompat.Builder(this, NotificationChannelHelper.CHANNEL_ID_UPDATES)
+                            .setSmallIcon(R.drawable.warning_24px)
+                            .setContentTitle(payload.getTitle())
+                            .setContentText(payload.getBody())
+                            .setAutoCancel(true)
+                            .setContentIntent(pendingIntent);
+
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            // id distinto del aviso de "reporte nuevo" para no reemplazarlo
+            if (nm != null) nm.notify(100_000 + payload.getReportId(), builder.build());
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing status notification", e);
+        }
     }
 
     @Override

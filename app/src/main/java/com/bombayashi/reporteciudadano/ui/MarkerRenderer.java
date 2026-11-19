@@ -12,6 +12,7 @@ import androidx.core.graphics.ColorUtils;
 
 import com.bombayashi.reporteciudadano.R;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Geometry;
@@ -22,6 +23,7 @@ import com.mapbox.maps.MapboxMap;
 import com.mapbox.maps.QueriedRenderedFeature;
 import com.mapbox.maps.RenderedQueryGeometry;
 import com.mapbox.maps.RenderedQueryOptions;
+import com.mapbox.maps.ScreenBox;
 import com.mapbox.maps.ScreenCoordinate;
 import com.mapbox.maps.Style;
 import com.mapbox.maps.extension.style.expressions.generated.Expression;
@@ -58,6 +60,12 @@ class MarkerRenderer {
     private static final String REPORTS_LAYER_ID = "reports-layer";
     private static final String CLUSTERS_CIRCLE_LAYER_ID = "reports-clusters-circle";
     private static final String CLUSTERS_COUNT_LAYER_ID = "reports-clusters-count";
+    /** Zoom máximo al que se agrupan pines; por encima se dibujan sueltos. */
+    private static final long CLUSTER_MAX_ZOOM = 17L;
+    /** Tope de reportes en el selector de pines solapados. */
+    private static final long MAX_CHOOSER_ITEMS = 50L;
+
+    private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private final Context context;
     private final Map<String, ReportResponse.ReportData> reportMarkers;
@@ -82,6 +90,12 @@ class MarkerRenderer {
         this.clickListener = clickListener;
     }
 
+    /** Último punto de pantalla donde se levantó el dedo (px, relativo al MapView). */
+    private ScreenCoordinate lastTouch;
+    /** Margen alrededor del toque para la consulta, así no hace falta acertarle al pixel exacto. */
+    private static final float TAP_SLOP_DP = 10f;
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
     void init(MapView mapView, Style style) {
         this.mapboxMap = mapView.getMapboxMap();
         this.style = style;
@@ -89,6 +103,17 @@ class MarkerRenderer {
         reportFeatures.clear();
 
         setupReportsSourceAndLayers(style);
+
+        // El click de Mapbox solo entrega la coordenada geográfica. Volver a pasarla a pantalla
+        // (pixelForCoordinate) no da el mismo pixel con el mapa inclinado y zoom alto (a zoom 22
+        // con pitch 45° se desfasaba ~350 px y el toque no encontraba el pin), así que se guarda
+        // el punto real del dedo. Devuelve false: no consume el evento, Mapbox lo sigue procesando.
+        mapView.setOnTouchListener((v, event) -> {
+            if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                lastTouch = new ScreenCoordinate(event.getX(), event.getY());
+            }
+            return false;
+        });
 
         GesturesUtils.getGestures(mapView).addOnMapClickListener(point -> {
             handleMapClick(point);
@@ -113,7 +138,7 @@ class MarkerRenderer {
                 .featureCollection(FeatureCollection.fromFeatures(new ArrayList<>()))
                 .cluster(true)
                 .clusterRadius(55L)
-                .clusterMaxZoom(17L)
+                .clusterMaxZoom(CLUSTER_MAX_ZOOM)
                 .build();
         reportsSource.bindTo(style);
 
@@ -170,24 +195,37 @@ class MarkerRenderer {
 
     private void handleMapClick(Point point) {
         if (mapboxMap == null) return;
-        ScreenCoordinate screen = mapboxMap.pixelForCoordinate(point);
+        ScreenCoordinate screen = (lastTouch != null) ? lastTouch : mapboxMap.pixelForCoordinate(point);
+        double slop = TAP_SLOP_DP * context.getResources().getDisplayMetrics().density;
+        ScreenBox box = new ScreenBox(
+                new ScreenCoordinate(screen.getX() - slop, screen.getY() - slop),
+                new ScreenCoordinate(screen.getX() + slop, screen.getY() + slop));
         RenderedQueryOptions opts = new RenderedQueryOptions(
                 Arrays.asList(REPORTS_LAYER_ID, CLUSTERS_CIRCLE_LAYER_ID, CLUSTERS_COUNT_LAYER_ID), null);
 
-        mapboxMap.queryRenderedFeatures(new RenderedQueryGeometry(screen), opts, expected -> {
+        mapboxMap.queryRenderedFeatures(new RenderedQueryGeometry(box), opts, expected -> {
             if (!expected.isValue()) return;
             List<QueriedRenderedFeature> results = expected.getValue();
             if (results == null || results.isEmpty()) return;
 
-            Feature feature = results.get(0).getQueriedFeature().getFeature();
-            if (feature == null) return;
+            // Pines solapados: todos los reportes bajo el dedo, no solo el de arriba.
+            List<ReportResponse.ReportData> tapped = new ArrayList<>();
+            Feature cluster = null;
+            for (QueriedRenderedFeature result : results) {
+                Feature feature = result.getQueriedFeature().getFeature();
+                if (feature == null) continue;
+                if (feature.hasProperty("point_count")) {
+                    if (cluster == null) cluster = feature;
+                } else {
+                    ReportResponse.ReportData report = reportFromFeature(feature);
+                    if (report != null && !tapped.contains(report)) tapped.add(report);
+                }
+            }
 
-            if (feature.hasProperty("point_count")) {
-                expandCluster(feature);
-            } else if (feature.hasProperty("reportId")) {
-                int reportId = feature.getNumberProperty("reportId").intValue();
-                ReportResponse.ReportData report = reportMarkers.get(String.valueOf(reportId));
-                if (report != null) clickListener.onReportClicked(report);
+            if (!tapped.isEmpty()) {
+                openReports(tapped);
+            } else if (cluster != null) {
+                expandCluster(cluster);
             }
         });
     }
@@ -201,6 +239,14 @@ class MarkerRenderer {
         mapboxMap.getGeoJsonClusterExpansionZoom(REPORTS_SOURCE_ID, clusterFeature, expected -> {
             if (!expected.isValue() || mapboxMap == null) return;
             Object contents = expected.getValue().getValue().getContents();
+
+            // Si el cluster solo se separa pasando CLUSTER_MAX_ZOOM, sus reportes están
+            // (casi) en el mismo punto: hacer zoom no los separa, así que se elige de una lista.
+            if (contents instanceof Number && ((Number) contents).doubleValue() > CLUSTER_MAX_ZOOM) {
+                showClusterLeaves(clusterFeature);
+                return;
+            }
+
             double targetZoom = (contents instanceof Number)
                     ? ((Number) contents).doubleValue() + 0.3
                     : mapboxMap.getCameraState().getZoom() + 2.0;
@@ -208,6 +254,128 @@ class MarkerRenderer {
             CameraOptions cam = new CameraOptions.Builder().center(center).zoom(targetZoom).build();
             CameraAnimationsUtils.easeTo(mapboxMap, cam, null);
         });
+    }
+
+    private void showClusterLeaves(Feature clusterFeature) {
+        if (mapboxMap == null) return;
+        mapboxMap.getGeoJsonClusterLeaves(REPORTS_SOURCE_ID, clusterFeature, MAX_CHOOSER_ITEMS, 0L, expected -> {
+            if (!expected.isValue()) return;
+            List<Feature> leaves = expected.getValue().getFeatureCollection();
+            if (leaves == null) return;
+
+            List<ReportResponse.ReportData> reports = new ArrayList<>();
+            for (Feature leaf : leaves) {
+                ReportResponse.ReportData report = reportFromFeature(leaf);
+                if (report != null && !reports.contains(report)) reports.add(report);
+            }
+            openReports(reports);
+        });
+    }
+
+    private ReportResponse.ReportData reportFromFeature(Feature feature) {
+        if (!feature.hasProperty("reportId")) return null;
+        int reportId = feature.getNumberProperty("reportId").intValue();
+        return reportMarkers.get(String.valueOf(reportId));
+    }
+
+    /** Un solo reporte se abre directo; si hay varios en el mismo lugar, se elige de una lista. */
+    private void openReports(List<ReportResponse.ReportData> reports) {
+        if (reports.isEmpty()) return;
+        mainHandler.post(() -> {
+            if (reports.size() == 1) {
+                clickListener.onReportClicked(reports.get(0));
+            } else {
+                showReportChooser(reports);
+            }
+        });
+    }
+
+    private void showReportChooser(List<ReportResponse.ReportData> reports) {
+        try {
+            android.view.LayoutInflater inflater = android.view.LayoutInflater.from(context);
+            float density = context.getResources().getDisplayMetrics().density;
+
+            android.widget.LinearLayout list = new android.widget.LinearLayout(context);
+            list.setOrientation(android.widget.LinearLayout.VERTICAL);
+            int padH = (int) (20 * density);
+            list.setPadding(padH, (int) (8 * density), padH, 0);
+
+            android.widget.ScrollView scroll = new android.widget.ScrollView(context);
+            scroll.addView(list);
+
+            androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(context)
+                    .setTitle(context.getString(R.string.map_overlapping_reports_title, reports.size()))
+                    .setView(scroll)
+                    .setNegativeButton("Cancelar", null)
+                    .create();
+
+            for (ReportResponse.ReportData report : reports) {
+                android.view.View row = inflater.inflate(R.layout.item_overlapping_report, list, false);
+                bindChooserRow(row, report);
+                row.setOnClickListener(v -> {
+                    dialog.dismiss();
+                    clickListener.onReportClicked(report);
+                });
+                list.addView(row);
+            }
+
+            dialog.show();
+        } catch (RuntimeException e) {
+            // Contexto sin ventana (fragment ya desmontado): no hay dónde mostrar el diálogo.
+            android.util.Log.w("MarkerRenderer", "No se pudo mostrar el selector de reportes", e);
+        }
+    }
+
+    private void bindChooserRow(android.view.View row, ReportResponse.ReportData report) {
+        String slug = (report.getCategory() != null) ? report.getCategory().getSlug() : "otros";
+        String name = (report.getCategory() != null && report.getCategory().getName() != null)
+                ? report.getCategory().getName() : "Reporte";
+
+        android.widget.ImageView icon = row.findViewById(R.id.ivCategoryIcon);
+        icon.setImageResource(getCategoryDrawableId(slug));
+        icon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, getCategoryColor(slug))));
+
+        ((android.widget.TextView) row.findViewById(R.id.tvCategory)).setText(name);
+
+        android.widget.TextView description = row.findViewById(R.id.tvDescription);
+        String text = report.getDescription();
+        boolean hasText = text != null && !text.isBlank() && !"Reporte desde app".equals(text);
+        description.setVisibility(hasText ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (hasText) description.setText(text);
+
+        ((android.widget.TextView) row.findViewById(R.id.tvConfirmCount)).setText(String.valueOf(report.getVotesConfirm()));
+        ((android.widget.TextView) row.findViewById(R.id.tvResolveCount)).setText(String.valueOf(report.getVotesResolve()));
+
+        // Píldora tonal: texto en el color del estado y fondo del mismo color al ~15%, como en Mis reportes.
+        String status = report.getStatus() != null ? report.getStatus() : "pending";
+        int statusColor = androidx.core.content.ContextCompat.getColor(context, statusColorRes(status));
+        android.widget.TextView pill = row.findViewById(R.id.tvStatus);
+        pill.setText(statusLabel(status));
+        pill.setTextColor(statusColor);
+        pill.setBackgroundTintList(android.content.res.ColorStateList.valueOf((statusColor & 0x00FFFFFF) | 0x26000000));
+
+        row.setContentDescription(name + ", " + statusLabel(status));
+    }
+
+    private static int statusColorRes(String status) {
+        switch (status) {
+            case "pending": return R.color.status_pending;
+            case "verified": return R.color.status_verified;
+            case "resolved": return R.color.status_resolved;
+            default: return R.color.status_archived;
+        }
+    }
+
+    private static String statusLabel(String status) {
+        if (status == null) return "";
+        switch (status) {
+            case "pending": return "Pendiente";
+            case "verified": return "Verificado";
+            case "resolved": return "Resuelto";
+            case "archived": return "Archivado";
+            default: return status;
+        }
     }
 
     // ---------------------------------------------------------------------

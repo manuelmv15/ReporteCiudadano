@@ -129,6 +129,10 @@ public interface ApiService {
     @POST("me/fcm-token")
     Call<Void> updateFcmToken(@Query("fcm_token") String fcmToken);
 
+    /** Última ubicación, para que el servidor filtre el push de reportes cercanos. */
+    @POST("me/location")
+    Call<SimpleResponse> updateLocation(@Body com.bombayashi.reporteciudadano.model.LocationUpdateRequest request);
+
     // ===== Tienda de cosméticos =====
 
     @GET("shop")

@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -15,6 +16,14 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.bombayashi.reporteciudadano.databinding.ActivityMainBinding;
+import com.bombayashi.reporteciudadano.model.AuthResponse;
+import com.bombayashi.reporteciudadano.network.ApiClient;
+import com.bombayashi.reporteciudadano.ui.PointsAnimator;
+import com.bombayashi.reporteciudadano.util.TokenManager;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 import com.bombayashi.reporteciudadano.service.NotificationChannelHelper;
 
 public class MainActivity extends AppCompatActivity {
@@ -54,6 +63,40 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         checkNotificationsEnabled();
+        checkPointsEarnedWhileAway();
+    }
+
+    /**
+     * Puntos que el servidor otorgó mientras la app no estaba al frente (votos de vecinos
+     * en tus reportes, reporte verificado o resuelto). Compara el score de /me con la
+     * copia local y anima la diferencia. El voto propio ya actualiza la copia local en
+     * VoteStateManager, así que no se anuncia dos veces.
+     */
+    private void checkPointsEarnedWhileAway() {
+        TokenManager tm = TokenManager.getInstance(this);
+        if (!tm.isLoggedIn()) return;
+
+        ApiClient.getInstance().getMe().enqueue(new Callback<AuthResponse>() {
+            @Override
+            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
+                if (isFinishing() || isDestroyed()) return;
+                if (!response.isSuccessful() || response.body() == null) return;
+                AuthResponse.User user = response.body().getUser();
+                if (user == null) return;
+
+                int gained = user.getScore() - tm.getScore();
+                tm.saveUserProgress(user);
+                if (gained > 0) {
+                    PointsAnimator.show((ViewGroup) getWindow().getDecorView(), gained,
+                            "Ganaste puntos mientras no estabas");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<AuthResponse> call, Throwable t) {
+                // sin conexión: se revisa en el próximo onResume
+            }
+        });
     }
 
     private void checkNotificationsEnabled() {

@@ -33,8 +33,11 @@ public class MapViewModel extends ViewModel {
     int currentReportsPage = 1;
     String lastFetchTimestamp = null;
 
-    // Heatmap points — fetched once at startup
+    // Puntos de densidad (zoom bajo). Se refrescan con TTL: si se cachearan para siempre,
+    // los reportes archivados después seguirían pintándose y los nuevos no aparecerían.
     java.util.List<com.bombayashi.reporteciudadano.model.HeatmapResponse.Point> heatmapPoints = null;
+    long heatmapFetchedAtMs = 0L;
+    boolean heatmapFetchInFlight = false;
 
     Map<String, ReportResponse.ReportData> getReportMarkers() {
         return reportMarkers;

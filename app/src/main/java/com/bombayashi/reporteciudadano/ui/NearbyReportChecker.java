@@ -11,6 +11,7 @@ import com.bombayashi.reporteciudadano.MainActivity;
 import com.bombayashi.reporteciudadano.R;
 import com.bombayashi.reporteciudadano.model.ReportResponse;
 import com.bombayashi.reporteciudadano.service.NotificationChannelHelper;
+import com.bombayashi.reporteciudadano.util.NotifiedReports;
 import com.mapbox.geojson.Point;
 
 import java.util.Collection;
@@ -21,57 +22,49 @@ class NearbyReportChecker {
     private static final int NOTIFICATION_ID = 999;
 
     private final Context context;
-    private int lastNotifiedCount = -1;
 
     NearbyReportChecker(Context context) {
-        this.context = context;
+        this.context = context.getApplicationContext();
     }
 
+    /**
+     * Avisa solo de reportes votables (a menos de 500 m, no tuyos, no resueltos) de los que
+     * todavía no se avisó nunca, ni por push ni por este aviso (ver NotifiedReports). Así
+     * entrar a la app no repite el aviso de un reporte que ya conocías.
+     */
     void check(Collection<ReportResponse.ReportData> reports, Point userLocation, int currentUserId) {
-        if (userLocation == null || reports.isEmpty()) {
-            android.util.Log.d("NearbyReportChecker", "⏭ skip: location=" + userLocation + " reports=" + reports.size());
-            return;
-        }
+        if (userLocation == null || reports.isEmpty()) return;
 
         try {
-            int votableCount = 0;
+            java.util.List<Integer> fresh = new java.util.ArrayList<>();
             for (ReportResponse.ReportData report : reports) {
                 String status = report.getStatus();
                 if ("archived".equals(status) || "resolved".equals(status)) continue;
                 if (report.getUser() != null && report.getUser().getId() == currentUserId) continue;
                 if (report.getUserVote() != null) continue;
+                if (NotifiedReports.wasNotified(context, report.getId())) continue;
 
                 double dist = haversineKm(
                         userLocation.latitude(), userLocation.longitude(),
                         report.getLatitude(), report.getLongitude()
                 );
-                android.util.Log.d("NearbyReportChecker", "📏 report " + report.getId() + " dist=" + String.format("%.0fm", dist * 1000));
-                if (dist <= VOTABLE_RANGE_KM) votableCount++;
+                if (dist <= VOTABLE_RANGE_KM) fresh.add(report.getId());
             }
 
-            android.util.Log.d("NearbyReportChecker", "✅ votable=" + votableCount + " lastNotified=" + lastNotifiedCount);
-
-            if (votableCount > 0 && votableCount != lastNotifiedCount) {
-                lastNotifiedCount = votableCount;
-                notify(votableCount);
-            } else if (votableCount == 0) {
-                lastNotifiedCount = 0;
-            }
+            if (fresh.isEmpty()) return;
+            for (int id : fresh) NotifiedReports.markNotified(context, id);
+            notify(fresh.size());
         } catch (Exception e) {
             android.util.Log.e("NearbyReportChecker", "Error checking votable reports", e);
         }
-    }
-
-    void reset() {
-        lastNotifiedCount = -1;
     }
 
     private void notify(int count) {
         try {
             String title = "¡Puedes votar!";
             String message = count == 1
-                    ? "Hay 1 reporte cerca donde puedes votar"
-                    : "Hay " + count + " reportes cerca donde puedes votar";
+                    ? "Hay 1 reporte nuevo cerca donde puedes votar"
+                    : "Hay " + count + " reportes nuevos cerca donde puedes votar";
 
             Intent intent = new Intent(context, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
