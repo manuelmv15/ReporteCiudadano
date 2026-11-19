@@ -323,9 +323,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             return;
         }
 
-        // Cámara quieta a zoom suficiente — apagar heatmap si estaba activo
-        if (vm.heatmapEnabled) toggleHeatmap(false);
-
+        // El heatmap se apaga recién cuando los pines están listos para reemplazarlo
+        // (ver cada rama más abajo) — apagarlo acá dejaba un hueco en blanco mientras
+        // el fetch/caché todavía estaba en vuelo.
         if (vm.isLoadingReports) {
             viewportDirtyWhileLoading = true;
             return;
@@ -368,6 +368,9 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                     java.util.List<ReportResponse.ReportData> reports = response.body().getData();
                     android.util.Log.d("MapFragment", "✓ Viewport reports: " + (reports != null ? reports.size() : 0));
 
+                    // Recién acá hay pines listos para reemplazar el heatmap — así no queda
+                    // un hueco en blanco entre que se apaga la burbuja y llegan los pines.
+                    if (vm.heatmapEnabled) toggleHeatmap(false);
                     if (markerRenderer != null) markerRenderer.removeOutsideBounds(latMin, latMax, lngMin, lngMax);
 
                     if (reports != null) {
@@ -394,6 +397,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         }
                     }
                 } else {
+                    if (vm.heatmapEnabled) toggleHeatmap(false);
                     android.util.Log.e("MapFragment", "✗ Error HTTP: " + response.code());
                     SnackbarHelper.show(getView(), "Error: " + response.code(), SnackbarHelper.Variant.ERROR);
                 }
@@ -404,6 +408,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             public void onFailure(@NonNull Call<ReportResponse> call, @NonNull Throwable t) {
                 vm.isLoadingReports = false;
                 if (!isAdded() || getView() == null) return;
+                if (vm.heatmapEnabled) toggleHeatmap(false);
                 android.util.Log.e("MapFragment", "❌ Error de red: " + t.getMessage(), t);
                 SnackbarHelper.show(getView(), "Error de conexión", SnackbarHelper.Variant.ERROR);
                 maybeRetryViewportFetch();
@@ -444,6 +449,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                         if (info.getState() == androidx.work.WorkInfo.State.SUCCEEDED) {
                             android.util.Log.d("MapFragment", "✓ Sync de pendientes completado, refrescando mapa");
                             pollForUpdates();
+                            invalidateHeatmapCache();
 
                             dbExecutor.execute(() -> {
                                 int remaining = appDatabase.pendingActionDao().getPending().size();
@@ -483,6 +489,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
 
             requireActivity().runOnUiThread(() -> {
                 if (!isAdded() || getView() == null) return;
+                if (vm.heatmapEnabled) toggleHeatmap(false);
                 int addedCount = 0;
                 for (ReportCacheEntity entity : cached) {
                     if (reportMarkers().size() >= MAX_REPORTS) break;
@@ -552,6 +559,16 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
             android.util.Log.w("MapFragment", "No se pudo parsear created_at: " + createdAtIso);
             return 0;
         }
+    }
+
+    /**
+     * Descarta el snapshot de puntos de heatmap y lo vuelve a traer. Sin esto, un reporte
+     * nuevo (sobre todo uno aislado, lejos de otros) nunca aparece como burbuja "1" al
+     * alejar el zoom: la vista de densidad seguía usando la foto de cuando se abrió el mapa.
+     */
+    private void invalidateHeatmapCache() {
+        vm.heatmapPoints = null;
+        prefetchHeatmapPoints();
     }
 
     /** Fetch en background al arrancar — guarda puntos en ViewModel para uso inmediato. */
@@ -812,6 +829,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
                                 " | Coords: " + report.getLatitude() + ", " + report.getLongitude() +
                                 " | Category: " + (report.getCategory() != null ? report.getCategory().getSlug() : "null"));
                         addReportMarker(report);
+                        invalidateHeatmapCache();
                         SnackbarHelper.show(getView(), "Reporte creado exitosamente", SnackbarHelper.Variant.SUCCESS);
                     } else {
                         android.util.Log.e("MapFragment", "✗ API retornó report null");
