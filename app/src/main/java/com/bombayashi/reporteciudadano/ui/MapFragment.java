@@ -1083,6 +1083,7 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
         profileSheet.setLogoutListener(this::handleLogout);
         profileSheet.setOnSettingsDismissListener(() -> {
             applyDynamicLighting();
+            applyMapDeclutter();
             applyToolbarTheme(); // pudo cambiar el color de barra en la tienda
         });
         profileSheet.show(getChildFragmentManager(), "user_profile");
@@ -1417,10 +1418,12 @@ public class MapFragment extends Fragment implements ReportDetailBottomSheet.OnR
      */
     private void applyMapDeclutter() {
         if (mapboxMap == null) return;
+        boolean detailed = com.bombayashi.reporteciudadano.util.SettingsManager.getInstance(requireContext())
+                .isMapDetailedLabelsEnabled();
         mapboxMap.setStyleImportConfigProperty("basemap", "showPointOfInterestLabels",
-                com.mapbox.bindgen.Value.valueOf(false));
+                com.mapbox.bindgen.Value.valueOf(detailed));
         mapboxMap.setStyleImportConfigProperty("basemap", "showTransitLabels",
-                com.mapbox.bindgen.Value.valueOf(false));
+                com.mapbox.bindgen.Value.valueOf(detailed));
     }
 
     @Override

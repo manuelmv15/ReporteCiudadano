@@ -25,6 +25,7 @@ public class SettingsManager {
     private static final String KEY_MAP_PRESET = "map_preset";
     // "standard", "satellite"
     private static final String KEY_MAP_STYLE = "map_style";
+    private static final String KEY_MAP_DETAILED_LABELS = "map_detailed_labels";
     // SeekBar: 0→100m, 1→200m, 2→300m, 3→400m, 4→500m
     private static final int[] RADIUS_VALUES = {100, 200, 300, 400, 500};
 
@@ -158,5 +159,14 @@ public class SettingsManager {
 
     public void setMapStyle(String style) {
         prefs.edit().putString(KEY_MAP_STYLE, style).apply();
+    }
+
+    // Default true: lugares/comercios/transporte visibles (mapa base completo).
+    public boolean isMapDetailedLabelsEnabled() {
+        return prefs.getBoolean(KEY_MAP_DETAILED_LABELS, true);
+    }
+
+    public void setMapDetailedLabelsEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_MAP_DETAILED_LABELS, enabled).apply();
     }
 }

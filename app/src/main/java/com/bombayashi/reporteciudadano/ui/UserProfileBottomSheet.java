@@ -759,6 +759,10 @@ public class UserProfileBottomSheet extends BottomSheetDialogFragment {
             else                                              settingsManager.setMapPreset("auto");
         });
 
+        binding.swMapDetailedLabels.setChecked(settingsManager.isMapDetailedLabelsEnabled());
+        binding.swMapDetailedLabels.setOnCheckedChangeListener((buttonView, isChecked) ->
+                settingsManager.setMapDetailedLabelsEnabled(isChecked));
+
         binding.swNotifications.setChecked(settingsManager.isNotificationsEnabled());
         binding.swNotifications.setOnCheckedChangeListener((buttonView, isChecked) ->
                 settingsManager.setNotificationsEnabled(isChecked));
